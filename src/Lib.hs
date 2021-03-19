@@ -2,5 +2,7 @@ module Lib
     ( someFunc
     ) where
 
+import Market
+
 someFunc :: IO ()
-someFunc = putStrLn "someFunc"
+someFunc = putStrLn $ show ETH
