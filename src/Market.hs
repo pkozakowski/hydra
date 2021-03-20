@@ -9,11 +9,11 @@ import Market.Error
 import Market.Types
 
 class MonadExecutor m where
-    trade :: Asset -> Asset -> Amount -> m ()
-    tradeLimit :: Asset -> Asset -> Amount -> Price -> m OrderId
-    stake :: Asset -> Amount -> m OrderId
-    swap :: Asset -> Amount -> Asset -> Amount -> m OrderId
-    disown :: Asset -> Amount -> m ()
+    trade :: Asset -> Asset -> OrderAmount -> m ()
+    tradeLimit :: Asset -> Asset -> OrderAmount -> Price -> m OrderId
+    stake :: Asset -> OrderAmount -> m OrderId
+    swap :: Asset -> OrderAmount -> Asset -> OrderAmount -> m OrderId
+    disown :: Asset -> OrderAmount -> m ()
     cancel :: OrderId -> m ()
 
 class Instrument a where

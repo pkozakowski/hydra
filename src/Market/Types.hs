@@ -55,4 +55,8 @@ instance Module (Fraction Integer) AssetPortfolio
 
 newtype AssetPrices = AssetPrices (Map Asset Price)
 
+data OrderAmount
+    = Only Amount
+    | All
+
 newtype OrderId = OrderId Int
