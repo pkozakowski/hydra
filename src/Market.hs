@@ -17,7 +17,6 @@ class MonadExecutor m where
     cancel :: OrderId -> m ()
 
 class Instrument a where
-    ownedAssets :: a -> AssetPortfolio
     -- TODO: Make type-safe using extensible records?
     updateAssets :: AssetPortfolio -> StateT a ErrorM ()
     execute :: MonadExecutor m => AssetPrices -> StateT a m ()
