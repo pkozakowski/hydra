@@ -55,10 +55,4 @@ instance Module (Fraction Integer) AssetPortfolio
 
 newtype AssetPrices = AssetPrices (Map Asset Price)
 
--- TODO: Make a free monad/tagless final?
-data Order
-    = Trade Asset Asset Amount
-    | TradeLimit Asset Asset Amount Price
-    | Stake Asset Amount
-    | Swap Asset Amount Asset Amount
-    | Disown Asset Amount
+newtype OrderId = OrderId Int
