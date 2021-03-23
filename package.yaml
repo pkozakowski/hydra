@@ -24,6 +24,7 @@ dependencies:
 - containers
 - mtl
 - algebra
+- vinyl
 
 library:
   source-dirs: src

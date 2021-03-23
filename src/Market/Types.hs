@@ -1,21 +1,20 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Market.Types where
 
-import Data.Map
+import Data.Proxy
+import Data.Record.Hom
+import GHC.TypeLits
 import Numeric.Algebra
 import Numeric.Field.Fraction
-import Prelude hiding ((+), (*), map)
+import Prelude hiding ((+), (*))
 
-data Asset
-    = BTC
-    | ETH
-    | ADA
-    deriving (Eq, Ord, Show)
+type Asset (asset :: Symbol) = Proxy asset
 
 newtype Amount = Amount (Fraction Integer)
     deriving
@@ -25,6 +24,8 @@ newtype Amount = Amount (Fraction Integer)
         , Semiring
         , LeftModule Natural
         , RightModule Natural
+        , Monoidal
+        , Show
         )
 
 instance LeftModule (Fraction Integer) Amount where
@@ -37,23 +38,27 @@ instance Module (Fraction Integer) Amount
 
 newtype Price = Price (Fraction Integer)
 
-newtype AssetPortfolio = AssetPortfolio (Map Asset Amount)
+type Portfolio assets = HomRecord assets Amount
 
-instance Additive AssetPortfolio where
-    AssetPortfolio p1 + AssetPortfolio p2 = AssetPortfolio $ unionWith (+) p1 p2
+instance Applicative (HomRecord assets) => Additive (Portfolio assets) where
+    p1 + p2 = (+) <$> p1 <*> p2
 
-instance (Semiring a, LeftModule a Amount) => LeftModule a AssetPortfolio where
-    n .* AssetPortfolio p = AssetPortfolio $ map (n .*) p
+instance (Semiring a, LeftModule a Amount, Applicative (HomRecord assets))
+    => LeftModule a (Portfolio assets) where
 
-instance (Semiring a, RightModule a Amount) => RightModule a AssetPortfolio where
-    AssetPortfolio p *. n = AssetPortfolio $ map (*. n) p
+    n .* p = (n .*) <$> p
 
-instance Monoidal AssetPortfolio where
-    zero = AssetPortfolio empty
+instance (Semiring a, RightModule a Amount, Applicative (HomRecord assets))
+    => RightModule a (Portfolio assets) where
 
-instance Module (Fraction Integer) AssetPortfolio
+    p *. n = (*. n) <$> p
 
-newtype AssetPrices = AssetPrices (Map Asset Price)
+instance Applicative (HomRecord assets) => Monoidal (Portfolio assets) where
+    zero = pure zero
+
+instance Applicative (HomRecord assets) => Module (Fraction Integer) (Portfolio assets)
+
+newtype Prices assets = Prices (HomRecord assets Price)
 
 data OrderAmount
     = Only Amount
