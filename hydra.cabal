@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7e9041b0a4fef41bb417b6c0743d3d1311b78fc23caad94a2ad316c382535e9d
+-- hash: efc0096f72130de17e01f84fa42da1d20613554abd28096a99bf5eb0ad036c41
 
 name:           hydra
 version:        0.1.0.0
@@ -30,6 +30,7 @@ library
       Data.Record.Hom
       Market
       Market.Error
+      Market.Instrument
       Market.Types
   other-modules:
       Paths_hydra

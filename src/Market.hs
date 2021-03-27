@@ -1,5 +1,6 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Market
     ( module Market
@@ -7,24 +8,26 @@ module Market
     , module Market.Types
     ) where
 
-import Data.Record.Hom
 import Control.Monad.State
+import Data.Record.Hom
 import Market.Error
 import Market.Types
 
-class MonadExecutor assets m | m -> assets where
+class Monad m => MonadExecutor assets m | m -> assets where
 
-    trade :: (Has a1 assets, Has a2 assets) => Asset a1 -> OrderAmount -> Asset a2 -> m ()
+    trade
+        :: forall a1 a2. (Has a1 assets, Has a2 assets)
+        => Asset a1 -> OrderAmount -> Asset a2 -> m ()
 
-    stake :: Has a assets => Asset a -> OrderAmount -> m OrderId
+    stake :: forall a. Has a assets => Asset a -> OrderAmount -> m OrderId
 
     swap
-        :: (Has a1 assets, Has a2 assets)
+        :: forall a1 a2. (Has a1 assets, Has a2 assets)
         => Asset a1 -> OrderAmount -> Asset a2 -> OrderAmount -> m OrderId
 
-    disown :: Has a assets => Asset a -> OrderAmount -> m ()
+    disown :: forall a. Has a assets => Asset a -> OrderAmount -> m ()
 
     cancel :: OrderId -> m ()
 
-class Instrument assets i | i -> assets where
+class Instrument assets i where
     execute :: MonadExecutor assets m => Prices assets -> Portfolio assets -> StateT i m ()
