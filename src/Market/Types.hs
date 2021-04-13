@@ -12,7 +12,7 @@ import Data.Record.Hom
 import GHC.TypeLits
 import Numeric.Algebra
 import Numeric.Field.Fraction
-import Prelude hiding ((+), (*))
+import Prelude hiding ((*))
 
 type Asset (asset :: Symbol) = Proxy asset
 
@@ -36,27 +36,9 @@ instance RightModule (Fraction Integer) Amount where
 
 instance Module (Fraction Integer) Amount
 
-newtype Price = Price (Fraction Integer)
+newtype Price = Price (Fraction Integer) 
 
 type Portfolio assets = HomRecord assets Amount
-
-instance Applicative (HomRecord assets) => Additive (Portfolio assets) where
-    p1 + p2 = (+) <$> p1 <*> p2
-
-instance (Semiring a, LeftModule a Amount, Applicative (HomRecord assets))
-    => LeftModule a (Portfolio assets) where
-
-    n .* p = (n .*) <$> p
-
-instance (Semiring a, RightModule a Amount, Applicative (HomRecord assets))
-    => RightModule a (Portfolio assets) where
-
-    p *. n = (*. n) <$> p
-
-instance Applicative (HomRecord assets) => Monoidal (Portfolio assets) where
-    zero = pure zero
-
-instance Applicative (HomRecord assets) => Module (Fraction Integer) (Portfolio assets)
 
 newtype Prices assets = Prices (HomRecord assets Price)
 
