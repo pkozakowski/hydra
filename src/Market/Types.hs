@@ -16,30 +16,30 @@ import Prelude hiding ((*))
 
 type Asset (asset :: Symbol) = Proxy asset
 
+instance (Semiring a, Additive a) => LeftModule a a where
+    (.*) = (*)
+
+instance (Semiring a, Additive a) => RightModule a a where
+    (*.) = (*)
+
+instance (Semiring a, Additive a) => Module a a
+
 newtype Amount = Amount (Fraction Integer)
     deriving
         ( Additive
-        , Multiplicative
         , Abelian
-        , Semiring
         , LeftModule Natural
         , RightModule Natural
         , Monoidal
+        , LeftModule (Fraction Integer)
+        , RightModule (Fraction Integer)
+        , Module (Fraction Integer)
         , Show
         )
 
-instance LeftModule (Fraction Integer) Amount where
-    x .* Amount y = Amount $ x * y
-
-instance RightModule (Fraction Integer) Amount where
-    Amount x *. y = Amount $ x * y
-
-instance Module (Fraction Integer) Amount
-
-newtype Price = Price (Fraction Integer) 
-
 type Portfolio assets = HomRecord assets Amount
 
+newtype Price = Price (Fraction Integer)
 newtype Prices assets = Prices (HomRecord assets Price)
 
 data OrderAmount
