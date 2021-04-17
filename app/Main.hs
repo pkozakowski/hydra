@@ -4,6 +4,7 @@
 module Main where
 
 import Data.Record.Hom
+import Numeric.Absolute
 import Numeric.Algebra
 import Numeric.Field.Fraction
 import Market.Types

@@ -25,6 +25,7 @@ dependencies:
 - mtl
 - algebra
 - vinyl
+- template-haskell
 
 library:
   source-dirs: src

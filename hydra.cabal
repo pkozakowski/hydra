@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: efc0096f72130de17e01f84fa42da1d20613554abd28096a99bf5eb0ad036c41
+-- hash: 8fd1a15220ae41c6cc783b8830338c2814dcd46afa201d9332e9cc2ba8f1d1fb
 
 name:           hydra
 version:        0.1.0.0
@@ -32,6 +32,7 @@ library
       Market.Error
       Market.Instrument
       Market.Types
+      Numeric.Absolute
   other-modules:
       Paths_hydra
   hs-source-dirs:
@@ -41,6 +42,7 @@ library
     , base >=4.7 && <5
     , containers
     , mtl
+    , template-haskell
     , vinyl
   default-language: Haskell2010
 
@@ -57,6 +59,7 @@ executable hydra-exe
     , containers
     , hydra
     , mtl
+    , template-haskell
     , vinyl
   default-language: Haskell2010
 
@@ -74,5 +77,6 @@ test-suite hydra-test
     , containers
     , hydra
     , mtl
+    , template-haskell
     , vinyl
   default-language: Haskell2010

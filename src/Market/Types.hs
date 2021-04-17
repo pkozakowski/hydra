@@ -3,6 +3,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Market.Types where
@@ -10,6 +12,7 @@ module Market.Types where
 import Data.Proxy
 import Data.Record.Hom
 import GHC.TypeLits
+import Numeric.Absolute
 import Numeric.Algebra
 import Numeric.Field.Fraction
 import Prelude hiding ((*))
@@ -24,22 +27,14 @@ instance (Semiring a, Additive a) => RightModule a a where
 
 instance (Semiring a, Additive a) => Module a a
 
-newtype Amount = Amount (Fraction Integer)
-    deriving
-        ( Additive
-        , Abelian
-        , LeftModule Natural
-        , RightModule Natural
-        , Monoidal
-        , LeftModule (Fraction Integer)
-        , RightModule (Fraction Integer)
-        , Module (Fraction Integer)
-        , Show
-        )
+type Scalar = Fraction Integer
+
+newtype Amount = Amount Scalar deriving Show
+deriveAbsolute ''Scalar ''Amount
 
 type Portfolio assets = HomRecord assets Amount
 
-newtype Price = Price (Fraction Integer)
+newtype Price = Price Scalar
 newtype Prices assets = Prices (HomRecord assets Price)
 
 data OrderAmount
