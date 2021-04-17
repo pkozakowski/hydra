@@ -5,7 +5,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Numeric.Absolute where
+module Numeric.Relative where
 
 import Language.Haskell.TH
 import Numeric.Algebra
@@ -17,14 +17,19 @@ class
     , LeftModule Natural b
     , RightModule Natural b
     , Monoidal b
+    , LeftModule Integer b
+    , RightModule Integer b
+    , Group b
     , LeftModule a b
     , RightModule a b
-    ) => Absolute a b | b -> a
+    ) => Relative a b | b -> a
 
-deriveAbsolute :: Name -> Name -> Q [Dec]
-deriveAbsolute scr mod = fmap concat $ sequence [
+deriveRelative :: Name -> Name -> Q [Dec]
+deriveRelative scr mod = fmap concat $ sequence [
         deriveUnary mod [''Additive, ''Abelian],
         deriveBinary ''Natural mod [''LeftModule, ''RightModule],
         deriveUnary mod [''Monoidal],
-        deriveBinary scr mod [''LeftModule, ''RightModule, ''Absolute]
+        deriveBinary ''Integer mod [''LeftModule, ''RightModule],
+        deriveUnary mod [''Group],
+        deriveBinary scr mod [''LeftModule, ''RightModule, ''Relative]
     ]

@@ -15,6 +15,7 @@ import GHC.TypeLits
 import Numeric.Absolute
 import Numeric.Algebra
 import Numeric.Field.Fraction
+import Numeric.Relative
 import Prelude hiding ((*))
 
 type Asset (asset :: Symbol) = Proxy asset
@@ -29,8 +30,11 @@ instance (Semiring a, Additive a) => Module a a
 
 type Scalar = Fraction Integer
 
-newtype Amount = Amount Scalar deriving Show
+newtype Amount = Amount Scalar deriving (Eq, Ord, Show)
 deriveAbsolute ''Scalar ''Amount
+
+newtype AmountDelta = AmountDelta Scalar deriving (Eq, Ord, Show)
+deriveRelative ''Scalar ''AmountDelta
 
 type Portfolio assets = HomRecord assets Amount
 

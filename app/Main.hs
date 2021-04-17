@@ -4,8 +4,8 @@
 module Main where
 
 import Data.Record.Hom
-import Numeric.Absolute
 import Numeric.Algebra
+import Numeric.Delta
 import Numeric.Field.Fraction
 import Market.Types
 import Prelude hiding ((+), (*))
@@ -16,4 +16,14 @@ portfolio = set #btc (Amount $ 2 % 3) zero + half .* (#eth := (Amount $ 3 % 4) &
     half = 1 % 2
 
 main :: IO ()
-main = putStrLn $ show portfolio
+main = do
+    putStrLn $ show portfolio
+    let x = Amount $ 1 % 2
+        y = Amount $ 2 % 3
+        z = delta x y :: AmountDelta
+    putStrLn $ show z
+    let z10 = (10 :: Natural) .* z
+        y' = sigma y z
+    putStrLn $ show y'
+    let y'' = sigma y z10
+    putStrLn $ show y''
