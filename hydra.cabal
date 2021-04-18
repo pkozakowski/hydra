@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 538e1d18c3b0eda4042d05528c792989907c6cda77f79611cc15406b5c688782
+-- hash: 569ca7f1c1c7aa755fe2858fc757bd3bee630aaac8223e1731931d7f5d73fcf8
 
 name:           hydra
 version:        0.1.0.0
@@ -27,6 +27,7 @@ source-repository head
 
 library
   exposed-modules:
+      Data.Deriving
       Data.Record.Hom
       Market
       Market.Error
@@ -34,7 +35,6 @@ library
       Market.Types
       Numeric.Absolute
       Numeric.Delta
-      Numeric.Deriving
       Numeric.Relative
   other-modules:
       Paths_hydra

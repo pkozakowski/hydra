@@ -7,9 +7,9 @@
 
 module Numeric.Absolute where
 
+import Data.Deriving
 import Language.Haskell.TH
 import Numeric.Algebra
-import Numeric.Deriving
 
 class
     ( Additive b
@@ -21,10 +21,13 @@ class
     , RightModule a b
     ) => Absolute a b | b -> a
 
-deriveAbsolute :: Name -> Name -> Q [Dec]
-deriveAbsolute scr mod = fmap concat $ sequence [
-        deriveUnary mod [''Additive, ''Abelian],
-        deriveBinary ''Natural mod [''LeftModule, ''RightModule],
-        deriveUnary mod [''Monoidal],
-        deriveBinary scr mod [''LeftModule, ''RightModule, ''Absolute]
+deriveAbsolute' :: Cxt -> Name -> Type -> Q [Dec]
+deriveAbsolute' cxt scr mod = fmap concat $ sequence [
+        deriveUnary cxt mod [''Additive, ''Abelian],
+        deriveBinary cxt ''Natural mod [''LeftModule, ''RightModule],
+        deriveUnary cxt mod [''Monoidal],
+        deriveBinary cxt scr mod [''LeftModule, ''RightModule, ''Absolute]
     ]
+
+deriveAbsolute :: Name -> Name -> Q [Dec]
+deriveAbsolute scr = deriveAbsolute' [] scr . ConT

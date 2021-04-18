@@ -1,19 +1,26 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Market.Types where
 
+import Data.Coerce
 import Data.Proxy
-import Data.Record.Hom
+import Data.Record.Hom (HomRec, HomRecord, Labels)
+import qualified Data.Record.Hom as HR
 import GHC.TypeLits
 import Numeric.Absolute
 import Numeric.Algebra
+import Numeric.Delta
 import Numeric.Field.Fraction
 import Numeric.Relative
 import Prelude hiding ((*))
@@ -36,10 +43,21 @@ deriveAbsolute ''Scalar ''Amount
 newtype AmountDelta = AmountDelta Scalar deriving (Eq, Ord, Show)
 deriveRelative ''Scalar ''AmountDelta
 
-type Portfolio assets = HomRecord assets Amount
+deriveDeltaCmp ''Scalar ''Amount ''AmountDelta
+
+newtype Portfolio assets = Portfolio (HomRec Amount assets) deriving (HomRecord Amount)
+HR.deriveUnary ''Portfolio [''Show]
+HR.deriveAbsolute ''Scalar ''Portfolio
+
+newtype PortfolioDelta assets = PortfolioDelta (HomRec AmountDelta assets)
+    deriving (HomRecord AmountDelta)
+HR.deriveUnary ''PortfolioDelta [''Show]
+HR.deriveRelative ''Scalar ''PortfolioDelta
+
+HR.deriveDelta ''Scalar ''Portfolio ''PortfolioDelta
 
 newtype Price = Price Scalar
-newtype Prices assets = Prices (HomRecord assets Price)
+newtype Prices assets = Prices (HomRec Price assets)
 
 data OrderAmount
     = Only Amount

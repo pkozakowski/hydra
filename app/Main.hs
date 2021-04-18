@@ -20,10 +20,15 @@ main = do
     putStrLn $ show portfolio
     let x = Amount $ 1 % 2
         y = Amount $ 2 % 3
-        z = delta x y :: AmountDelta
+        z = delta x y
     putStrLn $ show z
     let z10 = (10 :: Natural) .* z
         y' = sigma y z
     putStrLn $ show y'
     let y'' = sigma y z10
     putStrLn $ show y''
+    let tenThirds = 10 % 3 :: Fraction Integer
+        portfolioDelta = delta portfolio $ tenThirds .* portfolio
+    putStrLn $ show portfolioDelta
+    let portfolio' = sigma portfolio portfolioDelta
+    putStrLn $ show portfolio'

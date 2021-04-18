@@ -7,9 +7,9 @@
 
 module Numeric.Relative where
 
+import Data.Deriving
 import Language.Haskell.TH
 import Numeric.Algebra
-import Numeric.Deriving
 
 class
     ( Additive b
@@ -24,12 +24,15 @@ class
     , RightModule a b
     ) => Relative a b | b -> a
 
-deriveRelative :: Name -> Name -> Q [Dec]
-deriveRelative scr mod = fmap concat $ sequence [
-        deriveUnary mod [''Additive, ''Abelian],
-        deriveBinary ''Natural mod [''LeftModule, ''RightModule],
-        deriveUnary mod [''Monoidal],
-        deriveBinary ''Integer mod [''LeftModule, ''RightModule],
-        deriveUnary mod [''Group],
-        deriveBinary scr mod [''LeftModule, ''RightModule, ''Relative]
+deriveRelative' :: Cxt -> Name -> Type -> Q [Dec]
+deriveRelative' cxt scr mod = fmap concat $ sequence [
+        deriveUnary cxt mod [''Additive, ''Abelian],
+        deriveBinary cxt ''Natural mod [''LeftModule, ''RightModule],
+        deriveUnary cxt mod [''Monoidal],
+        deriveBinary cxt ''Integer mod [''LeftModule, ''RightModule],
+        deriveUnary cxt mod [''Group],
+        deriveBinary cxt scr mod [''LeftModule, ''RightModule, ''Relative]
     ]
+
+deriveRelative :: Name -> Name -> Q [Dec]
+deriveRelative scr = deriveRelative' [] scr . ConT
