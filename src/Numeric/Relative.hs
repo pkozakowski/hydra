@@ -26,12 +26,12 @@ class
 
 deriveRelative' :: Cxt -> Name -> Type -> Q [Dec]
 deriveRelative' cxt scr mod = fmap concat $ sequence [
-        deriveUnary cxt mod [''Additive, ''Abelian],
-        deriveBinary cxt ''Natural mod [''LeftModule, ''RightModule],
-        deriveUnary cxt mod [''Monoidal],
-        deriveBinary cxt ''Integer mod [''LeftModule, ''RightModule],
-        deriveUnary cxt mod [''Group],
-        deriveBinary cxt scr mod [''LeftModule, ''RightModule, ''Relative]
+        deriveUnary' cxt mod [''Additive, ''Abelian],
+        deriveBinary' cxt ''Natural mod [''LeftModule, ''RightModule],
+        deriveUnary' cxt mod [''Monoidal],
+        deriveBinary' cxt ''Integer mod [''LeftModule, ''RightModule],
+        deriveUnary' cxt mod [''Group],
+        deriveBinary' cxt scr mod [''LeftModule, ''RightModule, ''Relative]
     ]
 
 deriveRelative :: Name -> Name -> Q [Dec]

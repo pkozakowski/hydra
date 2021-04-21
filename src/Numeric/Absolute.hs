@@ -23,10 +23,10 @@ class
 
 deriveAbsolute' :: Cxt -> Name -> Type -> Q [Dec]
 deriveAbsolute' cxt scr mod = fmap concat $ sequence [
-        deriveUnary cxt mod [''Additive, ''Abelian],
-        deriveBinary cxt ''Natural mod [''LeftModule, ''RightModule],
-        deriveUnary cxt mod [''Monoidal],
-        deriveBinary cxt scr mod [''LeftModule, ''RightModule, ''Absolute]
+        deriveUnary' cxt mod [''Additive, ''Abelian],
+        deriveBinary' cxt ''Natural mod [''LeftModule, ''RightModule],
+        deriveUnary' cxt mod [''Monoidal],
+        deriveBinary' cxt scr mod [''LeftModule, ''RightModule, ''Absolute]
     ]
 
 deriveAbsolute :: Name -> Name -> Q [Dec]

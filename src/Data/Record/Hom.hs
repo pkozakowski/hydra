@@ -6,6 +6,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -21,6 +22,7 @@ module Data.Record.Hom
     , (&)
     , get
     , set
+    , deriveHomRecord
     , deriveUnary
     , deriveAbsolute
     , deriveRelative
@@ -139,10 +141,14 @@ instance (Labels ls, Monoidal t) => Monoidal (HomRec t ls) where
 
 instance (Labels ls, Module a t) => Module a (HomRec t ls)
 
+deriveHomRecord :: Name -> Name -> Q [Dec]
+deriveHomRecord elem rec
+    = [d| deriving instance HomRecord $(conT elem) $(conT rec) |]
+
 deriveUnary :: Name -> [Name] -> Q [Dec]
 deriveUnary t cs = do
     (cxt, t') <- requireLabels t
-    Deriving.deriveUnary cxt t' cs
+    Deriving.deriveUnary' cxt t' cs
 
 deriveAbsolute :: Name -> Name -> Q [Dec]
 deriveAbsolute scr mod = do
