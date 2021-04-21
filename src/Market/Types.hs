@@ -23,6 +23,7 @@ import Numeric.Absolute
 import Numeric.Algebra
 import Numeric.Delta
 import Numeric.Field.Fraction
+import Numeric.Kappa
 import Numeric.Relative
 import Prelude hiding ((*))
 
@@ -69,12 +70,19 @@ deriveQuantityInstances ''Scalar ''Price ''PriceDelta ''Prices ''PriceDeltas
 newtype Value = Value Scalar
 newtype ValueDelta = ValueDelta Scalar
 
--- | Values held in each Asset.
+-- | Value held in each Asset.
 --
 newtype Values assets = Values (HomRec Value assets)
 newtype ValueDeltas assets = ValueDeltas (HomRec ValueDelta assets)
 
 deriveQuantityInstances ''Scalar ''Value ''ValueDelta ''Values ''ValueDeltas
+
+-- | Value = Amount * Price.
+--
+deriveKappaDivision ''Scalar ''Value ''Amount ''Price
+deriveKappaDivision ''Scalar ''ValueDelta ''AmountDelta ''PriceDelta
+HR.deriveKappa ''Values ''Portfolio ''Prices
+HR.deriveKappa ''ValueDeltas ''PortfolioDelta ''PriceDeltas
 
 data OrderAmount
     = Only Amount

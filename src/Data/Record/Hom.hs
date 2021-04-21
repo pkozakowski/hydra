@@ -27,6 +27,8 @@ module Data.Record.Hom
     , deriveAbsolute
     , deriveRelative
     , deriveDelta
+    , deriveKappa
+    , HomRecF
     ) where
 
 import Data.Coerce
@@ -44,9 +46,9 @@ import Language.Haskell.TH
 import Numeric.Absolute (Absolute, deriveAbsolute')
 import Numeric.Algebra
 import Numeric.Delta
-import Numeric.Field.Fraction
+import Numeric.Kappa
 import Numeric.Relative (Relative, deriveRelative')
-import Prelude hiding ((+), (-), (*))
+import Prelude hiding ((+), (-), (*), pi)
 
 newtype HomRec t ls = HomRec (Rec (Const t) ls)
 
@@ -171,20 +173,31 @@ deriveDelta scr abs rel = do
     TyConI (NewtypeD _ _ _ _ (NormalC relCons _) _) <- reify rel
     let absP v = conP absCons [varP v]
         relP v = conP relCons [varP v]
-        absE = conE absCons
-        relE = conE relCons
-    [d| instance Labels ls => Delta $(scrT) ($(absT) ls) ($(relT) ls) where
+    [d| instance Labels ls => Delta $(conT scr) ($(conT abs) ls) ($(conT rel) ls) where
 
-            delta $(absP xn) $(absP yn) = $(relE) $ (delta `fmapImpl` x) `apImpl` y
+            delta $(absP xn) $(absP yn) = $(conE relCons) $ (delta `fmapImpl` x) `apImpl` y
 
             sigma $(absP xn) $(relP yn)
-                = $(absE) <$> (sequenceAImpl $ sigma `fmapImpl` x `apImpl` y) |]
+                = $(conE absCons) <$> (sequenceAImpl $ sigma `fmapImpl` x `apImpl` y) |]
     where
         xn = mkName "x"
         yn = mkName "y"
-        scrT = conT scr
-        absT = conT abs
-        relT = conT rel
+
+deriveKappa :: Name -> Name -> Name -> Q [Dec]
+deriveKappa a b c = do
+    TyConI (NewtypeD _ _ _ _ (NormalC aCons _) _) <- reify a
+    TyConI (NewtypeD _ _ _ _ (NormalC bCons _) _) <- reify b
+    TyConI (NewtypeD _ _ _ _ (NormalC cCons _) _) <- reify c
+    let aP v = conP aCons [varP v]
+        bP v = conP bCons [varP v]
+        cP v = conP cCons [varP v]
+    [d| instance Labels ls => Kappa ($(conT a) ls) ($(conT b) ls) ($(conT c) ls) where
+            kappa $(aP xn) $(bP yn) = $(conE cCons) $ (kappa `fmapImpl` x) `apImpl` y
+            kappa' $(aP xn) $(cP yn) = $(conE bCons) $ (kappa' `fmapImpl` x) `apImpl` y
+            pi $(bP xn) $(cP yn) = $(conE aCons) $ (pi `fmapImpl` x) `apImpl` y |]
+    where
+        xn = mkName "x"
+        yn = mkName "y"
 
 newtype HomRecF ls t = HomRecF (HomRec t ls)
 

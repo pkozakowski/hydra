@@ -15,7 +15,7 @@ deriveQuantityInstances scr q qd qr qdr = fmap concat $ sequence $
     [deriveUnary t [''Eq, ''Ord, ''Show] | t <- [q, qd]] ++ [
         deriveAbsolute scr q,
         deriveRelative scr qd,
-        deriveDeltaCmp scr q qd
+        deriveDeltaOrd scr q qd
     ] ++
     -- Record instances:
     [HR.deriveHomRecord t tr | (t, tr) <- [(q, qr), (qd, qdr)]] ++

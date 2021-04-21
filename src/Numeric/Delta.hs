@@ -29,13 +29,9 @@ class (Absolute a b, Relative a c) => Delta a b c | b -> c, c -> b where
 
 -- | Derive an instance for a comparable Relative with the same representation as an Absolute.
 --
-deriveDeltaCmp :: Name -> Name -> Name -> Q [Dec]
-deriveDeltaCmp scr abs rel =
-    [d| instance Delta $(scrT) $(absT) $(relT) where
+deriveDeltaOrd :: Name -> Name -> Name -> Q [Dec]
+deriveDeltaOrd scr abs rel =
+    [d| instance Delta $(conT scr) $(conT abs) $(conT rel) where
             delta x y = coerce x - coerce y
             sigma x y = if z >= zero then Just (coerce z) else Nothing
                 where z = coerce x + y |]
-    where
-        scrT = conT scr
-        absT = conT abs
-        relT = conT rel
