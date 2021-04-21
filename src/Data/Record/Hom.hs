@@ -28,7 +28,7 @@ module Data.Record.Hom
     , deriveRelative
     , deriveDelta
     , deriveKappa
-    , HomRecF
+    , HomRecF (..)
     ) where
 
 import Data.Coerce
@@ -82,7 +82,7 @@ instance HomRecord t (HomRec t) where
 
     empty = HomRec RNil
 
-    (_ := x) & (HomRec r) = HomRec $ Const x :& r
+    _ := x & HomRec r = HomRec $ Const x :& r
 
     get :: forall t l ls. Has l ls => Proxy l -> HomRec t ls -> t
     get _ (HomRec r) = getConst $ (rget r :: Const t l)
@@ -199,7 +199,7 @@ deriveKappa a b c = do
         xn = mkName "x"
         yn = mkName "y"
 
-newtype HomRecF ls t = HomRecF (HomRec t ls)
+newtype HomRecF ls t = HomRecF { unHomRecF :: HomRec t ls }
 
 instance Labels ls => Functor (HomRecF ls) where
     fmap f (HomRecF x) = HomRecF $ fmapImpl f x

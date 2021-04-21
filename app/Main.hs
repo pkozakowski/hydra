@@ -8,6 +8,7 @@ import Numeric.Algebra
 import Numeric.Delta
 import Numeric.Field.Fraction
 import Numeric.Kappa
+import Numeric.Normalizable
 import Market.Types
 import Prelude hiding ((+), (*), pi)
 
@@ -50,3 +51,8 @@ main = do
     putStrLn $ show y'
     let values = pi portfolio prices
     putStrLn $ show values
+    let n = norm values
+        dist = normalize values
+    putStrLn $ show dist
+    let values' = unnormalize n dist
+    putStrLn $ show values'

@@ -15,7 +15,7 @@ module Market.Types where
 
 import Data.Coerce
 import Data.Proxy
-import Data.Record.Hom (HomRec, HomRecord, Labels)
+import Data.Record.Hom (HomRec, HomRecord, Labels, HomRecF (..))
 import qualified Data.Record.Hom as HR
 import GHC.TypeLits
 import Market.Deriving
@@ -24,8 +24,9 @@ import Numeric.Algebra
 import Numeric.Delta
 import Numeric.Field.Fraction
 import Numeric.Kappa
+import Numeric.Normalizable
 import Numeric.Relative
-import Prelude hiding ((*))
+import Prelude hiding ((+), (*), (/))
 
 type Asset (asset :: Symbol) = Proxy asset
 
@@ -83,6 +84,28 @@ deriveKappaDivision ''Scalar ''Value ''Amount ''Price
 deriveKappaDivision ''Scalar ''ValueDelta ''AmountDelta ''PriceDelta
 HR.deriveKappa ''Values ''Portfolio ''Prices
 HR.deriveKappa ''ValueDeltas ''PortfolioDelta ''PriceDeltas
+
+-- | Share of some quantity in a bigger whole. Doesn't make sense on its own.
+--
+newtype Share = Share Scalar
+newtype ShareDelta = ShareDelta Scalar
+
+-- | Distribution on Assets. Sums to 1.
+--
+newtype Distribution assets = Distribution (HomRec Share assets)
+
+-- | Delta between two Distributions. Sums to 0.
+--
+newtype DistributionDelta assets = DistributionDelta (HomRec ShareDelta assets)
+
+deriveQuantityInstances ''Scalar ''Share ''ShareDelta ''Distribution ''DistributionDelta
+
+-- | Only Values are (Un)Normalizable, because it only makes sense to add up Values held in
+-- different Assets.
+--
+deriveUnnormalizable ''Scalar ''Distribution ''Value ''Values
+deriveUnnormalizable ''Scalar ''DistributionDelta ''ValueDelta ''ValueDeltas
+deriveNormalizable ''Scalar '' Distribution ''Value ''Values
 
 data OrderAmount
     = Only Amount
