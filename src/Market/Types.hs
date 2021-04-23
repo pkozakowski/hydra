@@ -98,7 +98,7 @@ newtype Distribution assets = Distribution (HomRec Share assets)
 --
 newtype DistributionDelta assets = DistributionDelta (HomRec ShareDelta assets)
 
-deriveQuantityInstances ''Scalar ''Share ''ShareDelta ''Distribution ''DistributionDelta
+deriveDistributionInstances ''Scalar ''Share ''ShareDelta ''Distribution ''DistributionDelta
 
 -- | Only Values are (Un)Normalizable, because it only makes sense to add up Values held in
 -- different Assets.
