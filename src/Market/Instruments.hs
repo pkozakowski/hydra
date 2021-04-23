@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
@@ -11,9 +12,10 @@ import Control.Monad.Trans
 --import Data.DateTime
 import Data.Proxy
 import Data.Record.Hom
+import GHC.TypeLits
 import Market
 
-data Hold held released = Hold
+data Hold (held :: Symbol) (released :: Symbol) = Hold
 
 instance (Has held assets, Has released assets)
     => Instrument assets (Hold held released) where

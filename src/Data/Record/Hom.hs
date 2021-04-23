@@ -1,4 +1,6 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -13,16 +15,17 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Data.Record.Hom
-    ( HomRecord
-    , HomRec
+    ( HomRec
     , (:=) (..)
     , Has
+    , LabelIn (..)
     , Labels
     , empty
     , (&)
+    , (!)
     , get
     , set
-    , deriveHomRecord
+    , toList
     , deriveUnary
     , deriveAbsolute
     , deriveRelative
@@ -32,12 +35,13 @@ module Data.Record.Hom
     ) where
 
 import Data.Coerce
+import Data.Constraint
 import qualified Data.Deriving as Deriving
 import Data.Kind hiding (Type)
 import Data.Monoid
 import Data.Proxy
 import Data.Type.Equality
-import Data.Vinyl hiding ((:~:))
+import Data.Vinyl hiding ((:~:), Dict)
 import Data.Vinyl.Functor
 import Data.Vinyl.TypeLevel
 import GHC.OverloadedLabels
@@ -49,6 +53,7 @@ import Numeric.Delta
 import Numeric.Kappa
 import Numeric.Relative (Relative, deriveRelative')
 import Prelude hiding ((+), (-), (*), pi)
+import Unsafe.Coerce
 
 newtype HomRec t ls = HomRec (Rec (Const t) ls)
 
@@ -58,37 +63,54 @@ infix 6 :=
 instance l ~ l' => IsLabel (l :: Symbol) (Proxy l') where
     fromLabel = Proxy
 
-type family Has (l :: u) (ls :: [u]) :: Constraint where
-    Has l ls = RecElem Rec l l ls ls (RIndex l ls)
+-- | Witness types needed to avoid overlapping instances of Has.
+data AtHead
+data AtTail
+
+type family Where (l :: u) (ls :: [u]) where
+    Where l (l ': _) = AtHead
+    Where l (_ ': ls) = AtTail
+
+type Has l ls = HasAt l ls (Where l ls)
+
+class wtn ~ Where l ls => HasAt l ls wtn where
+    get :: Proxy l -> HomRec t ls -> t
+    set :: Proxy l -> t -> HomRec t ls -> HomRec t ls
+
+instance HasAt l (l ': ls) AtHead where
+
+    get _ (HomRec (Const x :& _)) = x
+    set _ x (HomRec (_ :& xr)) = HomRec $ Const x :& xr
+
+instance (HasAt l ls i, Where l (l' ': ls) ~ AtTail) => HasAt l (l' ': ls) AtTail where
+
+    get lp (HomRec (_ :& xr)) = get lp $ HomRec xr
+    set lp x (HomRec (y :& yr)) = HomRec $ y :& coerce (set lp x $ HomRec yr)
+
+-- | The typechecker can't prove this for us, so we cheat a little bit.
+membershipMonotonicity :: Has l ls :- Has l (l' ': ls)
+membershipMonotonicity = unmapDict unsafeCoerce
 
 type family NoDuplicateIn (l :: u) (ls :: [u]) :: Constraint where
     NoDuplicateIn l '[] = ()
     NoDuplicateIn l (l ': ls) = TypeError (Text "Duplicate key " :<>: ShowType l :<>: Text ".")
-    NoDuplicateIn l (_ : ls) = NoDuplicateIn l ls
+    NoDuplicateIn l (_ ': ls) = NoDuplicateIn l ls
 
-class HomRecord t (r :: [Symbol] -> *) | r -> t where
-    empty :: r '[]
-    (&) :: (NoDuplicateIn l ls, KnownSymbol l, Labels ls) => l := t -> r ls -> r (l ': ls)
-    get :: Has l ls => Proxy l -> r ls -> t
-    set :: Has l ls => Proxy l -> t -> r ls -> r ls
+-- | Label with a membership proof.
+data LabelIn ls = forall l. LabelIn (Dict (Has l ls))
 
 infixr 5 &
 infixl 9 !
 
-(!) :: (Has l ls, HomRecord t r) => r ls -> Proxy l -> t
+(!) :: Has l ls => HomRec t ls -> Proxy l -> t
 (!) = flip get
 
-instance HomRecord t (HomRec t) where
+empty :: HomRec t '[]
+empty = HomRec RNil
 
-    empty = HomRec RNil
-
-    _ := x & HomRec r = HomRec $ Const x :& r
-
-    get :: forall t l ls. Has l ls => Proxy l -> HomRec t ls -> t
-    get _ (HomRec r) = getConst $ (rget r :: Const t l)
-    set :: forall t l ls. Has l ls
-        => Proxy l -> t -> HomRec t ls -> HomRec t ls
-    set _ x (HomRec r) = HomRec $ rput (Const x :: Const t l) r
+(&) :: (NoDuplicateIn l ls, KnownSymbol l, Labels ls)
+    => l := t -> HomRec t ls -> HomRec t (l ': ls)
+_ := x & HomRec r = HomRec $ Const x :& r
 
 class RecordToList (ls :: [Symbol]) => Labels ls where
     fmapImpl :: (a -> b) -> HomRec a ls -> HomRec b ls
@@ -97,6 +119,7 @@ class RecordToList (ls :: [Symbol]) => Labels ls where
     foldMapImpl :: Monoid m => (a -> m) -> HomRec a ls -> m
     sequenceAImpl :: Applicative f => HomRec (f a) ls -> f (HomRec a ls)
     symbolVals :: Proxy ls -> [String]
+    toList :: HomRec t ls -> [(LabelIn ls, t)]
 
 instance Labels '[] where
     fmapImpl _ _ = HomRec RNil
@@ -105,6 +128,7 @@ instance Labels '[] where
     foldMapImpl _ _ = mempty
     sequenceAImpl _ = pure $ HomRec RNil
     symbolVals _ = []
+    toList _ = []
 
 instance (NoDuplicateIn l ls, KnownSymbol l, Labels ls) => Labels (l ': ls) where
 
@@ -122,6 +146,14 @@ instance (NoDuplicateIn l ls, KnownSymbol l, Labels ls) => Labels (l ': ls) wher
         fxr = coerce <$> sequenceAImpl (HomRec xr)
 
     symbolVals _ = symbolVal (Proxy :: Proxy l) : symbolVals (Proxy :: Proxy ls)
+
+    toList (HomRec (Const x :& xr))
+        = (LabelIn (Dict :: Dict (HasAt l (l ': ls) AtHead)), x)
+        : fmap inj (toList $ HomRec xr)
+        where
+            inj :: (LabelIn ls, t) -> (LabelIn (l ': ls), t)
+            inj (LabelIn (proof :: Dict (Has l' ls)), x) = (LabelIn proof', x) where
+                proof' = mapDict membershipMonotonicity proof
 
 instance (Labels ls, Show t) => Show (HomRec t ls) where
     show (HomRec r) = show $ zip (symbolVals (Proxy :: Proxy ls)) $ recordToList r
@@ -142,10 +174,6 @@ instance (Labels ls, Monoidal t) => Monoidal (HomRec t ls) where
     zero = pureImpl zero
 
 instance (Labels ls, Module a t) => Module a (HomRec t ls)
-
-deriveHomRecord :: Name -> Name -> Q [Dec]
-deriveHomRecord elem rec
-    = [d| deriving instance HomRecord $(conT elem) $(conT rec) |]
 
 deriveUnary :: Name -> [Name] -> Q [Dec]
 deriveUnary t cs = do

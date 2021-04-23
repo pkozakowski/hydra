@@ -26,6 +26,7 @@ dependencies:
 - algebra
 - vinyl
 - template-haskell
+- constraints
 
 library:
   source-dirs: src

@@ -13,13 +13,16 @@ import Market.Types
 import Prelude hiding ((+), (*), pi)
 
 portfolio :: Portfolio '["eth", "btc", "ada"]
-portfolio = set #btc (Amount $ 2 % 3) zero + half .* (#eth := (Amount $ 3 % 4) & zero) where
-    half :: Fraction Integer
-    half = 1 % 2
+portfolio = Portfolio $
+    set #btc (Amount $ 2 % 3) zero +
+    half .* (#eth := (Amount $ 3 % 4) & zero)
+    where
+        half :: Fraction Integer
+        half = 1 % 2
 
 prices :: Prices '["eth", "btc", "ada"]
-prices
-    = #eth := (Price $ 3 % 4)
+prices = Prices
+    $ #eth := (Price $ 3 % 4)
     & #btc := (Price $ 4 % 3)
     & #ada := (Price $ 5 % 2)
     & empty

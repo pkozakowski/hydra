@@ -21,9 +21,24 @@ deriveQuantityInstances scr q qd qr qdr = fmap concat $ sequence $
         deriveDeltaOrd scr q qd
     ] ++
     -- Record instances:
-    [HR.deriveHomRecord t tr | (t, tr) <- [(q, qr), (qd, qdr)]] ++
     [HR.deriveUnary tr [''Show] | tr <- [qr, qdr]] ++ [
         HR.deriveAbsolute scr qr,
+        HR.deriveRelative scr qdr,
+        HR.deriveDelta scr qr qdr
+    ]
+
+-- | Same as above, but without an Absolute instance, as it doesn't make sense to e.g. add two
+-- Distributions.
+--
+deriveDistributionInstances :: Name -> Name -> Name -> Name -> Name -> Q [Dec]
+deriveDistributionInstances scr q qd qr qdr = fmap concat $ sequence $
+    -- Scalar instances:
+    [deriveUnary t [''Eq, ''Ord, ''Show] | t <- [q, qd]] ++ [
+        deriveRelative scr qd,
+        deriveDeltaOrd scr q qd
+    ] ++
+    -- Record instances:
+    [HR.deriveUnary tr [''Show] | tr <- [qr, qdr]] ++ [
         HR.deriveRelative scr qdr,
         HR.deriveDelta scr qr qdr
     ]

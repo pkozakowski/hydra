@@ -15,7 +15,7 @@ module Market.Types where
 
 import Data.Coerce
 import Data.Proxy
-import Data.Record.Hom (HomRec, HomRecord, Labels, HomRecF (..))
+import Data.Record.Hom (HomRec, Labels, HomRecF (..))
 import qualified Data.Record.Hom as HR
 import GHC.TypeLits
 import Market.Deriving

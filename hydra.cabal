@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1687e46ef2d4297215dcd806d294eca994c066c8104bfbad2988d296395f251e
+-- hash: ec68c8fefc08945a5ccb47c703c3779ea834ec41cdaf2baa8eb559fdd2563764
 
 name:           hydra
 version:        0.1.0.0
@@ -46,6 +46,7 @@ library
   build-depends:
       algebra
     , base >=4.7 && <5
+    , constraints
     , containers
     , mtl
     , template-haskell
@@ -62,6 +63,7 @@ executable hydra-exe
   build-depends:
       algebra
     , base >=4.7 && <5
+    , constraints
     , containers
     , hydra
     , mtl
@@ -80,6 +82,7 @@ test-suite hydra-test
   build-depends:
       algebra
     , base >=4.7 && <5
+    , constraints
     , containers
     , hydra
     , mtl
