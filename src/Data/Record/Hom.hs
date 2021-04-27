@@ -31,7 +31,6 @@ module Data.Record.Hom
     , deriveRelative
     , deriveDelta
     , deriveKappa
-    , HomRecF (..)
     ) where
 
 import Data.Coerce
@@ -55,7 +54,7 @@ import Numeric.Relative (Relative, deriveRelative')
 import Prelude hiding ((+), (-), (*), pi)
 import Unsafe.Coerce
 
-newtype HomRec t ls = HomRec (Rec (Const t) ls)
+newtype HomRec ls t = HomRec (Rec (Const t) ls)
 
 data label := value = Proxy label := value
 infix 6 :=
@@ -74,8 +73,8 @@ type family Where (l :: u) (ls :: [u]) where
 type Has l ls = HasAt l ls (Where l ls)
 
 class wtn ~ Where l ls => HasAt l ls wtn where
-    get :: Proxy l -> HomRec t ls -> t
-    set :: Proxy l -> t -> HomRec t ls -> HomRec t ls
+    get :: Proxy l -> HomRec ls t -> t
+    set :: Proxy l -> t -> HomRec ls t -> HomRec ls t
 
 instance HasAt l (l ': ls) AtHead where
 
@@ -102,24 +101,24 @@ data LabelIn ls = forall l. LabelIn (Dict (Has l ls))
 infixr 5 &
 infixl 9 !
 
-(!) :: Has l ls => HomRec t ls -> Proxy l -> t
+(!) :: Has l ls => HomRec ls t -> Proxy l -> t
 (!) = flip get
 
-empty :: HomRec t '[]
+empty :: HomRec '[] t
 empty = HomRec RNil
 
 (&) :: (NoDuplicateIn l ls, KnownSymbol l, Labels ls)
-    => l := t -> HomRec t ls -> HomRec t (l ': ls)
+    => l := t -> HomRec ls t -> HomRec (l ': ls) t
 _ := x & HomRec r = HomRec $ Const x :& r
 
 class RecordToList (ls :: [Symbol]) => Labels ls where
-    fmapImpl :: (a -> b) -> HomRec a ls -> HomRec b ls
-    pureImpl :: a -> HomRec a ls
-    apImpl :: HomRec (a -> b) ls -> HomRec a ls -> HomRec b ls
-    foldMapImpl :: Monoid m => (a -> m) -> HomRec a ls -> m
-    sequenceAImpl :: Applicative f => HomRec (f a) ls -> f (HomRec a ls)
+    fmapImpl :: (a -> b) -> HomRec ls a -> HomRec ls b
+    pureImpl :: a -> HomRec ls a
+    apImpl :: HomRec ls (a -> b) -> HomRec ls a -> HomRec ls b
+    foldMapImpl :: Monoid m => (a -> m) -> HomRec ls a -> m
+    sequenceAImpl :: Applicative f => HomRec ls (f a) -> f (HomRec ls a)
     symbolVals :: Proxy ls -> [String]
-    toList :: HomRec t ls -> [(LabelIn ls, t)]
+    toList :: HomRec ls t -> [(LabelIn ls, t)]
 
 instance Labels '[] where
     fmapImpl _ _ = HomRec RNil
@@ -135,7 +134,7 @@ instance (NoDuplicateIn l ls, KnownSymbol l, Labels ls) => Labels (l ': ls) wher
     fmapImpl f (HomRec (Const x :& r))
         = HomRec $ Const (f x) :& coerce (fmapImpl f (HomRec r))
 
-    pureImpl (x :: t) = HomRec $ Const x :& coerce (pureImpl x :: HomRec t ls)
+    pureImpl (x :: t) = HomRec $ Const x :& coerce (pureImpl x :: HomRec ls t)
 
     apImpl (HomRec (Const f :& fr)) (HomRec (Const x :& xr))
         = HomRec $ Const (f x) :& coerce (HomRec fr `apImpl` HomRec xr)
@@ -155,25 +154,38 @@ instance (NoDuplicateIn l ls, KnownSymbol l, Labels ls) => Labels (l ': ls) wher
             inj (LabelIn (proof :: Dict (Has l' ls)), x) = (LabelIn proof', x) where
                 proof' = mapDict membershipMonotonicity proof
 
-instance (Labels ls, Show t) => Show (HomRec t ls) where
+instance Labels ls => Functor (HomRec ls) where
+    fmap = fmapImpl
+
+instance Labels ls => Applicative (HomRec ls) where
+    pure = pureImpl
+    (<*>) = apImpl
+
+instance Labels ls => Foldable (HomRec ls) where
+    foldMap = foldMapImpl
+
+instance Labels ls => Traversable (HomRec ls) where
+    sequenceA = sequenceAImpl
+
+instance (Labels ls, Show t) => Show (HomRec ls t) where
     show (HomRec r) = show $ zip (symbolVals (Proxy :: Proxy ls)) $ recordToList r
 
-instance (Labels ls, Additive t) => Additive (HomRec t ls) where
-    p1 + p2 = (+) `fmapImpl` p1 `apImpl` p2
+instance (Labels ls, Additive t) => Additive (HomRec ls t) where
+    p1 + p2 = (+) <$> p1 <*> p2
 
-instance (Labels ls, Group t) => Group (HomRec t ls) where
-    p1 - p2 = (-) `fmapImpl` p1 `apImpl` p2
+instance (Labels ls, Group t) => Group (HomRec ls t) where
+    p1 - p2 = (-) <$> p1 <*> p2
 
-instance (Labels ls, LeftModule a t) => LeftModule a (HomRec t ls) where
-    n .* p = (n .*) `fmapImpl` p
+instance (Labels ls, LeftModule a t) => LeftModule a (HomRec ls t) where
+    n .* p = (n .*) <$> p
 
-instance (Labels ls, RightModule a t) => RightModule a (HomRec t ls) where
-    p *. n = (*. n) `fmapImpl` p
+instance (Labels ls, RightModule a t) => RightModule a (HomRec ls t) where
+    p *. n = (*. n) <$> p
 
-instance (Labels ls, Monoidal t) => Monoidal (HomRec t ls) where
+instance (Labels ls, Monoidal t) => Monoidal (HomRec ls t) where
     zero = pureImpl zero
 
-instance (Labels ls, Module a t) => Module a (HomRec t ls)
+instance (Labels ls, Module a t) => Module a (HomRec ls t)
 
 deriveUnary :: Name -> [Name] -> Q [Dec]
 deriveUnary t cs = do
@@ -226,18 +238,3 @@ deriveKappa a b c = do
     where
         xn = mkName "x"
         yn = mkName "y"
-
-newtype HomRecF ls t = HomRecF { unHomRecF :: HomRec t ls }
-
-instance Labels ls => Functor (HomRecF ls) where
-    fmap f (HomRecF x) = HomRecF $ fmapImpl f x
-
-instance Labels ls => Applicative (HomRecF ls) where
-    pure = HomRecF . pureImpl
-    HomRecF f <*> HomRecF x = HomRecF $ f `apImpl` x
-
-instance Labels ls => Foldable (HomRecF ls) where
-    foldMap f (HomRecF x) = foldMapImpl f x
-
-instance Labels ls => Traversable (HomRecF ls) where
-    sequenceA (HomRecF x) = HomRecF <$> sequenceAImpl x

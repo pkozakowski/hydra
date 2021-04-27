@@ -51,10 +51,10 @@ deriveNormalizable scr d q qr = do
     [d| instance HR.Labels assets =>
             Normalizable ($(conT d) assets) $(conT q) ($(conT qr) assets) where
 
-            norm $(qrP) = foldl (+) zero $ HR.HomRecF qrn
+            norm $(qrP) = foldl (+) zero qrn
 
             normalize qs@($(qrP))
-                = $(conE dCon) $ HR.unHomRecF $ coerce . div <$> HR.HomRecF qrn where
+                = $(conE dCon) $ coerce . div <$> qrn where
                     div x = coerce x / coerce n :: $(conT scr)
                     n = norm qs |]
 
@@ -66,5 +66,5 @@ deriveUnnormalizable scr d q qr = do
             Unnormalizable ($(conT d) assets) $(conT q) ($(conT qr) assets) where
 
             unnormalize n $(conP dCon [varP $ mkName "sr"])
-                = $(conE qrCon) $ HR.unHomRecF $ coerce . mul <$> HR.HomRecF sr where
+                = $(conE qrCon) $ coerce . mul <$> sr where
                     mul x = coerce n * coerce x :: $(conT scr) |]

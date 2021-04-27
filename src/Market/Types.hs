@@ -15,7 +15,7 @@ module Market.Types where
 
 import Data.Coerce
 import Data.Proxy
-import Data.Record.Hom (HomRec, Labels, HomRecF (..))
+import Data.Record.Hom (HomRec, Labels)
 import qualified Data.Record.Hom as HR
 import GHC.TypeLits
 import Market.Deriving
@@ -49,8 +49,8 @@ newtype AmountDelta = AmountDelta Scalar
 
 -- | Portfolio is a record of Amounts for each Asset.
 --
-newtype Portfolio assets = Portfolio (HomRec Amount assets)
-newtype PortfolioDelta assets = PortfolioDelta (HomRec AmountDelta assets)
+newtype Portfolio assets = Portfolio (HomRec assets Amount)
+newtype PortfolioDelta assets = PortfolioDelta (HomRec assets AmountDelta)
 
 deriveQuantityInstances ''Scalar ''Amount ''AmountDelta ''Portfolio ''PortfolioDelta
 
@@ -61,8 +61,8 @@ newtype PriceDelta = PriceDelta Scalar
 
 -- | Record of Prices for each Asset.
 --
-newtype Prices assets = Prices (HomRec Price assets)
-newtype PriceDeltas assets = PriceDeltas (HomRec PriceDelta assets)
+newtype Prices assets = Prices (HomRec assets Price)
+newtype PriceDeltas assets = PriceDeltas (HomRec assets PriceDelta)
 
 deriveQuantityInstances ''Scalar ''Price ''PriceDelta ''Prices ''PriceDeltas
 
@@ -73,8 +73,8 @@ newtype ValueDelta = ValueDelta Scalar
 
 -- | Value held in each Asset.
 --
-newtype Values assets = Values (HomRec Value assets)
-newtype ValueDeltas assets = ValueDeltas (HomRec ValueDelta assets)
+newtype Values assets = Values (HomRec assets Value)
+newtype ValueDeltas assets = ValueDeltas (HomRec assets ValueDelta)
 
 deriveQuantityInstances ''Scalar ''Value ''ValueDelta ''Values ''ValueDeltas
 
@@ -92,11 +92,11 @@ newtype ShareDelta = ShareDelta Scalar
 
 -- | Distribution on Assets. Sums to 1.
 --
-newtype Distribution assets = Distribution (HomRec Share assets)
+newtype Distribution assets = Distribution (HomRec assets Share)
 
 -- | Delta between two Distributions. Sums to 0.
 --
-newtype DistributionDelta assets = DistributionDelta (HomRec ShareDelta assets)
+newtype DistributionDelta assets = DistributionDelta (HomRec assets ShareDelta)
 
 deriveDistributionInstances ''Scalar ''Share ''ShareDelta ''Distribution ''DistributionDelta
 
