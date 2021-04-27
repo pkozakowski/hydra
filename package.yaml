@@ -24,7 +24,6 @@ dependencies:
 - containers
 - mtl
 - algebra
-- vinyl
 - template-haskell
 - constraints
 

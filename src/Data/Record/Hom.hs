@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
@@ -15,13 +16,11 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Data.Record.Hom
-    ( HomRec
+    ( HomRec (..)
     , (:=) (..)
     , Has
     , LabelIn (..)
     , Labels
-    , empty
-    , (&)
     , (!)
     , get
     , set
@@ -40,9 +39,6 @@ import Data.Kind hiding (Type)
 import Data.Monoid
 import Data.Proxy
 import Data.Type.Equality
-import Data.Vinyl hiding ((:~:), Dict)
-import Data.Vinyl.Functor
-import Data.Vinyl.TypeLevel
 import GHC.OverloadedLabels
 import GHC.TypeLits
 import Language.Haskell.TH
@@ -54,10 +50,18 @@ import Numeric.Relative (Relative, deriveRelative')
 import Prelude hiding ((+), (-), (*), pi)
 import Unsafe.Coerce
 
-newtype HomRec ls t = HomRec (Rec (Const t) ls)
-
 data label := value = Proxy label := value
+
+data HomRec ls t where
+
+    (:&)
+        :: (NoDuplicateIn l ls, KnownSymbol l, Labels ls)
+        => l := t -> HomRec ls t -> HomRec (l ': ls) t
+
+    Empty :: HomRec '[] t
+
 infix 6 :=
+infixr 5 :&
 
 instance l ~ l' => IsLabel (l :: Symbol) (Proxy l') where
     fromLabel = Proxy
@@ -78,13 +82,13 @@ class wtn ~ Where l ls => HasAt l ls wtn where
 
 instance HasAt l (l ': ls) AtHead where
 
-    get _ (HomRec (Const x :& _)) = x
-    set _ x (HomRec (_ :& xr)) = HomRec $ Const x :& xr
+    get _ (_ := x :& _) = x
+    set lp x (_ :& r) = lp := x :& r
 
 instance (HasAt l ls i, Where l (l' ': ls) ~ AtTail) => HasAt l (l' ': ls) AtTail where
 
-    get lp (HomRec (_ :& xr)) = get lp $ HomRec xr
-    set lp x (HomRec (y :& yr)) = HomRec $ y :& coerce (set lp x $ HomRec yr)
+    get lp (_ :& r) = get lp r
+    set lp x (fld :& r) = fld :& set lp x r
 
 -- | The typechecker can't prove this for us, so we cheat a little bit.
 membershipMonotonicity :: Has l ls :- Has l (l' ': ls)
@@ -98,20 +102,12 @@ type family NoDuplicateIn (l :: u) (ls :: [u]) :: Constraint where
 -- | Label with a membership proof.
 data LabelIn ls = forall l. LabelIn (Dict (Has l ls))
 
-infixr 5 &
-infixl 9 !
-
 (!) :: Has l ls => HomRec ls t -> Proxy l -> t
 (!) = flip get
 
-empty :: HomRec '[] t
-empty = HomRec RNil
+infixl 9 !
 
-(&) :: (NoDuplicateIn l ls, KnownSymbol l, Labels ls)
-    => l := t -> HomRec ls t -> HomRec (l ': ls) t
-_ := x & HomRec r = HomRec $ Const x :& r
-
-class RecordToList (ls :: [Symbol]) => Labels ls where
+class Labels ls where
     fmapImpl :: (a -> b) -> HomRec ls a -> HomRec ls b
     pureImpl :: a -> HomRec ls a
     apImpl :: HomRec ls (a -> b) -> HomRec ls a -> HomRec ls b
@@ -121,34 +117,25 @@ class RecordToList (ls :: [Symbol]) => Labels ls where
     toList :: HomRec ls t -> [(LabelIn ls, t)]
 
 instance Labels '[] where
-    fmapImpl _ _ = HomRec RNil
-    pureImpl _ = HomRec RNil
-    apImpl _ _ = HomRec RNil
+    fmapImpl _ _ = Empty
+    pureImpl _ = Empty
+    apImpl _ _ = Empty
     foldMapImpl _ _ = mempty
-    sequenceAImpl _ = pure $ HomRec RNil
+    sequenceAImpl _ = pure Empty
     symbolVals _ = []
     toList _ = []
 
 instance (NoDuplicateIn l ls, KnownSymbol l, Labels ls) => Labels (l ': ls) where
-
-    fmapImpl f (HomRec (Const x :& r))
-        = HomRec $ Const (f x) :& coerce (fmapImpl f (HomRec r))
-
-    pureImpl (x :: t) = HomRec $ Const x :& coerce (pureImpl x :: HomRec ls t)
-
-    apImpl (HomRec (Const f :& fr)) (HomRec (Const x :& xr))
-        = HomRec $ Const (f x) :& coerce (HomRec fr `apImpl` HomRec xr)
-
-    foldMapImpl f (HomRec (Const x :& xr)) = f x <> foldMapImpl f (HomRec xr)
-
-    sequenceAImpl (HomRec (Const x :& xr)) = HomRec <$> ((:&) . Const <$> x <*> fxr) where
-        fxr = coerce <$> sequenceAImpl (HomRec xr)
-
+    fmapImpl f (lp := x :& r) = lp := f x :& fmapImpl f r
+    pureImpl (x :: t) = Proxy := x :& (pureImpl x :: HomRec ls t)
+    apImpl (lp := f :& fr) (_ := x :& xr) = lp := f x :& fr `apImpl` xr
+    foldMapImpl f (lp := x :& r) = f x <> foldMapImpl f r
+    sequenceAImpl (lp := x :& r) = (:&) . (lp :=) <$> x <*> sequenceAImpl r
     symbolVals _ = symbolVal (Proxy :: Proxy l) : symbolVals (Proxy :: Proxy ls)
 
-    toList (HomRec (Const x :& xr))
+    toList (lp := x :& r)
         = (LabelIn (Dict :: Dict (HasAt l (l ': ls) AtHead)), x)
-        : fmap inj (toList $ HomRec xr)
+        : fmap inj (toList r)
         where
             inj :: (LabelIn ls, t) -> (LabelIn (l ': ls), t)
             inj (LabelIn (proof :: Dict (Has l' ls)), x) = (LabelIn proof', x) where
@@ -168,7 +155,7 @@ instance Labels ls => Traversable (HomRec ls) where
     sequenceA = sequenceAImpl
 
 instance (Labels ls, Show t) => Show (HomRec ls t) where
-    show (HomRec r) = show $ zip (symbolVals (Proxy :: Proxy ls)) $ recordToList r
+    show = show . zip (symbolVals (Proxy :: Proxy ls)) . map snd . toList
 
 instance (Labels ls, Additive t) => Additive (HomRec ls t) where
     p1 + p2 = (+) <$> p1 <*> p2

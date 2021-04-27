@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ec68c8fefc08945a5ccb47c703c3779ea834ec41cdaf2baa8eb559fdd2563764
+-- hash: 9c9b67e6ffd151809ab3b7b215efa57af2fe36ebdc5480ccc63cb8498394deda
 
 name:           hydra
 version:        0.1.0.0
@@ -50,7 +50,6 @@ library
     , containers
     , mtl
     , template-haskell
-    , vinyl
   default-language: Haskell2010
 
 executable hydra-exe
@@ -68,7 +67,6 @@ executable hydra-exe
     , hydra
     , mtl
     , template-haskell
-    , vinyl
   default-language: Haskell2010
 
 test-suite hydra-test
@@ -87,5 +85,4 @@ test-suite hydra-test
     , hydra
     , mtl
     , template-haskell
-    , vinyl
   default-language: Haskell2010
