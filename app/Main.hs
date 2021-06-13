@@ -9,6 +9,7 @@ import Numeric.Delta
 import Numeric.Field.Fraction
 import Numeric.Kappa
 import Numeric.Normalizable
+import Market.Ops
 import Market.Types
 import Prelude hiding ((+), (*), pi)
 
@@ -29,33 +30,44 @@ prices = Prices
 
 main :: IO ()
 main = do
-    putStrLn $ show portfolio
+    print portfolio
     let x = Amount $ 1 % 2
         y = Amount $ 2 % 3
         z = delta x y
-    putStrLn $ show z
+    print z
     let z10 = (10 :: Natural) .* z
         y' = sigma y z
-    putStrLn $ show y'
+    print y'
     let y'' = sigma y z10
-    putStrLn $ show y''
+    print y''
     let tenThirds = 10 % 3 :: Fraction Integer
         portfolioDelta = delta portfolio $ tenThirds .* portfolio
-    putStrLn $ show portfolioDelta
+    print portfolioDelta
     let portfolio' = sigma portfolio portfolioDelta
-    putStrLn $ show portfolio'
+    print portfolio'
     let x = Amount $ 1 % 2
         y = Price $ 3 % 1
         z = pi x y
-    putStrLn $ show z
+    print z
     let x' = kappa' z y
-    putStrLn $ show x'
+    print x'
     let y' = kappa z x
-    putStrLn $ show y'
+    print y'
     let values = pi portfolio prices
-    putStrLn $ show values
+    print values
     let n = norm values
         dist = normalize values
-    putStrLn $ show dist
+    print dist
     let values' = unnormalize n dist
-    putStrLn $ show values'
+    print values'
+    let d1 = Distribution
+            $  #eth := Share (2 % 5)
+            :& #btc := Share (2 % 5)
+            :& #ada := Share (1 % 5)
+            :& Empty
+        d2 = Distribution
+            $  #eth := Share (1 % 3)
+            :& #btc := Share (1 % 3)
+            :& #ada := Share (1 % 3)
+            :& Empty
+    print $ balancingTransfers (1 % 10) d1 d2

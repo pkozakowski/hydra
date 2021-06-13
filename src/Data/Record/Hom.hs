@@ -87,11 +87,21 @@ instance (HasAt l ls i, Where l (l' ': ls) ~ AtTail) => HasAt l (l' ': ls) AtTai
     set lp x (fld :& r) = fld :& set lp x r
 
 -- | The typechecker can't prove this for us, so we cheat a little bit.
-membershipMonotonicity :: Has l ls :- Has l (l' ': ls)
-membershipMonotonicity = unmapDict unsafeCoerce
+membershipMonotonicity :: forall l l' ls. Has l ls :- Has l (l' ': ls)
+membershipMonotonicity = unsafeCoerce $ unmapDict $ imply cheat where
+    imply
+        :: Dict (Where l (l' ': ls) ~ AtTail)
+        -> Dict (HasAt l ls i)
+        -> Dict (HasAt l (l' ': ls) AtTail)
+    imply Dict Dict = Dict
+    cheat :: forall a b. Dict (a ~ b)
+    cheat = unsafeCoerce (Dict :: forall a. Dict (a ~ a))
 
 -- | Label with a proof of membership.
-data LabelIn ls = forall l. LabelIn (Dict (Has l ls))
+data LabelIn ls = forall l. KnownSymbol l => LabelIn (Dict (Has l ls))
+
+instance Show (LabelIn ls) where
+    show (LabelIn (Dict :: Dict (Has l ls))) = symbolVal (Proxy :: Proxy l)
 
 getIn :: LabelIn ls -> HomRec ls t -> t
 getIn (LabelIn (Dict :: Dict (Has l ls))) = get (Proxy :: Proxy l)
@@ -119,15 +129,12 @@ type family NoDuplicateIn (l :: u) (ls :: [u]) :: Constraint where
 
 class Labels ls where
     fill :: t -> HomRec ls t
-    symbolVals :: Proxy ls -> [String]
 
 instance Labels '[] where
     fill _ = Empty
-    symbolVals _ = []
 
 instance (NoDuplicateIn l ls, KnownSymbol l, Labels ls) => Labels (l ': ls) where
     fill x = Proxy := x :& fill x
-    symbolVals _ = symbolVal (Proxy :: Proxy l) : symbolVals (Proxy :: Proxy ls)
 
 instance Labels ls => Functor (HomRec ls) where
     fmap _ Empty = Empty
@@ -147,7 +154,7 @@ instance Labels ls => Traversable (HomRec ls) where
     sequenceA (lp := x :& r) = (:&) . (lp :=) <$> x <*> sequenceA r
 
 instance (Labels ls, Show t) => Show (HomRec ls t) where
-    show = show . zip (symbolVals (Proxy :: Proxy ls)) . map snd . toList
+    show = show . toList
 
 instance (Labels ls, Additive t) => Additive (HomRec ls t) where
     p1 + p2 = (+) <$> p1 <*> p2
