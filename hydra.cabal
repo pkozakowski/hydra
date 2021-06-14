@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8078e8aa7ea7dcb6577f50b5d98fcae159c170ce38c2fefa7286f9c5cf556ebf
+-- hash: cda966668bddb9acb55da257777508b3d62a0fec1ff8f5aafe9ff5228abbc9b6
 
 name:           hydra
 version:        0.1.0.0
@@ -45,11 +45,16 @@ library
   hs-source-dirs:
       src
   build-depends:
-      algebra
+      QuickCheck
+    , algebra
     , base >=4.7 && <5
     , constraints
     , containers
     , mtl
+    , quickcheck-classes
+    , tasty
+    , tasty-quickcheck
+    , tasty-th
     , template-haskell
   default-language: Haskell2010
 
@@ -61,12 +66,17 @@ executable hydra-exe
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      algebra
+      QuickCheck
+    , algebra
     , base >=4.7 && <5
     , constraints
     , containers
     , hydra
     , mtl
+    , quickcheck-classes
+    , tasty
+    , tasty-quickcheck
+    , tasty-th
     , template-haskell
   default-language: Haskell2010
 
@@ -74,16 +84,22 @@ test-suite hydra-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Spec.Data.Record.Hom
       Paths_hydra
   hs-source-dirs:
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      algebra
+      QuickCheck
+    , algebra
     , base >=4.7 && <5
     , constraints
     , containers
     , hydra
     , mtl
+    , quickcheck-classes
+    , tasty
+    , tasty-quickcheck
+    , tasty-th
     , template-haskell
   default-language: Haskell2010

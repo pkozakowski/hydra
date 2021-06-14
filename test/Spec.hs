@@ -1,2 +1,10 @@
+{-# LANGUAGE TemplateHaskell #-}
+
+import qualified Spec.Data.Record.Hom
+
+import Test.Tasty
+
 main :: IO ()
-main = putStrLn "Test suite not yet implemented"
+main = defaultMain $ testGroup "Specs"
+    [ Spec.Data.Record.Hom.tests
+    ]

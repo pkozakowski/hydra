@@ -24,6 +24,8 @@ module Data.Record.Hom
     , set
     , getIn
     , setIn
+    , labels
+    , fromList
     , toList
     , deriveUnary
     , deriveAbsolute
@@ -103,11 +105,21 @@ data LabelIn ls = forall l. KnownSymbol l => LabelIn (Dict (Has l ls))
 instance Show (LabelIn ls) where
     show (LabelIn (Dict :: Dict (Has l ls))) = symbolVal (Proxy :: Proxy l)
 
+instance Eq (LabelIn ls) where
+    li1 == li2 = show li1 == show li2
+
 getIn :: LabelIn ls -> HomRec ls t -> t
 getIn (LabelIn (Dict :: Dict (Has l ls))) = get (Proxy :: Proxy l)
 
 setIn :: LabelIn ls -> t -> HomRec ls t -> HomRec ls t
 setIn (LabelIn (Dict :: Dict (Has l ls))) = set (Proxy :: Proxy l)
+
+labels :: Labels ls => [LabelIn ls]
+labels = fst <$> toList (fill undefined)
+
+fromList :: Labels ls => t -> [(LabelIn ls, t)] -> HomRec ls t
+fromList def [] = fill def
+fromList def ((li, x) : lixs) = setIn li x $ fromList def lixs
 
 toList :: HomRec ls t -> [(LabelIn ls, t)]
 toList Empty = []
@@ -156,17 +168,20 @@ instance Labels ls => Traversable (HomRec ls) where
 instance (Labels ls, Show t) => Show (HomRec ls t) where
     show = show . toList
 
+instance (Labels ls, Eq t) => Eq (HomRec ls t) where
+    r1 == r2 = all id $ (==) <$> r1 <*> r2
+
 instance (Labels ls, Additive t) => Additive (HomRec ls t) where
-    p1 + p2 = (+) <$> p1 <*> p2
+    r1 + r2 = (+) <$> r1 <*> r2
 
 instance (Labels ls, Group t) => Group (HomRec ls t) where
-    p1 - p2 = (-) <$> p1 <*> p2
+    r1 - r2 = (-) <$> r1 <*> r2
 
 instance (Labels ls, LeftModule a t) => LeftModule a (HomRec ls t) where
-    n .* p = (n .*) <$> p
+    n .* r = (n .*) <$> r
 
 instance (Labels ls, RightModule a t) => RightModule a (HomRec ls t) where
-    p *. n = (*. n) <$> p
+    r *. n = (*. n) <$> r
 
 instance (Labels ls, Monoidal t) => Monoidal (HomRec ls t) where
     zero = pure zero

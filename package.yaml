@@ -26,6 +26,11 @@ dependencies:
 - algebra
 - template-haskell
 - constraints
+- tasty
+- tasty-th
+- QuickCheck
+- quickcheck-classes
+- tasty-quickcheck
 
 library:
   source-dirs: src
