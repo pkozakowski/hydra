@@ -9,28 +9,23 @@ module Numeric.Delta where
 import Data.Coerce
 import Language.Haskell.TH
 import Numeric.Algebra
-import Numeric.Relative
 import Prelude hiding ((+), (-))
 
--- | Pairing between two types, where the second is a Relative and represents
+-- | Pairing between two types, where the second is a Group and represents
 -- the difference of two values of the first type. In some cases, it can be
 -- integrated back into a value of the first type.
---
-class Relative a c => Delta a b c | b -> c, c -> b where
+class Group b => Delta a b | a -> b, b -> a where
 
-    -- | Difference between two b gives a c.
-    --
-    delta :: b -> b -> c
+    -- | Difference between two a gives b.
+    delta :: a -> a -> b
 
-    -- | Opportunity to reintegrate a c into a b. May fail.
-    --
-    sigma :: b -> c -> Maybe b
+    -- | Opportunity to reintegrate b into a. May fail.
+    sigma :: a -> b -> Maybe a
 
 -- | Derive an instance for a comparable Relative with the same representation as the other type.
---
-deriveDeltaOrd :: Name -> Name -> Name -> Q [Dec]
-deriveDeltaOrd scr abs rel =
-    [d| instance Delta $(conT scr) $(conT abs) $(conT rel) where
+deriveDeltaOrd :: Name -> Name -> Q [Dec]
+deriveDeltaOrd abs rel =
+    [d| instance Delta $(conT abs) $(conT rel) where
             delta x y = coerce x - coerce y
             sigma x y = if z >= zero then Just (coerce z) else Nothing
                 where z = coerce x + y |]

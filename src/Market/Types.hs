@@ -19,13 +19,11 @@ import Data.Record.Hom (HomRec, Labels)
 import qualified Data.Record.Hom as HR
 import GHC.TypeLits
 import Market.Deriving
-import Numeric.Absolute
 import Numeric.Algebra
 import Numeric.Delta
 import Numeric.Field.Fraction
 import Numeric.Kappa
 import Numeric.Normalizable
-import Numeric.Relative
 import Prelude hiding ((+), (*), (/))
 
 type Asset (asset :: Symbol) = Proxy asset

@@ -28,8 +28,8 @@ module Data.Record.Hom
     , fromList
     , toList
     , deriveUnary
-    , deriveAbsolute
-    , deriveRelative
+    , deriveSemimodule
+    , deriveModule
     , deriveDelta
     , deriveKappa
     ) where
@@ -42,11 +42,10 @@ import Data.Proxy
 import GHC.OverloadedLabels
 import GHC.TypeLits
 import Language.Haskell.TH
-import Numeric.Absolute (Absolute, deriveAbsolute')
 import Numeric.Algebra
+import qualified Numeric.Algebra.Deriving as AlgDeriving
 import Numeric.Delta
 import Numeric.Kappa
-import Numeric.Relative (Relative, deriveRelative')
 import Prelude hiding ((+), (-), (*), pi)
 import Unsafe.Coerce
 
@@ -195,28 +194,28 @@ deriveUnary t cs = do
     (cxt, t') <- requireLabels t
     Deriving.deriveUnary' cxt t' cs
 
-deriveAbsolute :: Name -> Name -> Q [Dec]
-deriveAbsolute scr mod = do
+deriveSemimodule :: Name -> Name -> Q [Dec]
+deriveSemimodule scr mod = do
     (cxt, t') <- requireLabels mod
-    deriveAbsolute' cxt scr t'
+    AlgDeriving.deriveSemimodule' cxt scr t'
 
-deriveRelative :: Name -> Name -> Q [Dec]
-deriveRelative scr mod = do
+deriveModule :: Name -> Name -> Q [Dec]
+deriveModule scr mod = do
     (cxt, t') <- requireLabels mod
-    deriveRelative' cxt scr t'
+    AlgDeriving.deriveModule' cxt scr t'
 
 requireLabels :: Name -> Q (Cxt, Type)
 requireLabels t = do
     ls <- VarT <$> newName "ls"
     return ([AppT (ConT ''Labels) ls], AppT (ConT t) ls)
 
-deriveDelta :: Name -> Name -> Name -> Q [Dec]
-deriveDelta scr abs rel = do
+deriveDelta :: Name -> Name -> Q [Dec]
+deriveDelta abs rel = do
     TyConI (NewtypeD _ _ _ _ (NormalC absCons _) _) <- reify abs
     TyConI (NewtypeD _ _ _ _ (NormalC relCons _) _) <- reify rel
     let absP v = conP absCons [varP v]
         relP v = conP relCons [varP v]
-    [d| instance Labels ls => Delta $(conT scr) ($(conT abs) ls) ($(conT rel) ls) where
+    [d| instance Labels ls => Delta ($(conT abs) ls) ($(conT rel) ls) where
 
             delta $(absP xn) $(absP yn) = $(conE relCons) $ delta <$> x <*> y
 
