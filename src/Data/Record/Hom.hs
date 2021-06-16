@@ -174,6 +174,11 @@ instance (Labels ls, Eq t) => Eq (HomRec ls t) where
 instance (Labels ls, Additive t) => Additive (HomRec ls t) where
     r1 + r2 = (+) <$> r1 <*> r2
 
+instance (Labels ls, Abelian t) => Abelian (HomRec ls t)
+
+instance (Labels ls, Monoidal t) => Monoidal (HomRec ls t) where
+    zero = pure zero
+
 instance (Labels ls, Group t) => Group (HomRec ls t) where
     r1 - r2 = (-) <$> r1 <*> r2
 
@@ -182,9 +187,6 @@ instance (Labels ls, LeftModule a t) => LeftModule a (HomRec ls t) where
 
 instance (Labels ls, RightModule a t) => RightModule a (HomRec ls t) where
     r *. n = (*. n) <$> r
-
-instance (Labels ls, Monoidal t) => Monoidal (HomRec ls t) where
-    zero = pure zero
 
 instance (Labels ls, Module a t) => Module a (HomRec ls t)
 

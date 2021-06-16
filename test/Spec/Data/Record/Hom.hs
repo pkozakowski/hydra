@@ -7,10 +7,12 @@ module Spec.Data.Record.Hom where
 import Data.List
 import Data.Proxy
 import Data.Record.Hom
+import Numeric.Algebra.Laws
 import Test.QuickCheck hiding (labels)
 import Test.QuickCheck.Classes
 import Test.Tasty
 import Test.Tasty.QuickCheck hiding (labels)
+import Test.Tasty.QuickCheck.Laws
 import Test.Tasty.TH
 
 instance (Labels ls, Arbitrary t) => Arbitrary (HomRec ls t) where
@@ -57,12 +59,8 @@ prop_labels_have_correct_length :: Bool
 prop_labels_have_correct_length = length lbs == 3 where
     lbs = labels :: [LabelIn ThreeLabels]
 
-testLaws :: Laws -> TestTree
-testLaws (Laws className props)
-    = testGroup className $ uncurry testProperty <$> props
-
-test_laws :: [TestTree]
-test_laws = testLaws <$>
+test_standard_laws :: [TestTree]
+test_standard_laws = testLaws <$>
     [ functorLaws pHomRecF
     , applicativeLaws pHomRecF
     , foldableLaws pHomRecF
@@ -70,8 +68,20 @@ test_laws = testLaws <$>
     , eqLaws pHomRec
     , showLaws pHomRec
     ] where
-        pHomRec = Proxy :: Proxy (HomRec ThreeLabels Int)
+        pHomRec = Proxy :: Proxy (HomRec ThreeLabels Integer)
         pHomRecF = Proxy :: Proxy (HomRec ThreeLabels)
+
+test_numeric_laws :: [TestTree]
+test_numeric_laws =
+    [ testAdditiveLaws pHomRec
+    , testAbelianLaws pHomRec
+    , testMonoidalLaws pHomRec
+    , testGroupLaws pHomRec
+    , testLeftModuleLaws pInteger pHomRec
+    , testRightModuleLaws pInteger pHomRec
+    ] where
+        pHomRec = Proxy :: Proxy (HomRec ThreeLabels Integer)
+        pInteger = Proxy :: Proxy Integer
 
 tests :: TestTree
 tests = $(testGroupGenerator)
