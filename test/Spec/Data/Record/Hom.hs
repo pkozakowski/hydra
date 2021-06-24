@@ -7,20 +7,13 @@ module Spec.Data.Record.Hom where
 import Data.List
 import Data.Proxy
 import Data.Record.Hom
-import Numeric.Algebra.Laws
-import Test.QuickCheck hiding (labels)
+import Data.Record.Hom.Test
+import Numeric.Algebra.Test
 import Test.QuickCheck.Classes
 import Test.Tasty
 import Test.Tasty.QuickCheck hiding (labels)
 import Test.Tasty.QuickCheck.Laws
 import Test.Tasty.TH
-
-instance (Labels ls, Arbitrary t) => Arbitrary (HomRec ls t) where
-    arbitrary = fromList undefined . zip lbs <$> vector (length lbs) where
-        lbs = labels
-
-instance Labels ls => Arbitrary (LabelIn ls) where
-    arbitrary = elements labels
 
 type ThreeLabels = '["a", "b", "c"]
 
@@ -72,16 +65,9 @@ test_standard_laws = testLaws <$>
         pHomRecF = Proxy :: Proxy (HomRec ThreeLabels)
 
 test_numeric_laws :: [TestTree]
-test_numeric_laws =
-    [ testAdditiveLaws pHomRec
-    , testAbelianLaws pHomRec
-    , testMonoidalLaws pHomRec
-    , testGroupLaws pHomRec
-    , testLeftModuleLaws pInteger pHomRec
-    , testRightModuleLaws pInteger pHomRec
-    ] where
-        pHomRec = Proxy :: Proxy (HomRec ThreeLabels Integer)
-        pInteger = Proxy :: Proxy Integer
+test_numeric_laws = testAllModuleLaws pInteger pHomRec where
+    pHomRec = Proxy :: Proxy (HomRec ThreeLabels Integer)
+    pInteger = Proxy :: Proxy Integer
 
 tests :: TestTree
 tests = $(testGroupGenerator)

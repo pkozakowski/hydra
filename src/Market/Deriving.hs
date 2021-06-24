@@ -3,6 +3,7 @@
 module Market.Deriving where
 
 import Data.Deriving
+import Data.Typeable
 import qualified Data.Record.Hom as HR
 import Language.Haskell.TH
 import Numeric.Algebra
@@ -16,13 +17,13 @@ import Prelude hiding ((+), (*), (/))
 deriveQuantityInstances :: Name -> Name -> Name -> Name -> Name -> Q [Dec]
 deriveQuantityInstances scr q qd qr qdr = fmap concat $ sequence $
     -- Scalar instances:
-    [deriveUnary t [''Eq, ''Ord, ''Show] | t <- [q, qd]] ++ [
+    [deriveUnary t [''Eq, ''Ord, ''Show, ''Typeable] | t <- [q, qd]] ++ [
         deriveSemimodule scr q,
         deriveModule scr qd,
         deriveDeltaOrd q qd
     ] ++
     -- Record instances:
-    [HR.deriveUnary tr [''Show] | tr <- [qr, qdr]] ++ [
+    [HR.deriveUnary tr [''Eq, ''Show, ''Typeable] | tr <- [qr, qdr]] ++ [
         HR.deriveSemimodule scr qr,
         HR.deriveModule scr qdr,
         HR.deriveDelta qr qdr

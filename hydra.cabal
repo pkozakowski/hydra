@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9914f0dafefb78669b1af0bcee26fc1a1736bdaadae1d060316e9a73969170ff
+-- hash: 614c649adce4efe46f28714a29fbd39606ed30c6cac5886ef39f913314f3bc30
 
 name:           hydra
 version:        0.1.0.0
@@ -83,8 +83,11 @@ test-suite hydra-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Numeric.Algebra.Laws
+      Data.Record.Hom.Test
+      Numeric.Algebra.Test
+      Numeric.Test
       Spec.Data.Record.Hom
+      Spec.Market.Types
       Test.Tasty.QuickCheck.Laws
       Paths_hydra
   hs-source-dirs:

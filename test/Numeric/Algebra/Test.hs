@@ -1,8 +1,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Numeric.Algebra.Laws where
+module Numeric.Algebra.Test where
 
 import Numeric.Algebra
+import Numeric.Domain.GCD
+import Numeric.Field.Fraction
 import Prelude hiding ((+), (-), (*), negate, subtract)
 import Test.QuickCheck
 import Test.QuickCheck.Classes
@@ -12,6 +14,16 @@ import Test.Tasty.QuickCheck.Laws
 instance Arbitrary Natural where
     arbitrary = arbitrarySizedNatural
     shrink = shrinkIntegral
+
+instance (Arbitrary i, Integral i, GCDDomain i) => Arbitrary (Fraction i) where
+
+    arbitrary = (%) <$> arbitrary <*> (arbitrary `suchThat` isNotZero) where
+        isNotZero = (/= 0) . fromIntegral
+
+    shrink frac = ((% den) <$> shrink num) ++ ((num %) <$> shrinkDen) where
+        shrinkDen = filter ((/= 0) . fromIntegral) $ shrink den
+        num = numerator frac
+        den = denominator frac 
 
 testAdditiveLaws :: (Additive r, Arbitrary r, Eq r, Show r) => proxy r -> TestTree
 testAdditiveLaws p = testLaws $ Laws "Additive"
@@ -260,3 +272,40 @@ rightModuleModuleAnnihilation
 rightModuleModuleAnnihilation _ _ = property
     $ \(a :: r)
     -> (zero :: m) *. a == zero
+
+testAllSemimoduleLaws ::
+    ( Rig r
+    , Abelian m
+    , Monoidal m
+    , LeftModule r m
+    , RightModule r m
+    , Arbitrary r
+    , Arbitrary m
+    , Eq m
+    , Show r
+    , Show m
+    ) =>
+    proxy r -> proxy m -> [TestTree]
+testAllSemimoduleLaws rp mp =
+    [ testAdditiveLaws mp
+    , testAbelianLaws mp
+    , testMonoidalLaws mp
+    , testLeftModuleLaws rp mp
+    , testRightModuleLaws rp mp
+    ]
+
+testAllModuleLaws ::
+    ( Ring r
+    , Abelian m
+    , Group m
+    , LeftModule r m
+    , RightModule r m
+    , Arbitrary r
+    , Arbitrary m
+    , Eq m
+    , Show r
+    , Show m
+    ) =>
+    proxy r -> proxy m -> [TestTree]
+testAllModuleLaws rp mp
+    = testAllSemimoduleLaws rp mp ++ [testGroupLaws mp]
