@@ -82,13 +82,13 @@ testDeltaMonoidalOrdLaws ap bp = testLaws $ Laws "Delta + Monoidal + Ord"
     , ("Right Identity", deltaRightIdentity ap bp)
     , ("Addition Agreement", deltaAdditionAgreement ap bp)
     , ("Subtraction Agreement", deltaSubtractionAgreement ap bp)
-    , ("Positive Totality", deltaPositiveTotality ap bp)
+    , ("Positive Definiteness", deltaPositiveDefiniteness ap bp)
     ]
 
-deltaPositiveTotality
+deltaPositiveDefiniteness
     :: forall a b proxy. (Delta a b, Monoidal a, Ord b, Arbitrary b, Eq a, Show b)
     => proxy a -> proxy b -> Property
-deltaPositiveTotality _ _ = property
+deltaPositiveDefiniteness _ _ = property
     $ \(x :: b)
     -> isJust (zero `sigma` x) == (x >= zero)
 
@@ -153,6 +153,69 @@ kappaKappa'InversesPi ::
 kappaKappa'InversesPi _ _ _ = property
     $ \(y :: b) (z :: c)
     -> (y `pi` z) `kappa'` z `elem` [Just y, Nothing]
+
+testKappaSemimoduleLaws ::
+    ( Kappa a b c
+    , LeftModule scr a, LeftModule scr b, LeftModule scr c
+    , Division scr
+    , Monoidal scr
+    , Arbitrary a, Arbitrary b, Arbitrary c, Arbitrary scr
+    , Eq a, Eq b, Eq c, Eq scr
+    , Show a, Show b, Show c, Show scr
+    ) =>
+    proxy a -> proxy b -> proxy c -> proxy scr -> TestTree
+testKappaSemimoduleLaws ap bp cp scrp = testLaws $ Laws "Kappa (semi) Module"
+    [ ("Pi Inverses Kappa", kappaPiInversesKappa ap bp cp)
+    , ("Pi Inverses Kappa Prime", kappaPiInversesKappa' ap bp cp)
+    , ("Kappa Inverses Pi", kappaKappaInversesPi ap bp cp)
+    , ("Kappa Prime Inverses Pi", kappaKappa'InversesPi ap bp cp)
+    , ("Multiplication Agreement", kappaMultiplicationAgreement ap bp cp scrp)
+    , ("Division Agreement", kappaDivisionAgreement ap bp cp scrp)
+    , ("Division Agreement Prime", kappaDivisionAgreementPrime ap bp cp scrp)
+    ]
+
+kappaMultiplicationAgreement ::
+    forall proxy a b c scr.
+    ( Kappa a b c
+    , LeftModule scr a, LeftModule scr b, LeftModule scr c
+    , Arbitrary b, Arbitrary c, Arbitrary scr
+    , Eq a
+    , Show a, Show b, Show c, Show scr
+    ) =>
+    proxy a -> proxy b -> proxy c -> proxy scr -> Property
+kappaMultiplicationAgreement _ _ _ _ = property
+    $ \(y :: scr) (z :: scr) (y' :: b) (z' :: c)
+    -> (y .* y') `pi` (z .* z') == y * z .* y' `pi` z'
+
+kappaDivisionAgreement ::
+    forall proxy a b c scr.
+    ( Kappa a b c
+    , LeftModule scr a, LeftModule scr b, LeftModule scr c
+    , Division scr
+    , Monoidal scr
+    , Arbitrary a, Arbitrary b, Arbitrary scr
+    , Eq c, Eq scr
+    , Show a, Show b, Show c, Show scr
+    ) =>
+    proxy a -> proxy b -> proxy c -> proxy scr -> Property
+kappaDivisionAgreement _ _ _ _ = property
+    $ \(x :: scr) (y :: scr) (x' :: a) (y' :: b)
+    -> y /= zero ==> (x .* x') `kappa` (y .* y') == fmap (x / y .*) (x' `kappa` y')
+
+kappaDivisionAgreementPrime ::
+    forall proxy a b c scr.
+    ( Kappa a b c
+    , LeftModule scr a, LeftModule scr b, LeftModule scr c
+    , Division scr
+    , Monoidal scr
+    , Arbitrary a, Arbitrary c, Arbitrary scr
+    , Eq b, Eq scr
+    , Show a, Show b, Show c, Show scr
+    ) =>
+    proxy a -> proxy b -> proxy c -> proxy scr -> Property
+kappaDivisionAgreementPrime _ _ _ _ = property
+    $ \(x :: scr) (z :: scr) (x' :: a) (z' :: c)
+    -> z /= zero ==> (x .* x') `kappa'` (z .* z') == fmap (x / z .*) (x' `kappa'` z')
 
 testNormalizableLaws ::
     ( Normalizable d a as

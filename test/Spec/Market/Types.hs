@@ -163,20 +163,22 @@ test_Kappa_deltas_of_Value_Amount_Price
 
 test_Kappa_Values_Portfolio_Prices :: [TestTree]
 test_Kappa_Values_Portfolio_Prices =
-    [ testKappaLaws
+    [ testKappaSemimoduleLaws
         @(Values ThreeLabels)
         @(Portfolio ThreeLabels)
         @(Prices ThreeLabels)
-        p p p
+        @Scalar
+        p p p p
     ]
 
 test_Kappa_deltas_of_Values_Portfolio_Prices :: [TestTree]
 test_Kappa_deltas_of_Values_Portfolio_Prices =
-    [ testKappaLaws
+    [ testKappaSemimoduleLaws
         @(ValueDeltas ThreeLabels)
         @(PortfolioDelta ThreeLabels)
         @(PriceDeltas ThreeLabels)
-        p p p
+        @Scalar
+        p p p p
     ]
 
 testAllDistributionLaws ::
