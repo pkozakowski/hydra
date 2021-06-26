@@ -39,7 +39,7 @@ deriveDistributionInstances scr q qd qr qdr = fmap concat $ sequence $
         deriveDeltaOrd q qd
     ] ++
     -- Record instances:
-    [HR.deriveUnary tr [''Show] | tr <- [qr, qdr]] ++ [
+    [HR.deriveUnary tr [''Eq, ''Show] | tr <- [qr, qdr]] ++ [
         HR.deriveModule scr qdr,
         HR.deriveDelta qr qdr
     ]
