@@ -234,8 +234,8 @@ deriveKappa a b c = do
         bP v = conP bCons [varP v]
         cP v = conP cCons [varP v]
     [d| instance Labels ls => Kappa ($(conT a) ls) ($(conT b) ls) ($(conT c) ls) where
-            kappa $(aP xn) $(bP yn) = $(conE cCons) $ kappa <$> x <*> y
-            kappa' $(aP xn) $(cP yn) = $(conE bCons) $ kappa' <$> x <*> y
+            kappa $(aP xn) $(bP yn) = fmap $(conE cCons) $ sequenceA $ kappa <$> x <*> y
+            kappa' $(aP xn) $(cP yn) = fmap $(conE bCons) $ sequenceA $ kappa' <$> x <*> y
             pi $(bP xn) $(cP yn) = $(conE aCons) $ pi <$> x <*> y |]
     where
         xn = mkName "x"

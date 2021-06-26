@@ -6,7 +6,7 @@ import Data.Maybe
 import Numeric.Algebra
 import Numeric.Delta
 import Numeric.Kappa
-import Prelude hiding ((+), (-), pi)
+import Prelude hiding ((+), (-), (*), (/), pi, recip)
 import Test.QuickCheck
 import Test.QuickCheck.Classes
 import Test.Tasty
@@ -89,3 +89,65 @@ deltaPositiveTotality
 deltaPositiveTotality _ _ = property
     $ \(x :: b)
     -> isJust (zero `sigma` x) == (x >= zero)
+
+testKappaLaws ::
+    ( Kappa a b c
+    , Arbitrary a, Arbitrary b, Arbitrary c
+    , Eq a, Eq b, Eq c
+    , Show a, Show b, Show c
+    ) =>
+    proxy a -> proxy b -> proxy c -> TestTree
+testKappaLaws ap bp cp = testLaws $ Laws "Kappa"
+    [ ("Pi Inverses Kappa", kappaPiInversesKappa ap bp cp)
+    , ("Pi Inverses Kappa Prime", kappaPiInversesKappa' ap bp cp)
+    , ("Kappa Inverses Pi", kappaKappaInversesPi ap bp cp)
+    , ("Kappa Prime Inverses Pi", kappaKappa'InversesPi ap bp cp)
+    ]
+
+kappaPiInversesKappa ::
+    forall proxy a b c.
+    ( Kappa a b c
+    , Arbitrary a, Arbitrary b
+    , Eq a
+    , Show a, Show b, Show c
+    ) =>
+    proxy a -> proxy b -> proxy c -> Property
+kappaPiInversesKappa _ _ _ = property
+    $ \(x :: a) (y :: b)
+    -> fmap (y `pi`) (x `kappa` y) `elem` [Just x, Nothing]
+
+kappaPiInversesKappa' ::
+    forall proxy a b c.
+    ( Kappa a b c
+    , Arbitrary a, Arbitrary c
+    , Eq a
+    , Show a, Show b, Show c
+    ) =>
+    proxy a -> proxy b -> proxy c -> Property
+kappaPiInversesKappa' _ _ _ = property
+    $ \(x :: a) (z :: c)
+    -> fmap (`pi` z) (x `kappa'` z) `elem` [Just x, Nothing]
+
+kappaKappaInversesPi ::
+    forall proxy a b c.
+    ( Kappa a b c
+    , Arbitrary b, Arbitrary c
+    , Eq c
+    , Show a, Show b, Show c
+    ) =>
+    proxy a -> proxy b -> proxy c -> Property
+kappaKappaInversesPi _ _ _ = property
+    $ \(y :: b) (z :: c)
+    -> (y `pi` z) `kappa` y `elem` [Just z, Nothing]
+
+kappaKappa'InversesPi ::
+    forall proxy a b c.
+    ( Kappa a b c
+    , Arbitrary b, Arbitrary c
+    , Eq b
+    , Show a, Show b, Show c
+    ) =>
+    proxy a -> proxy b -> proxy c -> Property
+kappaKappa'InversesPi _ _ _ = property
+    $ \(y :: b) (z :: c)
+    -> (y `pi` z) `kappa'` z `elem` [Just y, Nothing]

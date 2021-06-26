@@ -114,22 +114,48 @@ testAllQuantityLaws pscr pq pqd pqr pqdr =
         nqr = showProxyType pqr
         nqdr = showProxyType pqdr
 
-test_quantity_portfolio :: [TestTree]
-test_quantity_portfolio = testAllQuantityLaws
+test_quantity_laws_for_Portfolio :: [TestTree]
+test_quantity_laws_for_Portfolio = testAllQuantityLaws
     @Scalar @Amount @AmountDelta @(Portfolio ThreeLabels) @(PortfolioDelta ThreeLabels) p p p p p
 
-test_quantity_prices :: [TestTree]
-test_quantity_prices = testAllQuantityLaws
+test_quantity_laws_for_Prices :: [TestTree]
+test_quantity_laws_for_Prices = testAllQuantityLaws
     @Scalar @Price @PriceDelta @(Prices ThreeLabels) @(PriceDeltas ThreeLabels) p p p p p
 
-test_quantity_values :: [TestTree]
-test_quantity_values = testAllQuantityLaws
+test_quantity_laws_for_Values :: [TestTree]
+test_quantity_laws_for_Values = testAllQuantityLaws
     @Scalar @Value @ValueDelta @(Values ThreeLabels) @(ValueDeltas ThreeLabels) p p p p p
+
+test_Kappa_Value_Amount_Price :: [TestTree]
+test_Kappa_Value_Amount_Price
+    = [testKappaLaws @Value @Amount @Price p p p]
+
+test_Kappa_deltas_of_Value_Amount_Price :: [TestTree]
+test_Kappa_deltas_of_Value_Amount_Price
+    = [testKappaLaws @ValueDelta @AmountDelta @PriceDelta p p p]
+
+test_Kappa_Values_Portfolio_Prices :: [TestTree]
+test_Kappa_Values_Portfolio_Prices =
+    [ testKappaLaws
+        @(Values ThreeLabels)
+        @(Portfolio ThreeLabels)
+        @(Prices ThreeLabels)
+        p p p
+    ]
+
+test_Kappa_deltas_of_Values_Portfolio_Prices :: [TestTree]
+test_Kappa_deltas_of_Values_Portfolio_Prices =
+    [ testKappaLaws
+        @(ValueDeltas ThreeLabels)
+        @(PortfolioDelta ThreeLabels)
+        @(PriceDeltas ThreeLabels)
+        p p p
+    ]
 
 p :: Proxy a
 p = Proxy
 
--- TODO: test Kappa, Distribution and (Un)Normalizable laws
+-- TODO: Distribution and (Un)Normalizable laws
 
 tests :: TestTree
 tests = $(testGroupGenerator)
