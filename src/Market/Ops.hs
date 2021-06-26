@@ -26,7 +26,7 @@ data ShareTransfer (assets :: [Symbol])
 
 data BalancingState (assets :: [Symbol])
     = BalancingState
-        { diff :: HomRec assets ShareDelta
+        { diff :: DistributionDelta assets
         , transfers :: [ShareTransfer assets]
         } deriving Show
 
@@ -36,21 +36,25 @@ balancingTransfers
 balancingTransfers tolerance current target
     = transfers $ fix (\go state -> if done state then state else go $ next state) initState where
         initState = BalancingState diff [] where
-            DistributionDelta diff = delta current target
+            diff = delta current target
         next state = BalancingState applyTransfer $ transfer : transfers state where
             applyTransfer
-                = setIn maxLi (maxS - transS) $ setIn minLi (minS + transS) $ diff state where
+                = coerce
+                $ setIn maxLi (maxS - transS)
+                $ setIn minLi (minS + transS)
+                $ coerce
+                $ diff state
             transfer = ShareTransfer maxLi minLi $ coerce transS
             (minLi, minS) = minDelta state
             (maxLi, maxS) = maxDelta state
             transS = min maxS $ negate minS
-        done (BalancingState Empty _) = True
+        done (BalancingState (DistributionDelta Empty) _) = True
         done state = maxS <= toleranceAbs maxLi && minS >= negate (toleranceAbs minLi) where
             toleranceAbs li = tolerance .* (getIn li $ coerce target) :: ShareDelta
             (minLi, minS) = minDelta state
             (maxLi, maxS) = maxDelta state
-        minDelta = argMinimumOn id . diff
-        maxDelta = argMinimumOn negate . diff
+        minDelta = argMinimumOn id . coerce . diff
+        maxDelta = argMinimumOn negate . coerce . diff
         argMinimumOn f r = (ai, getIn ai r) where
             ai = minimumOn $ f . flip getIn r
         minimumOn f = foldl (\x y -> if f x < f y then x else y) (head ais) ais
