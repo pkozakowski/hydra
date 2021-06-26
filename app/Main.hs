@@ -55,11 +55,6 @@ main = do
     print y'
     let values = pi portfolio prices
     print values
-    let n = norm values
-        dist = normalize values
-    print dist
-    let values' = unnormalize n dist
-    print values'
     let d1 = Distribution
             $  #eth := Share (2 % 5)
             :& #btc := Share (2 % 5)

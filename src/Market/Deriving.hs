@@ -54,8 +54,12 @@ deriveNormalizable scr d q qr = do
 
             norm $(qrP) = foldl (+) zero qrn
 
-            normalize qs@($(qrP))
-                = $(conE dCon) $ coerce . div <$> qrn where
+            normalize qs@($(qrP)) =
+                if n /= zero then
+                    Just $ $(conE dCon) $ coerce . div <$> qrn
+                else
+                    Nothing
+                where
                     div x = coerce x / coerce n :: $(conT scr)
                     n = norm qs |]
 

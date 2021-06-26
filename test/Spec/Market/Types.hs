@@ -220,10 +220,14 @@ test_distribution_laws_for_Distribution = testAllDistributionLaws
     @Scalar @Share @ShareDelta @(Distribution ThreeLabels) @(DistributionDelta ThreeLabels)
     p p p p p
 
+test_Normalizable_Distribution_Value_Values :: [TestTree]
+test_Normalizable_Distribution_Value_Values =
+    [ testNormalizableSemimoduleOrdLaws
+        @(Distribution ThreeLabels) @Value @(Values ThreeLabels) @Scalar p p p p
+    ]
+
 p :: Proxy a
 p = Proxy
-
--- TODO: (Un)Normalizable laws
 
 tests :: TestTree
 tests = $(testGroupGenerator)

@@ -4,21 +4,16 @@
 module Numeric.Normalizable where
 
 -- | Normalizable vectors.
---
 class Unnormalizable d a as => Normalizable d a as | d a -> as, as -> a, as -> d where
 
     -- | Compute the norm of a vector.
-    --
     norm :: as -> a
 
-    -- | Normalize a vector to a unitless distribution.
-    --
-    normalize :: as -> d
+    -- | Normalize a vector to a unitless distribution. Can fail when the norm is zero.
+    normalize :: as -> Maybe d
 
 -- | Unnormalizable vectors.
---
 class Unnormalizable d a as | d a -> as, as -> a, as -> d where
 
     -- | Scale a distribution by a norm to get a vector.
-    --
     unnormalize :: a -> d -> as

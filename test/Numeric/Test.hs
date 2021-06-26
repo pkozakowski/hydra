@@ -3,9 +3,11 @@
 module Numeric.Test where
 
 import Data.Maybe
+import Data.Proxy
 import Numeric.Algebra
 import Numeric.Delta
 import Numeric.Kappa
+import Numeric.Normalizable
 import Prelude hiding ((+), (-), (*), (/), pi, recip)
 import Test.QuickCheck
 import Test.QuickCheck.Classes
@@ -151,3 +153,111 @@ kappaKappa'InversesPi ::
 kappaKappa'InversesPi _ _ _ = property
     $ \(y :: b) (z :: c)
     -> (y `pi` z) `kappa'` z `elem` [Just y, Nothing]
+
+testNormalizableLaws ::
+    ( Normalizable d a as
+    , Arbitrary d, Arbitrary a, Arbitrary as
+    , Eq d, Eq a, Eq as
+    , Show d, Show a, Show as
+    ) =>
+    proxy d -> proxy a -> proxy as -> TestTree
+testNormalizableLaws dp ap asp = testLaws $ Laws "Normalizable"
+    [ ("Normalize Inverses Unnormalize", normalizableNormalizeInversesUnnormalize dp ap asp)
+    , ("Unnormalize Inverses Normalize", normalizableUnnormalizeInversesNormalize dp ap asp)
+    ]
+
+normalizableNormalizeInversesUnnormalize 
+    :: forall proxy d a as
+    .  (Normalizable d a as, Arbitrary a, Arbitrary d, Eq d, Show a, Show d)
+    => proxy d -> proxy a -> proxy as -> Property
+normalizableNormalizeInversesUnnormalize _ _ _ = property
+    $ \(n :: a) (dist :: d)
+    -> normalize (unnormalize n dist) `elem` [Just dist, Nothing]
+
+normalizableUnnormalizeInversesNormalize
+    :: forall proxy d a as
+    .  (Normalizable d a as, Arbitrary as, Eq as, Show as)
+    => proxy d -> proxy a -> proxy as -> Property
+normalizableUnnormalizeInversesNormalize _ _ _ = property
+    $ \(xs :: as)
+    -> case normalize xs of
+        Just dist -> unnormalize (norm xs) dist == xs
+        Nothing   -> True
+
+testNormalizableSemimoduleOrdLaws ::
+    forall d a as scr.
+    ( Normalizable d a as
+    , LeftModule scr a, LeftModule scr as
+    , Monoidal a, Monoidal as, Monoidal scr
+    , Ord scr, Ord a
+    , Arbitrary d, Arbitrary a, Arbitrary as, Arbitrary scr
+    , Eq d, Eq a, Eq as
+    , Show d, Show a, Show as, Show scr
+    ) =>
+    Proxy d -> Proxy a -> Proxy as -> Proxy scr -> TestTree
+testNormalizableSemimoduleOrdLaws dp ap asp scrp
+    = testLaws $ Laws "Normalizable + (semi) Module + Ord"
+        [ ("Normalize Inverses Unnormalize", normalizableNormalizeInversesUnnormalize dp ap asp)
+        , ("Unnormalize Inverses Normalize", normalizableUnnormalizeInversesNormalize dp ap asp)
+        , ("Triangle Inequality", normalizableTriangleInequality dp ap asp scrp)
+        , ("Absolute Homogeneity", normalizableAbsoluteHomogeneity dp ap asp scrp)
+        , ("Norm Positive Definiteness", normalizableNormPositiveDefiniteness dp ap asp scrp)
+        , ( "Normalize Positive Definiteness"
+          , normalizableNormalizePositiveDefiniteness dp ap asp scrp
+          )
+        ]
+
+normalizableTriangleInequality ::
+    forall proxy d a as scr.
+    ( Normalizable d a as
+    , Additive a, Additive as
+    , Ord a
+    , Arbitrary as
+    , Eq as
+    , Show as
+    ) =>
+    proxy d -> proxy a -> proxy as -> proxy scr -> Property
+normalizableTriangleInequality _ _ _ _ = property
+    $ \(xs :: as) (ys :: as)
+    -> norm (xs + ys) <= norm xs + norm ys
+
+normalizableAbsoluteHomogeneity ::
+    forall proxy d a as scr.
+    ( Normalizable d a as
+    , LeftModule scr a, LeftModule scr as
+    , Monoidal scr
+    , Ord scr
+    , Arbitrary as, Arbitrary scr
+    , Eq a
+    , Show as, Show scr
+    ) =>
+    proxy d -> proxy a -> proxy as -> proxy scr -> Property
+normalizableAbsoluteHomogeneity _ _ _ _ = property
+    $ \(x :: scr) (ys :: as)
+    -> x >= zero ==> norm (x .* ys) == x .* norm ys
+
+normalizableNormPositiveDefiniteness ::
+    forall proxy d a as scr.
+    ( Normalizable d a as
+    , Monoidal a, Monoidal as
+    , Arbitrary as
+    , Eq a, Eq as
+    , Show as
+    ) =>
+    proxy d -> proxy a -> proxy as -> proxy scr -> Property
+normalizableNormPositiveDefiniteness _ _ _ _ = property
+    $ \(xs :: as)
+    -> norm xs /= zero || xs == zero
+
+normalizableNormalizePositiveDefiniteness ::
+    forall proxy d a as scr.
+    ( Normalizable d a as
+    , Monoidal a, Monoidal as
+    , Arbitrary as
+    , Eq a, Eq as
+    , Show as
+    ) =>
+    proxy d -> proxy a -> proxy as -> proxy scr -> Property
+normalizableNormalizePositiveDefiniteness _ _ _ _ = property
+    $ \(xs :: as)
+    -> isJust (normalize xs) || xs == zero
