@@ -6,7 +6,6 @@
 
 module Market.Ops where
 
-import Data.Coerce
 import Data.Constraint
 import Data.Function
 import Data.Maybe
@@ -38,34 +37,44 @@ balancingTransfers tolRel current target
     = transfers $ fix (\go state -> if done state then state else go $ next state) initState where
         initState = BalancingState diff [] where
             diff = delta current target
-        next state = BalancingState applyTransfer $ transfer : transfers state where
-            applyTransfer
-                = coerce
-                $ setIn maxLi (maxS - transS)
-                $ setIn minLi (minS + transS)
-                $ coerce
-                $ diff state
-            transfer = ShareTransfer maxLi minLi $ coerce transS
-            (minLi, minS) = minDelta $ diff state
-            (maxLi, maxS) = maxDelta $ diff state
-            transS = min maxS $ negate minS
+        next state = BalancingState
+            (applyTransfer transfer $ diff state)
+            (transfer : transfers state) where
+                transfer = ShareTransfer maxAssetIn minAssetIn transShare where
+                    transShare = fromJust $ fromDelta $ min maxShareDelta $ negate minShareDelta
+                    (minAssetIn, minShareDelta) = minDelta $ diff state
+                    (maxAssetIn, maxShareDelta) = maxDelta $ diff state
         done state = isBalanced tolRel (fromJust $ target `sigma` diff state) target
+
+applyTransfer :: ShareTransfer assets -> DistributionDelta assets -> DistributionDelta assets
+applyTransfer (ShareTransfer from to share) (DistributionDelta diff)
+    = DistributionDelta
+    $ setIn from (balance from - toDelta share)
+    $ setIn to (balance to + toDelta share)
+    $ diff where
+        balance = flip getIn diff
 
 isBalanced :: Labels assets => Scalar -> Distribution assets -> Distribution assets -> Bool
 isBalanced _ _ (Distribution Empty) = True
-isBalanced tolRel current target
+isBalanced tolRel current target@(Distribution targetRec)
     = maxShareDelta <= tolAbs maxAssetIn && minShareDelta >= negate (tolAbs minAssetIn) where
-        tolAbs assetIn = tolRel .* (getIn assetIn $ coerce target)
+        tolAbs assetIn = tolRel .* (toDelta $ getIn assetIn targetRec)
         (minAssetIn, minShareDelta) = minDelta $ current `delta` target
         (maxAssetIn, maxShareDelta) = maxDelta $ current `delta` target
 
 minDelta :: Labels assets => DistributionDelta assets -> (LabelIn assets, ShareDelta)
-minDelta = argMinimumOn id . coerce
+minDelta (DistributionDelta diff) = argMinimumOn id diff
 
 maxDelta :: Labels assets => DistributionDelta assets -> (LabelIn assets, ShareDelta)
-maxDelta = argMinimumOn negate . coerce
+maxDelta (DistributionDelta diff) = argMinimumOn negate diff
 
 argMinimumOn :: (Labels ls, Ord a) => (a -> a) -> HomRec ls a -> (LabelIn ls, a)
 argMinimumOn f r = (assetIn, getIn assetIn r) where
     assetIn = minimumOn $ f . flip getIn r where
         minimumOn f = foldl (\x y -> if f x < f y then x else y) (head labels) labels
+
+fromDelta :: ShareDelta -> Maybe Share
+fromDelta (ShareDelta x) = if x >= zero then Just $ Share x else Nothing
+
+toDelta :: Share -> ShareDelta
+toDelta (Share x) = ShareDelta x
