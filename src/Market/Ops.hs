@@ -38,7 +38,7 @@ balancingTransfers tolRel current target
         initState = BalancingState diff [] where
             diff = delta current target
         next state = BalancingState
-            (applyTransfer transfer $ diff state)
+            (diff state + transferDelta transfer)
             (transfer : transfers state) where
                 transfer = ShareTransfer maxAssetIn minAssetIn transShare where
                     transShare = fromJust $ fromDelta $ min maxShareDelta $ negate minShareDelta
@@ -46,19 +46,18 @@ balancingTransfers tolRel current target
                     (maxAssetIn, maxShareDelta) = maxDelta $ diff state
         done state = isBalanced tolRel (fromJust $ target `sigma` diff state) target
 
-applyTransfer :: ShareTransfer assets -> DistributionDelta assets -> DistributionDelta assets
-applyTransfer (ShareTransfer from to share) (DistributionDelta diff)
+transferDelta :: Labels assets => ShareTransfer assets -> DistributionDelta assets
+transferDelta (ShareTransfer from to share)
     = DistributionDelta
-    $ setIn from (balance from - toDelta share)
-    $ setIn to (balance to + toDelta share)
-    $ diff where
-        balance = flip getIn diff
+    $ setIn from (negate $ toDelta share)
+    $ setIn to (toDelta share)
+    $ zero
 
 isBalanced :: Labels assets => Scalar -> Distribution assets -> Distribution assets -> Bool
 isBalanced _ _ (Distribution Empty) = True
 isBalanced tolRel current target@(Distribution targetRec)
     = maxShareDelta <= tolAbs maxAssetIn && minShareDelta >= negate (tolAbs minAssetIn) where
-        tolAbs assetIn = tolRel .* (toDelta $ getIn assetIn targetRec)
+        tolAbs assetIn = tolRel .* (toDelta $ getIn assetIn targetRec) where
         (minAssetIn, minShareDelta) = minDelta $ current `delta` target
         (maxAssetIn, maxShareDelta) = maxDelta $ current `delta` target
 

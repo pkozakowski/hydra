@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 614c649adce4efe46f28714a29fbd39606ed30c6cac5886ef39f913314f3bc30
+-- hash: 1f5bb9d2d0cdaa8fd62220a9268ab9ae8cc4c9b8e96b5a457ea2ff720d19bca9
 
 name:           hydra
 version:        0.1.0.0
@@ -84,15 +84,17 @@ test-suite hydra-test
   main-is: Spec.hs
   other-modules:
       Data.Record.Hom.Test
+      Market.Types.Test
       Numeric.Algebra.Test
       Numeric.Test
       Spec.Data.Record.Hom
+      Spec.Market.Ops
       Spec.Market.Types
       Test.Tasty.QuickCheck.Laws
       Paths_hydra
   hs-source-dirs:
       test
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -fno-ignore-asserts -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       QuickCheck
     , algebra

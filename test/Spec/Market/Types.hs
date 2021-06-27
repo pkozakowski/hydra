@@ -10,19 +10,14 @@
 
 module Spec.Market.Types where
 
-import Data.Coerce
 import Data.Proxy
-import Data.Record.Hom
-import Data.Record.Hom.Test
 import Data.Typeable
 import Market.Types
-import Numeric.Algebra hiding ((>), (>=))
+import Market.Types.Test
+import Numeric.Algebra
 import Numeric.Algebra.Test
 import Numeric.Delta
-import Numeric.Domain.GCD
-import Numeric.Field.Fraction
 import Numeric.Test
-import Prelude hiding ((+), (/))
 import Test.QuickCheck
 import Test.QuickCheck.Classes
 import Test.Tasty
@@ -30,62 +25,6 @@ import Test.Tasty.QuickCheck.Laws
 import Test.Tasty.TH
 
 type ThreeLabels = '["a", "b", "c"]
-
-instance Arbitrary Amount where
-    arbitrary = Amount <$> arbitraryPositiveFraction
-    shrink (Amount frac) = Amount <$> shrinkPositiveFraction frac
-
-deriving instance Arbitrary AmountDelta
-deriving instance Arbitrary (Portfolio ThreeLabels)
-deriving instance Arbitrary (PortfolioDelta ThreeLabels)
-
-instance Arbitrary Price where
-    arbitrary = Price <$> arbitraryPositiveFraction
-    shrink (Price frac) = Price <$> shrinkPositiveFraction frac
-
-deriving instance Arbitrary PriceDelta
-deriving instance Arbitrary (Prices ThreeLabels)
-deriving instance Arbitrary (PriceDeltas ThreeLabels)
-
-instance Arbitrary Value where
-    arbitrary = Value <$> arbitraryPositiveFraction
-    shrink (Value frac) = Value <$> shrinkPositiveFraction frac
-
-deriving instance Arbitrary ValueDelta
-deriving instance Arbitrary (Values ThreeLabels)
-deriving instance Arbitrary (ValueDeltas ThreeLabels)
-
-instance Arbitrary Share where
-    arbitrary = Share <$> arbitraryPositiveFraction
-    shrink (Share frac) = Share <$> shrinkPositiveFraction frac
-
-deriving instance Arbitrary ShareDelta
-
-instance Arbitrary (Distribution ThreeLabels) where
-
-    arbitrary = Distribution . normalize <$>
-        (arbitrary :: Gen (HomRec ThreeLabels Share)) where
-            normalize r = Share <$> (/ (foldl (+) zero r')) <$> r' where
-                r' = (1 % 1000 +) . coerce <$> r
-
-    shrink _ = []
-
-instance Arbitrary (DistributionDelta ThreeLabels) where
-    arbitrary = delta <$> arbitrary <*> arbitrary
-    shrink _ = []
-
-arbitraryPositiveFraction :: (Arbitrary i, Integral i, GCDDomain i) => Gen (Fraction i)
-arbitraryPositiveFraction
-    = (%) <$> arbitrary `suchThat` isNonNegative <*> arbitrary `suchThat` isPositive where
-        isNonNegative = (>= 0) . fromIntegral
-        isPositive = (> 0) . fromIntegral
-
-shrinkPositiveFraction :: (Arbitrary i, Integral i, GCDDomain i) => Fraction i -> [Fraction i]
-shrinkPositiveFraction frac = ((% den) <$> shrinkNum) ++ ((num %) <$> shrinkDen) where
-    shrinkNum = filter ((>= 0) . fromIntegral) $ shrink num
-    shrinkDen = filter ((> 0) . fromIntegral) $ shrink den
-    num = numerator frac
-    den = denominator frac 
 
 showProxyType :: Typeable t => Proxy t -> String
 showProxyType = show . head . typeRepArgs . typeOf
