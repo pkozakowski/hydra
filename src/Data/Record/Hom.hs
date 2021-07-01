@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ExistentialQuantification #-}
@@ -24,6 +25,7 @@ module Data.Record.Hom
     , set
     , getIn
     , setIn
+    , labelIn
     , labels
     , fromList
     , toList
@@ -106,6 +108,9 @@ instance Show (LabelIn ls) where
 
 instance Eq (LabelIn ls) where
     li1 == li2 = show li1 == show li2
+
+labelIn :: forall l ls. (KnownSymbol l, Has l ls) => LabelIn ls
+labelIn = LabelIn (Dict :: Dict (Has l ls))
 
 getIn :: LabelIn ls -> HomRec ls t -> t
 getIn (LabelIn (Dict :: Dict (Has l ls))) = get (Proxy :: Proxy l)

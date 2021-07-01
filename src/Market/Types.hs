@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -13,6 +14,7 @@
 
 module Market.Types where
 
+import Control.Exception
 import Data.Coerce
 import Data.Proxy
 import Data.Record.Hom (HomRec, Labels)
@@ -24,7 +26,7 @@ import Numeric.Delta
 import Numeric.Field.Fraction
 import Numeric.Kappa
 import Numeric.Normalizable
-import Prelude hiding ((+), (*), (/))
+import Prelude hiding ((+), (*), (/), pi)
 
 type Asset (asset :: Symbol) = Proxy asset
 
@@ -71,13 +73,19 @@ deriveQuantityInstances ''Scalar ''Value ''ValueDelta ''Values ''ValueDeltas
 
 -- | Value = Amount * Price.
 deriveKappaDivision ''Scalar ''Value ''Amount ''Price
-deriveKappaDivision ''Scalar ''ValueDelta ''AmountDelta ''PriceDelta
+deriveKappaDivision ''Scalar ''ValueDelta ''AmountDelta ''Price
+deriveKappaDivision ''Scalar ''ValueDelta ''Amount ''PriceDelta
 HR.deriveKappa ''Values ''Portfolio ''Prices
-HR.deriveKappa ''ValueDeltas ''PortfolioDelta ''PriceDeltas
+HR.deriveKappa ''ValueDeltas ''PortfolioDelta ''Prices
+HR.deriveKappa ''ValueDeltas ''Portfolio ''PriceDeltas
 
--- | Share of some quantity in a bigger whole. Doesn't make sense on its own.
+-- | Share of some quantity in a bigger whole.
 newtype Share = Share Scalar
 newtype ShareDelta = ShareDelta Scalar
+
+-- | Safe constructor for Share.
+share :: Scalar -> Share
+share x = assert (x >= zero && x <= one) $ Share x
 
 -- | Distribution on Assets. Sums to 1.
 newtype Distribution assets = Distribution (HomRec assets Share)
@@ -94,7 +102,20 @@ deriveUnnormalizable ''Scalar ''DistributionDelta ''ValueDelta ''ValueDeltas
 deriveNormalizable ''Scalar '' Distribution ''Value ''Values
 
 data OrderAmount
-    = Only Amount
-    | All
+    = Absolute Amount
+    | Relative Share
+    deriving Show
+
+everything :: OrderAmount
+everything = Relative $ share one
+
+absoluteAmount :: Amount -> OrderAmount -> Amount
+absoluteAmount totalAmount = \case
+    Absolute amount      -> amount
+    Relative (Share shr) -> shr .* totalAmount
+
+totalValue :: Labels assets => Prices assets -> Portfolio assets -> Value
+totalValue prices portfolio = foldl (+) zero values where
+    Values values = portfolio `pi` prices
 
 newtype OrderId = OrderId Int

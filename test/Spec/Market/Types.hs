@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -26,7 +27,7 @@ import Test.Tasty.TH
 
 type ThreeLabels = '["a", "b", "c"]
 
-showProxyType :: Typeable t => Proxy t -> String
+showProxyType :: Typeable (Proxy t) => Proxy t -> String
 showProxyType = show . head . typeRepArgs . typeOf
 
 testAllQuantityLaws ::
@@ -96,9 +97,13 @@ test_Kappa_Value_Amount_Price :: [TestTree]
 test_Kappa_Value_Amount_Price
     = [testKappaLaws @Value @Amount @Price p p p]
 
-test_Kappa_deltas_of_Value_Amount_Price :: [TestTree]
-test_Kappa_deltas_of_Value_Amount_Price
-    = [testKappaLaws @ValueDelta @AmountDelta @PriceDelta p p p]
+test_Kappa_ValueDelta_AmountDelta_Price :: [TestTree]
+test_Kappa_ValueDelta_AmountDelta_Price
+    = [testKappaLaws @ValueDelta @AmountDelta @Price p p p]
+
+test_Kappa_ValueDelta_Amount_PriceDelta :: [TestTree]
+test_Kappa_ValueDelta_Amount_PriceDelta
+    = [testKappaLaws @ValueDelta @Amount @PriceDelta p p p]
 
 test_Kappa_Values_Portfolio_Prices :: [TestTree]
 test_Kappa_Values_Portfolio_Prices =
@@ -110,11 +115,21 @@ test_Kappa_Values_Portfolio_Prices =
         p p p p
     ]
 
-test_Kappa_deltas_of_Values_Portfolio_Prices :: [TestTree]
-test_Kappa_deltas_of_Values_Portfolio_Prices =
+test_Kappa_ValueDeltas_Portfolio_PriceDeltas :: [TestTree]
+test_Kappa_ValueDeltas_Portfolio_PriceDeltas =
     [ testKappaSemimoduleLaws
         @(ValueDeltas ThreeLabels)
-        @(PortfolioDelta ThreeLabels)
+        @(Portfolio ThreeLabels)
+        @(PriceDeltas ThreeLabels)
+        @Scalar
+        p p p p
+    ]
+
+test_Kappa_ValueDeltas_PortfolioDelta_Prices :: [TestTree]
+test_Kappa_ValueDeltas_PortfolioDelta_Prices =
+    [ testKappaSemimoduleLaws
+        @(ValueDeltas ThreeLabels)
+        @(Portfolio ThreeLabels)
         @(PriceDeltas ThreeLabels)
         @Scalar
         p p p p

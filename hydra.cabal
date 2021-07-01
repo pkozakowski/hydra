@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1f5bb9d2d0cdaa8fd62220a9268ab9ae8cc4c9b8e96b5a457ea2ff720d19bca9
+-- hash: d0e0de426a35ac57f2b24a24b65413638f2f789ce9eb6ec1fd3712f534c2b2e3
 
 name:           hydra
 version:        0.1.0.0
@@ -50,6 +50,8 @@ library
     , constraints
     , containers
     , mtl
+    , polysemy
+    , polysemy-plugin
     , quickcheck-classes
     , tasty
     , tasty-quickcheck
@@ -63,7 +65,7 @@ executable hydra-exe
       Paths_hydra
   hs-source-dirs:
       app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -O2 -fplugin=Polysemy.Plugin -flate-specialise -fspecialise-aggressively -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       QuickCheck
     , algebra
@@ -72,6 +74,8 @@ executable hydra-exe
     , containers
     , hydra
     , mtl
+    , polysemy
+    , polysemy-plugin
     , quickcheck-classes
     , tasty
     , tasty-quickcheck
@@ -84,17 +88,19 @@ test-suite hydra-test
   main-is: Spec.hs
   other-modules:
       Data.Record.Hom.Test
+      Market.Test
       Market.Types.Test
       Numeric.Algebra.Test
       Numeric.Test
       Spec.Data.Record.Hom
       Spec.Market.Ops
+      Spec.Market.Test
       Spec.Market.Types
       Test.Tasty.QuickCheck.Laws
       Paths_hydra
   hs-source-dirs:
       test
-  ghc-options: -fno-ignore-asserts -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -fplugin=Polysemy.Plugin -flate-specialise -fspecialise-aggressively -fno-ignore-asserts -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       QuickCheck
     , algebra
@@ -103,6 +109,8 @@ test-suite hydra-test
     , containers
     , hydra
     , mtl
+    , polysemy
+    , polysemy-plugin
     , quickcheck-classes
     , tasty
     , tasty-quickcheck

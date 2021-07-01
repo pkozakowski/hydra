@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
@@ -18,8 +19,8 @@ import Prelude hiding ((+), (/))
 import Test.QuickCheck
 
 instance Arbitrary Amount where
-    arbitrary = Amount <$> arbitraryPositiveFraction
-    shrink (Amount frac) = Amount <$> shrinkPositiveFraction frac
+    arbitrary = Amount <$> arbitraryNonNegativeFraction
+    shrink (Amount frac) = Amount <$> shrinkNonNegativeFraction frac
 
 deriving instance Arbitrary AmountDelta
 deriving instance Labels assets => Arbitrary (Portfolio assets)
@@ -34,16 +35,19 @@ deriving instance Labels assets => Arbitrary (Prices assets)
 deriving instance Labels assets => Arbitrary (PriceDeltas assets)
 
 instance Arbitrary Value where
-    arbitrary = Value <$> arbitraryPositiveFraction
-    shrink (Value frac) = Value <$> shrinkPositiveFraction frac
+    arbitrary = Value <$> arbitraryNonNegativeFraction
+    shrink (Value frac) = Value <$> shrinkNonNegativeFraction frac
 
 deriving instance Arbitrary ValueDelta
 deriving instance Labels assets => Arbitrary (Values assets)
 deriving instance Labels assets => Arbitrary (ValueDeltas assets)
 
 instance Arbitrary Share where
-    arbitrary = Share <$> arbitraryPositiveFraction
-    shrink (Share frac) = Share <$> shrinkPositiveFraction frac
+
+    arbitrary
+        = Share <$> arbitraryNonNegativeFraction `suchThat` \x -> x <= one
+
+    shrink (Share frac) = Share <$> filter (<= one) (shrinkPositiveFraction frac)
 
 deriving instance Arbitrary ShareDelta
 
@@ -62,15 +66,29 @@ instance Labels assets => Arbitrary (DistributionDelta assets) where
     arbitrary = delta <$> arbitrary <*> arbitrary
     shrink _ = []
 
-arbitraryPositiveFraction :: (Arbitrary i, Integral i, GCDDomain i) => Gen (Fraction i)
-arbitraryPositiveFraction
+arbitraryNonNegativeFraction :: (Arbitrary i, Integral i, GCDDomain i) => Gen (Fraction i)
+arbitraryNonNegativeFraction
     = (%) <$> arbitrary `suchThat` isNonNegative <*> arbitrary `suchThat` isPositive where
         isNonNegative = (>= 0) . fromIntegral
         isPositive = (> 0) . fromIntegral
 
-shrinkPositiveFraction :: (Arbitrary i, Integral i, GCDDomain i) => Fraction i -> [Fraction i]
-shrinkPositiveFraction frac = ((% den) <$> shrinkNum) ++ ((num %) <$> shrinkDen) where
+shrinkNonNegativeFraction :: (Arbitrary i, Integral i, GCDDomain i) => Fraction i -> [Fraction i]
+shrinkNonNegativeFraction frac = ((% den) <$> shrinkNum) ++ ((num %) <$> shrinkDen) where
     shrinkNum = filter ((>= 0) . fromIntegral) $ shrink num
     shrinkDen = filter ((> 0) . fromIntegral) $ shrink den
     num = numerator frac
     den = denominator frac 
+
+arbitraryPositiveFraction :: (Arbitrary i, Integral i, GCDDomain i) => Gen (Fraction i)
+arbitraryPositiveFraction = arbitraryNonNegativeFraction `suchThat` (/= zero)
+
+shrinkPositiveFraction :: (Arbitrary i, Integral i, GCDDomain i) => Fraction i -> [Fraction i]
+shrinkPositiveFraction frac = filter (/= zero) $ shrinkNonNegativeFraction frac
+
+instance Arbitrary OrderAmount where
+
+    arbitrary = either Absolute Relative <$> arbitrary
+
+    shrink = \case
+        Absolute amount -> Absolute <$> shrink amount
+        Relative share  -> Relative <$> shrink share

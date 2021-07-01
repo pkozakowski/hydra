@@ -31,6 +31,8 @@ dependencies:
 - QuickCheck
 - quickcheck-classes
 - tasty-quickcheck
+- polysemy
+- polysemy-plugin
 
 library:
   source-dirs: src
@@ -40,6 +42,10 @@ executables:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
+    - -O2
+    - -fplugin=Polysemy.Plugin
+    - -flate-specialise
+    - -fspecialise-aggressively
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
@@ -51,6 +57,9 @@ tests:
     main:                Spec.hs
     source-dirs:         test
     ghc-options:
+    - -fplugin=Polysemy.Plugin
+    - -flate-specialise
+    - -fspecialise-aggressively
     - -fno-ignore-asserts
     - -threaded
     - -rtsopts
