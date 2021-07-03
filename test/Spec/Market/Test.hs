@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Spec.Market.Test where
 
@@ -33,37 +34,37 @@ test_runMarketMock =
     , testProperty "trade subtracts absoluteAmount" tradeSubtractsExactAmount
     , testProperty "trade conserves totalValue" tradeConservesTotalValue
     ] where
-        tradeSucceedsIffSufficientBalance :: Prcs -> Port -> AssetIn -> AssetIn -> Amount -> Property
-        tradeSucceedsIffSufficientBalance prices (Portfolio portfolio) from to amount
+        tradeSucceedsIffSufficientBalance
+            :: Prcs -> Port -> AssetIn -> AssetIn -> Amount -> Property
+        tradeSucceedsIffSufficientBalance prices portfolio from to amount
             = success === (getIn from portfolio >= amount) where
             success
-                = isRight $ runTrade prices (Portfolio portfolio) from to $ Absolute amount
+                = isRight $ runTrade prices portfolio from to $ Absolute amount
 
         tradeSucceedsWithRelativeAmount :: Prcs -> Port -> AssetIn -> AssetIn -> Share -> Property
         tradeSucceedsWithRelativeAmount prices portfolio from to share
             = property $ isRight $ runTrade prices portfolio from to $ Relative share
 
         tradePortfolioDeltaSigns :: Prcs -> Port -> AssetIn -> AssetIn -> OrderAmount -> Property
-        tradePortfolioDeltaSigns prices (Portfolio portfolio) from to orderAmount
+        tradePortfolioDeltaSigns prices portfolio from to orderAmount
             =   amount >= absoluteAmount amount orderAmount
             ==> all (uncurry checkSign) $ toList portfolioDelta where
             amount = getIn from portfolio
-            Portfolio portfolio'
-                = fromRight undefined $ runTrade prices (Portfolio portfolio) from to orderAmount
+            portfolio'
+                = fromRight undefined $ runTrade prices portfolio from to orderAmount
             checkSign assetIn amountDelta =
                 if assetIn == from then amountDelta <= zero
                 else if assetIn == to then amountDelta >= zero
                 else amountDelta == zero
-            PortfolioDelta portfolioDelta = Portfolio portfolio' `delta` Portfolio portfolio
+            portfolioDelta = portfolio' `delta` portfolio
 
         tradeSubtractsExactAmount :: Prcs -> Port -> AssetIn -> AssetIn -> OrderAmount -> Property
-        tradeSubtractsExactAmount prices (Portfolio portfolio) from to orderAmount
+        tradeSubtractsExactAmount prices portfolio from to orderAmount
             =   amount >= absAmount && from /= to
             ==> amount' === expectedAmount' where
             amount = getIn from portfolio
             absAmount = absoluteAmount amount orderAmount
-            Portfolio portfolio'
-                = fromRight undefined $ runTrade prices (Portfolio portfolio) from to orderAmount
+            portfolio' = fromRight undefined $ runTrade prices portfolio from to orderAmount
             amount' = getIn from portfolio'
             expectedAmount' = fromJust $ amount `sigma` (zero `delta` absAmount)
 
@@ -71,7 +72,7 @@ test_runMarketMock =
         tradeConservesTotalValue prices portfolio from to orderAmount
             =   amount >= absoluteAmount amount orderAmount
             ==> totalValue prices portfolio' === totalValue prices portfolio where
-                amount = getIn from $ coerce portfolio
+                amount = getIn from portfolio
                 portfolio' = fromRight undefined $ runTrade prices portfolio from to orderAmount
 
         runTrade prices portfolio from to orderAmount

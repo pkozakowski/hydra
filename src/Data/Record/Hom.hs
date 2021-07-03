@@ -4,6 +4,7 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
@@ -29,6 +30,7 @@ module Data.Record.Hom
     , labels
     , fromList
     , toList
+    , deriveHomRecord
     , deriveUnary
     , deriveSemimodule
     , deriveModule
@@ -78,16 +80,16 @@ type family Where (l :: u) (ls :: [u]) where
 type Has l ls = HasAt l ls (Where l ls)
 
 class wtn ~ Where l ls => HasAt l ls wtn where
-    get :: Proxy l -> HomRec ls t -> t
-    set :: Proxy l -> t -> HomRec ls t -> HomRec ls t
+    getImpl :: Proxy l -> HomRec ls t -> t
+    setImpl :: Proxy l -> t -> HomRec ls t -> HomRec ls t
 
 instance HasAt l (l ': ls) AtHead where
-    get _ (_ := x :& _) = x
-    set lp x (_ :& r) = lp := x :& r
+    getImpl _ (_ := x :& _) = x
+    setImpl lp x (_ :& r) = lp := x :& r
 
 instance (HasAt l ls i, Where l (l' ': ls) ~ AtTail) => HasAt l (l' ': ls) AtTail where
-    get lp (_ :& r) = get lp r
-    set lp x (fld :& r) = fld :& set lp x r
+    getImpl lp (_ :& r) = getImpl lp r
+    setImpl lp x (fld :& r) = fld :& setImpl lp x r
 
 -- | The typechecker can't prove this for us, so we cheat a little bit.
 membershipMonotonicity :: forall l l' ls. Has l ls :- Has l (l' ': ls)
@@ -112,28 +114,39 @@ instance Eq (LabelIn ls) where
 labelIn :: forall l ls. (KnownSymbol l, Has l ls) => LabelIn ls
 labelIn = LabelIn (Dict :: Dict (Has l ls))
 
-getIn :: LabelIn ls -> HomRec ls t -> t
-getIn (LabelIn (Dict :: Dict (Has l ls))) = get (Proxy :: Proxy l)
-
-setIn :: LabelIn ls -> t -> HomRec ls t -> HomRec ls t
-setIn (LabelIn (Dict :: Dict (Has l ls))) = set (Proxy :: Proxy l)
-
 labels :: Labels ls => [LabelIn ls]
 labels = fst <$> toList (fill undefined)
 
-fromList :: Labels ls => t -> [(LabelIn ls, t)] -> HomRec ls t
-fromList def [] = fill def
-fromList def ((li, x) : lixs) = setIn li x $ fromList def lixs
+class HomRecord ls t r | r -> ls, r -> t where
 
-toList :: HomRec ls t -> [(LabelIn ls, t)]
-toList Empty = []
-toList (lp := x :& r)
-    = (LabelIn (Dict :: Dict (HasAt l (l ': ls) AtHead)), x) : fmap inj (toList r) where
-        inj :: (LabelIn ls, t) -> (LabelIn (l ': ls), t)
-        inj (LabelIn proof, x) = (LabelIn proof', x) where
-            proof' = mapDict membershipMonotonicity proof
+    get :: Has l ls => Proxy l -> r -> t
+    set :: Has l ls => Proxy l -> t -> r -> r
+    fromList :: Labels ls => t -> [(LabelIn ls, t)] -> r
+    toList :: r -> [(LabelIn ls, t)]
 
-(!) :: Has l ls => HomRec ls t -> Proxy l -> t
+instance HomRecord ls t (HomRec ls t) where
+
+    get = getImpl
+
+    set = setImpl
+
+    fromList def [] = fill def
+    fromList def ((li, x) : lixs) = setIn li x $ fromList def lixs
+
+    toList Empty = []
+    toList (lp := x :& r)
+        = (LabelIn (Dict :: Dict (HasAt l (l ': ls') AtHead)), x) : fmap inj (toList r) where
+            inj :: (LabelIn ls', t) -> (LabelIn (l ': ls'), t)
+            inj (LabelIn proof, x) = (LabelIn proof', x) where
+                proof' = mapDict membershipMonotonicity proof
+
+getIn :: HomRecord ls t r => LabelIn ls -> r -> t
+getIn (LabelIn (Dict :: Dict (Has l ls))) = get (Proxy :: Proxy l)
+
+setIn :: HomRecord ls t r => LabelIn ls -> t -> r -> r
+setIn (LabelIn (Dict :: Dict (Has l ls))) = set (Proxy :: Proxy l)
+
+(!) :: (Has l ls, HomRecord ls t r) => r -> Proxy l -> t
 (!) = flip get
 
 infixl 9 !
@@ -193,6 +206,10 @@ instance (Labels ls, RightModule a t) => RightModule a (HomRec ls t) where
     r *. n = (*. n) <$> r
 
 instance (Labels ls, Module a t) => Module a (HomRec ls t)
+
+deriveHomRecord :: Name -> Name -> Q [Dec]
+deriveHomRecord t r
+    = [d| deriving instance HomRecord ls ($(conT t)) (($(conT r)) ls) |]
 
 deriveUnary :: Name -> [Name] -> Q [Dec]
 deriveUnary t cs = do

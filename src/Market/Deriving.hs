@@ -14,6 +14,7 @@ import Prelude hiding ((+), (*), (/))
 
 -- | Derives instances of Semimodule, Module and Delta for two pairs of types: scalar and record
 -- of absolute and relative quantities. (Semi)modules are over a single, unitless scalar type.
+-- Additionally derives HomRecord for the record types.
 deriveQuantityInstances :: Name -> Name -> Name -> Name -> Name -> Q [Dec]
 deriveQuantityInstances scr q qd qr qdr = fmap concat $ sequence $
     -- Scalar instances:
@@ -26,11 +27,15 @@ deriveQuantityInstances scr q qd qr qdr = fmap concat $ sequence $
     [HR.deriveUnary tr [''Eq, ''Show, ''Typeable] | tr <- [qr, qdr]] ++ [
         HR.deriveSemimodule scr qr,
         HR.deriveModule scr qdr,
-        HR.deriveDelta qr qdr
+        HR.deriveDelta qr qdr,
+        HR.deriveHomRecord q qr,
+        HR.deriveHomRecord qd qdr
     ]
 
--- | Same as above, but without a Semimodule instance, as it doesn't make sense to e.g. add two
--- Distributions.
+-- | Same as above, but without:
+-- * a Semimodule instance, as it doesn't make sense to e.g. add two Distributions,
+-- * a HomRecord instance, because setting values arbitrarily can break the constraint that the
+--   elements should sum to either 1 or 0.
 deriveDistributionInstances :: Name -> Name -> Name -> Name -> Name -> Q [Dec]
 deriveDistributionInstances scr q qd qr qdr = fmap concat $ sequence $
     -- Scalar instances:

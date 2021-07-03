@@ -25,9 +25,9 @@ runMarketMock
     -> Portfolio assets
     -> Sem (Market assets ': r) a
     -> Sem r (Portfolio assets)
-runMarketMock (Prices prices) initPortfolio = execState initPortfolio . reinterpret \case
+runMarketMock prices initPortfolio = execState initPortfolio . reinterpret \case
     Trade from to orderAmount -> do
-        Portfolio portfolio <- State.get
+        portfolio <- State.get
         let fromBefore = HR.getIn from portfolio
             fromDelta  = zero `delta` absoluteAmount fromBefore orderAmount
         fromAfter <- case fromBefore `sigma` fromDelta of
@@ -39,4 +39,4 @@ runMarketMock (Prices prices) initPortfolio = execState initPortfolio . reinterp
                 toDelta   = negate $ fromJust $ fromDelta `pi` fromPrice `kappa'` toPrice
                 toAfter   = fromJust $ HR.getIn to portfolio `sigma` toDelta
             in 
-                put $ Portfolio $ setIn from fromAfter $ setIn to toAfter portfolio
+                put $ setIn from fromAfter $ setIn to toAfter portfolio
