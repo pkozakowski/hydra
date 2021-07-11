@@ -101,6 +101,9 @@ deriveUnnormalizable ''Scalar ''Distribution ''Value ''Values
 deriveUnnormalizable ''Scalar ''DistributionDelta ''ValueDelta ''ValueDeltas
 deriveNormalizable ''Scalar '' Distribution ''Value ''Values
 
+onePoint :: Labels assets => HR.LabelIn assets -> Distribution assets
+onePoint assetIn = Distribution $ HR.setIn assetIn (share one) $ pure $ share zero
+
 data OrderAmount
     = Absolute Amount
     | Relative Share
@@ -113,9 +116,5 @@ absoluteAmount :: Amount -> OrderAmount -> Amount
 absoluteAmount totalAmount = \case
     Absolute amount      -> amount
     Relative (Share shr) -> shr .* totalAmount
-
-totalValue :: Labels assets => Prices assets -> Portfolio assets -> Value
-totalValue prices portfolio = foldl (+) zero values where
-    Values values = portfolio `pi` prices
 
 newtype OrderId = OrderId Int

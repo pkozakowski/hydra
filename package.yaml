@@ -21,8 +21,6 @@ description:         Please see the README on GitHub at <https://github.com/pkoz
 
 dependencies:
 - base >= 4.7 && < 5
-- containers
-- mtl
 - algebra
 - template-haskell
 - constraints
@@ -30,9 +28,11 @@ dependencies:
 - tasty-th
 - QuickCheck
 - quickcheck-classes
+- quickcheck-instances
 - tasty-quickcheck
 - polysemy
 - polysemy-plugin
+- time
 
 library:
   source-dirs: src

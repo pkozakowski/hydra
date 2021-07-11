@@ -15,7 +15,9 @@ import GHC.TypeLits
 import Market.Types
 import Numeric.Algebra hiding ((<))
 import Numeric.Delta
-import Prelude hiding ((+), (-), negate)
+import Numeric.Kappa
+import Numeric.Normalizable
+import Prelude hiding ((+), (-), negate, pi)
 
 data ShareTransfer (assets :: [Symbol])
     = ShareTransfer
@@ -77,3 +79,23 @@ fromDelta (ShareDelta x) = if x >= zero then Just $ Share x else Nothing
 
 toDelta :: Share -> ShareDelta
 toDelta (Share x) = ShareDelta x
+
+-- | Vector-matrix product between a Distribution and a matrix with Distributions in columns.
+redistribute
+    :: (Labels ls1, Labels ls2)
+    => Distribution ls1 -> HomRec ls1 (Distribution ls2) -> Distribution ls2
+redistribute (Distribution vector) matrix
+    = Distribution $ fmap Share $ foldl (+) zero
+    $ scalarVector <$> vector <*> matrix where
+        scalarVector (Share scalar) (Distribution vector)
+            = (scalar .*) . unShare <$> vector where
+                unShare (Share scalar') = scalar'
+
+totalValue :: forall assets. Labels assets => Prices assets -> Portfolio assets -> Value
+totalValue prices portfolio = foldl (+) zero values where
+    Values values = portfolio `pi` prices
+
+valueAllocation
+    :: Labels assets
+    => Prices assets -> Portfolio assets -> Maybe (Distribution assets)
+valueAllocation prices portfolio = normalize $ portfolio `pi` prices

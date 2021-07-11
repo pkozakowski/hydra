@@ -2,14 +2,16 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Spec.Market.Test where
+module Spec.Market.Simulation where
 
 import Data.Coerce
 import Data.Either
 import Data.Maybe
 import Data.Record.Hom
+import Data.Time
 import Market
-import Market.Test
+import Market.Ops
+import Market.Simulation
 import Market.Types
 import Market.Types.Test
 import Numeric.Algebra
@@ -17,6 +19,7 @@ import Numeric.Delta
 import Polysemy
 import Polysemy.Error
 import Test.QuickCheck
+import Test.QuickCheck.Instances.Time
 import Test.Tasty
 import Test.Tasty.QuickCheck
 import Test.Tasty.TH
@@ -26,8 +29,8 @@ type Prcs = Prices ThreeLabels
 type Port = Portfolio ThreeLabels
 type AssetIn = LabelIn ThreeLabels
 
-test_runMarketMock :: [TestTree]
-test_runMarketMock =
+test_runMarketSimulation :: [TestTree]
+test_runMarketSimulation =
     [ testProperty "trade succeeds iff sufficient balance" tradeSucceedsIffSufficientBalance
     , testProperty "trade succeeds with relative amount" tradeSucceedsWithRelativeAmount
     , testProperty "trade PortfolioDelta signs" tradePortfolioDeltaSigns
@@ -35,48 +38,66 @@ test_runMarketMock =
     , testProperty "trade conserves totalValue" tradeConservesTotalValue
     ] where
         tradeSucceedsIffSufficientBalance
-            :: Prcs -> Port -> AssetIn -> AssetIn -> Amount -> Property
-        tradeSucceedsIffSufficientBalance prices portfolio from to amount
+            :: UTCTime -> Prcs -> Port -> AssetIn -> AssetIn -> Amount
+            -> Property
+        tradeSucceedsIffSufficientBalance time prices portfolio from to amount
             = success === (getIn from portfolio >= amount) where
             success
-                = isRight $ runTrade prices portfolio from to $ Absolute amount
+                = isRight $ runTrade time prices portfolio from to
+                $ Absolute amount
 
-        tradeSucceedsWithRelativeAmount :: Prcs -> Port -> AssetIn -> AssetIn -> Share -> Property
-        tradeSucceedsWithRelativeAmount prices portfolio from to share
-            = property $ isRight $ runTrade prices portfolio from to $ Relative share
+        tradeSucceedsWithRelativeAmount
+            :: UTCTime -> Prcs -> Port -> AssetIn -> AssetIn -> Share
+            -> Property
+        tradeSucceedsWithRelativeAmount time prices portfolio from to share
+            = property $ isRight $ runTrade time prices portfolio from to
+            $ Relative share
 
-        tradePortfolioDeltaSigns :: Prcs -> Port -> AssetIn -> AssetIn -> OrderAmount -> Property
-        tradePortfolioDeltaSigns prices portfolio from to orderAmount
+        tradePortfolioDeltaSigns
+            :: UTCTime -> Prcs -> Port -> AssetIn -> AssetIn -> OrderAmount
+            -> Property
+        tradePortfolioDeltaSigns time prices portfolio from to orderAmount
             =   amount >= absoluteAmount amount orderAmount
             ==> all (uncurry checkSign) $ toList portfolioDelta where
             amount = getIn from portfolio
             portfolio'
-                = fromRight undefined $ runTrade prices portfolio from to orderAmount
+                = fromRight undefined
+                $ runTrade time prices portfolio from to orderAmount
             checkSign assetIn amountDelta =
                 if assetIn == from then amountDelta <= zero
                 else if assetIn == to then amountDelta >= zero
                 else amountDelta == zero
             portfolioDelta = portfolio' `delta` portfolio
 
-        tradeSubtractsExactAmount :: Prcs -> Port -> AssetIn -> AssetIn -> OrderAmount -> Property
-        tradeSubtractsExactAmount prices portfolio from to orderAmount
+        tradeSubtractsExactAmount
+            :: UTCTime -> Prcs -> Port -> AssetIn -> AssetIn -> OrderAmount
+            -> Property
+        tradeSubtractsExactAmount time prices portfolio from to orderAmount
             =   amount >= absAmount && from /= to
             ==> amount' === expectedAmount' where
             amount = getIn from portfolio
             absAmount = absoluteAmount amount orderAmount
-            portfolio' = fromRight undefined $ runTrade prices portfolio from to orderAmount
+            portfolio'
+                = fromRight undefined
+                $ runTrade time prices portfolio from to orderAmount
             amount' = getIn from portfolio'
             expectedAmount' = fromJust $ amount `sigma` (zero `delta` absAmount)
 
-        tradeConservesTotalValue :: Prcs -> Port -> AssetIn -> AssetIn -> OrderAmount -> Property
-        tradeConservesTotalValue prices portfolio from to orderAmount
+        tradeConservesTotalValue
+            :: UTCTime -> Prcs -> Port -> AssetIn -> AssetIn -> OrderAmount
+            -> Property
+        tradeConservesTotalValue time prices portfolio from to orderAmount
             =   amount >= absoluteAmount amount orderAmount
             ==> totalValue prices portfolio' === totalValue prices portfolio where
                 amount = getIn from portfolio
-                portfolio' = fromRight undefined $ runTrade prices portfolio from to orderAmount
+                portfolio'
+                    = fromRight undefined
+                    $ runTrade time prices portfolio from to orderAmount
 
-        runTrade prices portfolio from to orderAmount
-            = run $ runError $ runMarketMock prices portfolio $ trade from to orderAmount
+        runTrade time prices portfolio from to orderAmount
+            = fmap fst $ run $ runError
+            $ runMarketSimulation time prices portfolio
+            $ trade from to orderAmount where
 
 tests :: TestTree
 tests = $(testGroupGenerator)
