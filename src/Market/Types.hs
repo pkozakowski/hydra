@@ -104,6 +104,19 @@ deriveNormalizable ''Scalar '' Distribution ''Value ''Values
 onePoint :: Labels assets => HR.LabelIn assets -> Distribution assets
 onePoint assetIn = Distribution $ HR.setIn assetIn (share one) $ pure $ share zero
 
+distributionValid :: Labels assets => Distribution assets -> Bool
+distributionValid (Distribution shares)
+    =  all (>= zero) shares'
+    && foldl (+) zero shares' == one where
+        shares' = unShare <$> shares where
+            unShare (Share scalar) = scalar
+
+distributionDeltaValid :: Labels assets => DistributionDelta assets -> Bool
+distributionDeltaValid (DistributionDelta shareDeltas)
+    = foldl (+) zero shareDeltas' == zero where
+        shareDeltas' = unShareDelta <$> shareDeltas where
+            unShareDelta (ShareDelta scalar) = scalar
+
 data OrderAmount
     = Absolute Amount
     | Relative Share

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 747db9adf4e70958111ec4dda712b4bfd2b60fcd31bec0b6f28742749ab7fd53
+-- hash: 0333bcf579317b09987b5b51e68ff35dfeb83c65ce20b7b003f0c03b19dadeaa
 
 name:           hydra
 version:        0.1.0.0
@@ -92,6 +92,7 @@ test-suite hydra-test
       Numeric.Algebra.Test
       Numeric.Test
       Spec.Data.Record.Hom
+      Spec.Market.Instruments
       Spec.Market.Ops
       Spec.Market.Simulation
       Spec.Market.Types

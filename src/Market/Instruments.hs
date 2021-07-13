@@ -38,8 +38,9 @@ data Hold (held :: Symbol) = Hold
 instance (Has held assets, KnownSymbol held, Labels assets)
     => Instrument assets (Hold held) (Hold held) where
 
+    initState _ _ = Hold
     initAllocation _ _ = onePoint $ labelIn @held
-
+    -- TODO: allocation -> trades
     execute prices portfolio = return ()
 
 data BalanceConfig assets instrs = BalanceConfig
@@ -58,6 +59,12 @@ data Balance assets instrs = Balance
 instance (Labels assets, Labels instrs)
     => Instrument
         assets (BalanceConfig assets instrs) (Balance assets instrs) where
+
+    initState prices config = Balance
+        { instruments = initState prices <$> configs config
+        , allocations = initAllocation prices <$> configs config
+        , lastUpdateTime = UTCTime (ModifiedJulianDay 0) 0
+        }
 
     initAllocation prices config
         = redistribute (target config)
