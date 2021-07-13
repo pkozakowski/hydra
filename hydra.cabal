@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 747db9adf4e70958111ec4dda712b4bfd2b60fcd31bec0b6f28742749ab7fd53
+-- hash: 1bc87c42838f74b58aa5bcc8329dc09eabe99786670009145bd4b3776a83d09b
 
 name:           hydra
 version:        0.1.0.0
@@ -88,10 +88,12 @@ test-suite hydra-test
   main-is: Spec.hs
   other-modules:
       Data.Record.Hom.Test
+      Market.Instruments.Test
       Market.Types.Test
       Numeric.Algebra.Test
       Numeric.Test
       Spec.Data.Record.Hom
+      Spec.Market.Instruments
       Spec.Market.Ops
       Spec.Market.Simulation
       Spec.Market.Types

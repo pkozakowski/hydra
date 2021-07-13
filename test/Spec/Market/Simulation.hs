@@ -97,7 +97,7 @@ test_runMarketSimulation =
         runTrade time prices portfolio from to orderAmount
             = fmap fst $ run $ runError
             $ runMarketSimulation time prices portfolio
-            $ trade from to orderAmount where
+            $ trade from to orderAmount
 
 tests :: TestTree
 tests = $(testGroupGenerator)

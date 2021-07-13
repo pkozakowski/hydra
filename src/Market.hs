@@ -56,29 +56,44 @@ getTime
     :: forall assets r. (Member (Market assets) r) => Sem r UTCTime
 getTime = send (GetTime :: Market assets (Sem r) UTCTime)
 
-type Effects assets c i = '[Market assets, Reader c, State i, Error String]
+type InstrumentEffects assets c i
+    = '[Market assets, Reader c, State i, Error String]
 
 class Instrument assets c i | i -> c, c -> i where
+
+    initState :: Prices assets -> c -> i
 
     initAllocation :: Prices assets -> c -> Distribution assets
 
     execute
-        :: Members (Effects assets c i) r
+        :: Members (InstrumentEffects assets c i) r
         => Prices assets -> Portfolio assets -> Sem r ()
 
+runInstrument
+    :: Instrument assets c i
+    => Prices assets -> c -> Sem (Reader c ': State i ': r) a -> Sem r (i, a)
+runInstrument prices config
+    = runState (initState prices config) . runReader config
+
 data SomeConfig assets = SomeConfig
-    { someInitAllocation :: Prices assets -> Distribution assets }
+    { someInitState :: Prices assets -> SomeInstrument assets
+    , someInitAllocation :: Prices assets -> Distribution assets
+    }
 
 data SomeInstrument assets = SomeInstrument
     { someExecute
         :: forall r
         .  Members
-            ( Effects assets (SomeConfig assets) (SomeInstrument assets)
+            ( InstrumentEffects
+                assets
+                (SomeConfig assets)
+                (SomeInstrument assets)
             ) r
         => Prices assets -> Portfolio assets -> Sem r ()
     }
 
 instance Instrument assets (SomeConfig assets) (SomeInstrument assets) where
+    initState prices cfg = someInitState cfg prices
     initAllocation prices cfg = someInitAllocation cfg prices
     execute prices portfolio = do
         dict <- State.get
@@ -88,7 +103,8 @@ someConfig
     :: forall assets c i
     .  Instrument assets c i
     => c -> SomeConfig assets
-someConfig config = SomeConfig initAlloc where
+someConfig config = SomeConfig initSt initAlloc where
+    initSt prices = someInstrument config $ initState @_ @_ @i prices config
     initAlloc prices = initAllocation @_ @_ @i prices config
 
 someInstrument
@@ -99,7 +115,12 @@ someInstrument config instr = SomeInstrument exec where
     exec
         :: forall r
         .  Members
-            (Effects assets (SomeConfig assets) (SomeInstrument assets)) r
+            ( InstrumentEffects
+                assets
+                (SomeConfig assets)
+                (SomeInstrument assets)
+            )
+            r
         => Prices assets -> Portfolio assets -> Sem r ()
     exec prices portfolio = do
         instr'

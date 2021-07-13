@@ -38,9 +38,10 @@ data Hold (held :: Symbol) = Hold
 instance (Has held assets, KnownSymbol held, Labels assets)
     => Instrument assets (Hold held) (Hold held) where
 
+    initState _ _ = Hold
     initAllocation _ _ = onePoint $ labelIn @held
-
-    execute prices portfolio = return ()
+    execute prices portfolio
+        = allocationToTrades zero prices portfolio $ onePoint $ labelIn @held
 
 data BalanceConfig assets instrs = BalanceConfig
     { configs :: HomRec instrs (SomeConfig assets)
@@ -59,6 +60,12 @@ instance (Labels assets, Labels instrs)
     => Instrument
         assets (BalanceConfig assets instrs) (Balance assets instrs) where
 
+    initState prices config = Balance
+        { instruments = initState prices <$> configs config
+        , allocations = initAllocation prices <$> configs config
+        , lastUpdateTime = UTCTime (ModifiedJulianDay 0) 0
+        }
+
     initAllocation prices config
         = redistribute (target config)
         $ initAllocation prices <$> configs config
@@ -66,7 +73,7 @@ instance (Labels assets, Labels instrs)
     execute
         :: forall r
         .  Members
-            ( Effects
+            ( InstrumentEffects
                 assets (BalanceConfig assets instrs) (Balance assets instrs)
             ) r
         => Prices assets -> Portfolio assets -> Sem r ()
@@ -101,11 +108,8 @@ instance (Labels assets, Labels instrs)
             -- 3. Make the balancing trades between the old and new global
             -- portfolios.
             let portfolio' = foldl (+) zero portfolios'
-                transfers = balancingTransfers
-                    (tolerance config)
-                    (valueAlloc portfolio)
-                    (valueAlloc portfolio')
-            sequence $ transferToTrade portfolio' <$> transfers
+                allocation' = valueAlloc portfolio'
+            allocationToTrades (tolerance config) prices portfolio allocation'
             -- 4. Update the state.
             put Balance
                 { instruments = instruments'
@@ -116,9 +120,16 @@ instance (Labels assets, Labels instrs)
                 idealPortfolio value allocation
                     = fromJust $ value `unnormalize` allocation `kappa'` prices
                 valueAlloc = fromJust . valueAllocation prices
-                transferToTrade portfolio (ShareTransfer from to (Share shr))
-                    = trade from to $ Absolute $ shr .* amount where
-                        amount
-                            = fromJust
-                            $ totalValue prices portfolio
-                                `kappa'` getIn from prices
+
+allocationToTrades
+    :: (Labels assets, Member (Market assets) r)
+    => Scalar -> Prices assets -> Portfolio assets -> Distribution assets
+    -> Sem r ()
+allocationToTrades tolerance prices portfolio targetAlloc
+    = sequence_ $ transferToTrade value <$> transfers where
+        value = totalValue prices portfolio
+        transferToTrade value (ShareTransfer from to (Share shr))
+            = trade from to $ Absolute $ shr .* amount where
+                amount = fromJust $ value `kappa'` getIn from prices
+        transfers = balancingTransfers tolerance currentAlloc targetAlloc where
+            currentAlloc = fromJust $ valueAllocation prices portfolio
