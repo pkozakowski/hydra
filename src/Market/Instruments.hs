@@ -4,14 +4,13 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
-
 
 module Market.Instruments where
 
@@ -33,35 +32,40 @@ import Polysemy.Reader
 import Polysemy.State as State
 import Prelude hiding ((+), pi)
 
-data Hold (held :: Symbol) = Hold
+import Debug.Trace
+
+data Hold (held :: Symbol) = Hold (Proxy held)
+
+instance KnownSymbol held => Show (Hold held) where
+    show _ = "Hold " ++ symbolVal (Proxy @held)
 
 instance (Has held assets, KnownSymbol held, Labels assets)
     => Instrument assets (Hold held) (Hold held) where
 
-    initState _ _ = Hold
+    initState _ _ = Hold Proxy
     initAllocation _ _ = onePoint $ labelIn @held
     execute prices portfolio
         = allocationToTrades zero prices portfolio $ onePoint $ labelIn @held
 
 data BalanceConfig assets instrs = BalanceConfig
-    { configs :: HomRec instrs (SomeConfig assets)
+    { configs :: HomRec instrs (SomeInstrumentConfig assets)
     , target :: Distribution instrs
     , tolerance :: Scalar
     , updateEvery :: NominalDiffTime
-    }
+    } deriving (Show)
 
-data Balance assets instrs = Balance
-    { instruments :: HomRec instrs (SomeInstrument assets)
+data BalanceState assets instrs = BalanceState
+    { states :: HomRec instrs (SomeInstrumentState assets)
     , allocations :: HomRec instrs (Distribution assets)
     , lastUpdateTime :: UTCTime
     }
 
 instance (Labels assets, Labels instrs)
     => Instrument
-        assets (BalanceConfig assets instrs) (Balance assets instrs) where
+        assets (BalanceConfig assets instrs) (BalanceState assets instrs) where
 
-    initState prices config = Balance
-        { instruments = initState prices <$> configs config
+    initState prices config = BalanceState
+        { states = initState prices <$> configs config
         , allocations = initAllocation prices <$> configs config
         , lastUpdateTime = UTCTime (ModifiedJulianDay 0) 0
         }
@@ -74,7 +78,7 @@ instance (Labels assets, Labels instrs)
         :: forall r
         .  Members
             ( InstrumentEffects
-                assets (BalanceConfig assets instrs) (Balance assets instrs)
+                assets (BalanceConfig assets instrs) (BalanceState assets instrs)
             ) r
         => Prices assets -> Portfolio assets -> Sem r ()
     execute prices portfolio = do
@@ -92,18 +96,22 @@ instance (Labels assets, Labels instrs)
             -- 2. Execute the per-instrument trades in simulated markets to get
             -- new portfolios.
             let exec = execute
-                    @_ @(SomeConfig assets) @(SomeInstrument assets) prices
+                    @_
+                    @(SomeInstrumentConfig assets)
+                    @(SomeInstrumentState assets)
+                    prices
                 executions
                     :: HomRec
-                        instrs (Sem (Market assets ': r) (SomeInstrument assets))
+                        instrs
+                        (Sem (Market assets ': r) (SomeInstrumentState assets))
                 executions
                     = runReader <$> configs config <*>
-                    ( execState <$> instruments state <*> (exec <$> portfolios) )
+                    ( execState <$> states state <*> (exec <$> portfolios) )
             portfoliosAndInstruments'
                 <- sequence
                 $  runMarketSimulation time prices <$> portfolios <*> executions
             let portfolios' = fst <$> portfoliosAndInstruments'
-                instruments' = snd <$> portfoliosAndInstruments'
+                states' = snd <$> portfoliosAndInstruments'
                 allocations' = valueAlloc <$> portfolios'
             -- 3. Make the balancing trades between the old and new global
             -- portfolios.
@@ -111,8 +119,8 @@ instance (Labels assets, Labels instrs)
                 allocation' = valueAlloc portfolio'
             allocationToTrades (tolerance config) prices portfolio allocation'
             -- 4. Update the state.
-            put Balance
-                { instruments = instruments'
+            put BalanceState
+                { states = states'
                 , allocations = allocations'
                 , lastUpdateTime = time
                 }
@@ -125,8 +133,9 @@ allocationToTrades
     :: (Labels assets, Member (Market assets) r)
     => Scalar -> Prices assets -> Portfolio assets -> Distribution assets
     -> Sem r ()
-allocationToTrades tolerance prices portfolio targetAlloc
-    = sequence_ $ transferToTrade value <$> transfers where
+allocationToTrades tolerance prices portfolio targetAlloc =
+    when (value > zero) $ sequence_ $ transferToTrade value <$> transfers
+    where
         value = totalValue prices portfolio
         transferToTrade value (ShareTransfer from to (Share shr))
             = trade from to $ Absolute $ shr .* amount where

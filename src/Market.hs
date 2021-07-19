@@ -9,7 +9,6 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Market
@@ -56,74 +55,79 @@ getTime
     :: forall assets r. (Member (Market assets) r) => Sem r UTCTime
 getTime = send (GetTime :: Market assets (Sem r) UTCTime)
 
-type InstrumentEffects assets c i
-    = '[Market assets, Reader c, State i, Error String]
+type InstrumentEffects assets r s
+    = '[Market assets, Reader r, State s, Error String]
 
-class Instrument assets c i | i -> c, c -> i where
+class Instrument assets c s | s -> c, c -> s where
 
-    initState :: Prices assets -> c -> i
+    initState :: Prices assets -> c -> s
 
     initAllocation :: Prices assets -> c -> Distribution assets
 
     execute
-        :: Members (InstrumentEffects assets c i) r
+        :: Members (InstrumentEffects assets c s) r
         => Prices assets -> Portfolio assets -> Sem r ()
 
 runInstrument
-    :: Instrument assets c i
-    => Prices assets -> c -> Sem (Reader c ': State i ': r) a -> Sem r (i, a)
+    :: Instrument assets c s
+    => Prices assets -> c -> Sem (Reader c ': State s ': r) a -> Sem r (s, a)
 runInstrument prices config
     = runState (initState prices config) . runReader config
 
-data SomeConfig assets = SomeConfig
-    { someInitState :: Prices assets -> SomeInstrument assets
+data SomeInstrumentConfig assets = SomeInstrumentConfig
+    { someInitState :: Prices assets -> SomeInstrumentState assets
     , someInitAllocation :: Prices assets -> Distribution assets
+    , someShow :: String
     }
 
-data SomeInstrument assets = SomeInstrument
+data SomeInstrumentState assets = SomeInstrumentState
     { someExecute
         :: forall r
         .  Members
             ( InstrumentEffects
                 assets
-                (SomeConfig assets)
-                (SomeInstrument assets)
+                (SomeInstrumentConfig assets)
+                (SomeInstrumentState assets)
             ) r
         => Prices assets -> Portfolio assets -> Sem r ()
     }
 
-instance Instrument assets (SomeConfig assets) (SomeInstrument assets) where
+instance Instrument assets (SomeInstrumentConfig assets) (SomeInstrumentState assets) where
     initState prices cfg = someInitState cfg prices
     initAllocation prices cfg = someInitAllocation cfg prices
     execute prices portfolio = do
         dict <- State.get
         someExecute dict prices portfolio
 
-someConfig
-    :: forall assets c i
-    .  Instrument assets c i
-    => c -> SomeConfig assets
-someConfig config = SomeConfig initSt initAlloc where
-    initSt prices = someInstrument config $ initState @_ @_ @i prices config
-    initAlloc prices = initAllocation @_ @_ @i prices config
+instance Show (SomeInstrumentConfig assets) where
+    show = someShow
 
-someInstrument
-    :: forall assets c i
-    .  Instrument assets c i
-    => c -> i -> SomeInstrument assets
-someInstrument config instr = SomeInstrument exec where
+someInstrumentConfig
+    :: forall assets c s
+    .  (Instrument assets c s, Show c)
+    => c -> SomeInstrumentConfig assets
+someInstrumentConfig config = SomeInstrumentConfig initSt initAlloc shw where
+    initSt prices = someInstrumentState config $ initState @_ @_ @s prices config
+    initAlloc prices = initAllocation @_ @_ @s prices config
+    shw = show config
+
+someInstrumentState
+    :: forall assets c s
+    .  Instrument assets c s
+    => c -> s -> SomeInstrumentState assets
+someInstrumentState config instr = SomeInstrumentState exec where
     exec
         :: forall r
         .  Members
             ( InstrumentEffects
                 assets
-                (SomeConfig assets)
-                (SomeInstrument assets)
+                (SomeInstrumentConfig assets)
+                (SomeInstrumentState assets)
             )
             r
         => Prices assets -> Portfolio assets -> Sem r ()
     exec prices portfolio = do
         instr'
             <- runReader config $ execState instr
-            $  execute @_ @c @i prices portfolio
-        put (someInstrument config instr' :: SomeInstrument assets)
+            $  execute @_ @c @s prices portfolio
+        put (someInstrumentState config instr' :: SomeInstrumentState assets)

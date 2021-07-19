@@ -66,3 +66,6 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - hydra
+
+default-extensions:
+- TypeApplications

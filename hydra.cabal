@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1bc87c42838f74b58aa5bcc8329dc09eabe99786670009145bd4b3776a83d09b
+-- hash: f5a0afd7d3d8911247af67e092e969bf5ecf637c59a1d049605062d4ebef780b
 
 name:           hydra
 version:        0.1.0.0
@@ -43,6 +43,7 @@ library
       Paths_hydra
   hs-source-dirs:
       src
+  default-extensions: TypeApplications
   build-depends:
       QuickCheck
     , algebra
@@ -65,6 +66,7 @@ executable hydra-exe
       Paths_hydra
   hs-source-dirs:
       app
+  default-extensions: TypeApplications
   ghc-options: -O2 -fplugin=Polysemy.Plugin -flate-specialise -fspecialise-aggressively -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       QuickCheck
@@ -101,6 +103,7 @@ test-suite hydra-test
       Paths_hydra
   hs-source-dirs:
       test
+  default-extensions: TypeApplications
   ghc-options: -fplugin=Polysemy.Plugin -flate-specialise -fspecialise-aggressively -fno-ignore-asserts -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       QuickCheck

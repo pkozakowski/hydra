@@ -5,7 +5,6 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Market.Instruments.Test where
@@ -30,27 +29,26 @@ import Test.Tasty
 import Test.Tasty.QuickCheck
 
 testInstrumentLaws
-    :: forall assets c i. (Labels assets, Instrument assets c i)
-    => c -> TestTree
-testInstrumentLaws config = testGroup "Instument"
-    [ testProperty "InitAllocation <-> Execute Agreement"
-        $ initAllocationExecuteAgreement @assets config
-    , testProperty "Execute Idempotence" $ executeIdempotence @assets config
-    , testProperty "Execute Efficiency" $ executeEfficiency @assets config
-    ]
+    :: forall assets c s. (Labels assets, Show c, Instrument assets c s)
+    => Gen c -> TestTree
+testInstrumentLaws arbitraryConfig = testGroup "Instrument"
+    [ testProperty "Execute Idempotence"
+        $ forAllConfigs $ executeIdempotence @assets
+    , testProperty "Execute Efficiency"
+        $ forAllConfigs $ executeEfficiency @assets
+    ] where
+        forAllConfigs :: Testable prop => (c -> prop) -> Property
+        forAllConfigs = forAll arbitraryConfig
 
-initAllocationExecuteAgreement
-    :: forall assets c i. (Labels assets, Instrument assets c i)
-    => c -> UTCTime -> Prices assets -> Portfolio assets -> Property
-initAllocationExecuteAgreement config time prices portfolio
-    =   totalValue prices portfolio > zero
-    ==> valueAllocation prices portfolio'
-    === (Just $ initAllocation prices config) where
-        portfolio'
-            = fromRight undefined $ runExecute config time prices portfolio
+testInitAllocationExecuteAgreement
+    :: forall assets c s. (Labels assets, Instrument assets c s, Show c)
+    => Gen c -> TestTree
+testInitAllocationExecuteAgreement arbitraryConfig
+    = testProperty "initAllocation agrees with execute"
+    $ forAll arbitraryConfig $ initAllocationExecuteAgreement @assets
 
 executeIdempotence
-    :: forall assets c i. (Labels assets, Instrument assets c i)
+    :: forall assets c s. (Labels assets, Instrument assets c s)
     => c -> UTCTime -> NominalDiffTime -> Prices assets -> Portfolio assets
     -> Property
 executeIdempotence config time timeDiff prices portfolio
@@ -66,17 +64,16 @@ executeIdempotence config time timeDiff prices portfolio
 data Sign = Plus | Zero | Minus deriving Eq
 
 executeEfficiency
-    :: forall assets c i. (Labels assets, Instrument assets c i)
-    => c -> UTCTime -> NominalDiffTime -> Prices assets -> Portfolio assets
-    -> Property
-executeEfficiency config time timeDiff prices portfolio
+    :: forall assets c s. (Labels assets, Instrument assets c s)
+    => c -> UTCTime -> Prices assets -> Portfolio assets -> Property
+executeEfficiency config time prices portfolio
     =   totalValue prices portfolio > zero
     ==> isEfficient where
         isEfficient
             = fromRight undefined $ run $ runError
             $ runEfficiencyTest prices
             $ runInstrument prices config
-            $ execute @_ @c @i prices portfolio
+            $ execute @_ @c @s prices portfolio
         runEfficiencyTest
             :: Prices assets -> Sem (Market assets ': r) a
             -> Sem r Property
@@ -113,12 +110,22 @@ executeEfficiency config time timeDiff prices portfolio
                     Absolute x         -> x == zero
                     Relative (Share x) -> x == zero
 
+initAllocationExecuteAgreement
+    :: forall assets c s. (Labels assets, Instrument assets c s)
+    => c -> UTCTime -> Prices assets -> Portfolio assets -> Property
+initAllocationExecuteAgreement config time prices portfolio
+    =   totalValue prices portfolio > zero
+    ==> valueAllocation prices portfolio'
+    === (Just $ initAllocation prices config) where
+        portfolio'
+            = fromRight undefined $ runExecute config time prices portfolio
+
 runExecute
-    :: forall assets c i. Instrument assets c i
+    :: forall assets c s. Instrument assets c s
     => c -> UTCTime -> Prices assets -> Portfolio assets
     -> Either String (Portfolio assets)
 runExecute config time prices portfolio
     = fmap fst $ run $ runError
     $ runMarketSimulation time prices portfolio
     $ runInstrument prices config
-    $ execute @_ @c @i prices portfolio
+    $ execute @_ @c @s prices portfolio
