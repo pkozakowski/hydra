@@ -15,6 +15,7 @@ module Market.Types where
 
 import Control.Exception
 import Data.Coerce
+import Data.List.NonEmpty
 import Data.Proxy
 import Data.Record.Hom (HomRec, Labels)
 import qualified Data.Record.Hom as HR
@@ -132,4 +133,4 @@ absoluteAmount totalAmount = \case
 
 newtype OrderId = OrderId Int
 
-newtype TimeSeries a = TimeSeries [(UTCTime, a)]
+newtype TimeSeries a = TimeSeries (NonEmpty (UTCTime, a))
