@@ -42,10 +42,14 @@ instance KnownSymbol held => Show (Hold held) where
 instance (Has held assets, KnownSymbol held, Labels assets)
     => Instrument assets (Hold held) (Hold held) where
 
-    initState _ _ = Hold Proxy
-    initAllocation _ _ = onePoint $ labelIn @held
-    execute prices portfolio
-        = allocationToTrades zero prices portfolio $ onePoint $ labelIn @held
+    initState = return $ Hold Proxy
+
+    initAllocation = return $ onePoint $ labelIn @held
+
+    execute = do
+        prices <- ask @(Prices assets)
+        portfolio <- ask @(Portfolio assets)
+        allocationToTrades zero prices portfolio $ onePoint $ labelIn @held
 
 data BalanceConfig assets instrs = BalanceConfig
     { configs :: HomRec instrs (SomeInstrumentConfig assets)
@@ -64,15 +68,24 @@ instance (Labels assets, Labels instrs)
     => Instrument
         assets (BalanceConfig assets instrs) (BalanceState assets instrs) where
 
-    initState prices config = BalanceState
-        { states = initState prices <$> configs config
-        , allocations = initAllocation prices <$> configs config
-        , lastUpdateTime = UTCTime (ModifiedJulianDay 0) 0
-        }
+    initState = do
+        IConfig config <- ask @(IConfig (BalanceConfig assets instrs))
+        prices <- ask @(Prices assets)
+        states <- multiplexConfig (configs config)
+            $ initState @assets @(SomeInstrumentConfig assets)
+        allocations <- multiplexConfig (configs config)
+            $ initAllocation @assets @(SomeInstrumentConfig assets)
+        return BalanceState
+            { states = states
+            , allocations = allocations
+            , lastUpdateTime = UTCTime (ModifiedJulianDay 0) 0
+            }
 
-    initAllocation prices config
-        = redistribute (target config)
-        $ initAllocation prices <$> configs config
+    initAllocation = do
+        IConfig config <- ask @(IConfig (BalanceConfig assets instrs))
+        allocations <- multiplexConfig (configs config)
+            $ initAllocation @assets @(SomeInstrumentConfig assets)
+        return $ redistribute (target config) allocations
 
     execute
         :: forall r
@@ -80,54 +93,57 @@ instance (Labels assets, Labels instrs)
             ( InstrumentEffects
                 assets (BalanceConfig assets instrs) (BalanceState assets instrs)
             ) r
-        => Prices assets -> Portfolio assets -> Sem r ()
-    execute prices portfolio = do
+        => Sem r ()
+    execute = do
         -- 0. Check if enough time has passed since the last update.
         time <- getTime @assets
-        config :: BalanceConfig assets instrs <- ask
-        state <- State.get
+        IConfig config <- ask @(IConfig (BalanceConfig assets instrs))
+        IState state <- State.get
         when (time `diffUTCTime` lastUpdateTime state > updateEvery config) $ do
             -- 1. Compute the ideal per-instrument portfolios according to the
             -- value allocations.
+            prices <- ask @(Prices assets)
+            portfolio <- ask @(Portfolio assets)
             let Distribution targetShares = target config
                 Values targetValues
                     = totalValue prices portfolio `unnormalize` target config
-                portfolios = idealPortfolio <$> targetValues <*> allocations state
+                portfolios
+                    = idealPortfolio prices
+                        <$> targetValues
+                        <*> allocations state
             -- 2. Execute the per-instrument trades in simulated markets to get
             -- new portfolios.
             let exec = execute
-                    @_
+                    @assets
                     @(SomeInstrumentConfig assets)
                     @(SomeInstrumentState assets)
-                    prices
                 executions
-                    :: HomRec
-                        instrs
-                        (Sem (Market assets ': r) (SomeInstrumentState assets))
-                executions
-                    = runReader <$> configs config <*>
-                    ( execState <$> states state <*> (exec <$> portfolios) )
+                    = fmap (fmap fst)
+                    $ runInstrument' @assets
+                        <$> configs config
+                        <*> states state
+                        <*> pure exec
             portfoliosAndInstruments'
                 <- sequence
-                $  runMarketSimulation time prices <$> portfolios <*> executions
+                $  runMarketSimulation time <$> portfolios <*> executions
             let portfolios' = fst <$> portfoliosAndInstruments'
                 states' = snd <$> portfoliosAndInstruments'
-                allocations' = valueAlloc <$> portfolios'
+                allocations' = valueAlloc prices <$> portfolios'
             -- 3. Make the balancing trades between the old and new global
             -- portfolios.
             let portfolio' = foldl (+) zero portfolios'
-                allocation' = valueAlloc portfolio'
+                allocation' = valueAlloc prices portfolio'
             allocationToTrades (tolerance config) prices portfolio allocation'
             -- 4. Update the state.
-            put BalanceState
+            put $ IState $ BalanceState
                 { states = states'
                 , allocations = allocations'
                 , lastUpdateTime = time
                 }
             where
-                idealPortfolio value allocation
+                idealPortfolio prices value allocation
                     = fromJust $ value `unnormalize` allocation `kappa'` prices
-                valueAlloc = fromJust . valueAllocation prices
+                valueAlloc prices = fromJust . valueAllocation prices
 
 allocationToTrades
     :: (Labels assets, Member (Market assets) r)
@@ -142,3 +158,9 @@ allocationToTrades tolerance prices portfolio targetAlloc =
                 amount = fromJust $ value `kappa'` getIn from prices
         transfers = balancingTransfers tolerance currentAlloc targetAlloc where
             currentAlloc = fromJust $ valueAllocation prices portfolio
+
+multiplexConfig
+    :: Traversable f
+    => f c -> Sem (Reader (IConfig c) : r) a -> Sem r (f a)
+multiplexConfig configs monad
+    = sequence $ flip runReader monad <$> IConfig <$> configs

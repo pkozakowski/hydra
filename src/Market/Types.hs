@@ -18,6 +18,7 @@ import Data.Coerce
 import Data.Proxy
 import Data.Record.Hom (HomRec, Labels)
 import qualified Data.Record.Hom as HR
+import Data.Time
 import GHC.TypeLits
 import Market.Deriving
 import Numeric.Algebra
@@ -130,3 +131,5 @@ absoluteAmount totalAmount = \case
     Relative (Share shr) -> shr .* totalAmount
 
 newtype OrderId = OrderId Int
+
+newtype TimeSeries a = TimeSeries [(UTCTime, a)]

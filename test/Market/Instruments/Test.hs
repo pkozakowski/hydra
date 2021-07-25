@@ -1,5 +1,4 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
@@ -21,6 +20,7 @@ import Market.Types.Test
 import Numeric.Algebra hiding ((>))
 import Polysemy
 import Polysemy.Error
+import Polysemy.Reader
 import Polysemy.State as State
 import Test.QuickCheck
 import Test.QuickCheck.Instances.Time
@@ -71,14 +71,23 @@ executeEfficiency config time prices portfolio
     ==> isEfficient where
         isEfficient
             = fromRight undefined $ run $ runError
-            $ runEfficiencyTest prices
-            $ runInstrument prices config
-            $ execute @_ @c @s prices portfolio
+            $ runEfficiencyTest prices portfolio
+            $ runInstrument config
+            $ execute @_ @c @s
         runEfficiencyTest
-            :: Prices assets -> Sem (Market assets ': r) a
+            :: Prices assets
+            -> Portfolio assets
+            -> Sem
+                 ( Market assets
+                ': Reader (Portfolio assets)
+                ': Reader (Prices assets)
+                ': r
+                 ) a
             -> Sem r Property
-        runEfficiencyTest prices
-            = fmap eitherToProperty
+        runEfficiencyTest prices portfolio
+            = runReader prices
+            . runReader portfolio
+            . fmap eitherToProperty
             . runError
             . runState (pure Zero :: HomRec assets Sign)
             . reinterpret2 \case
@@ -116,9 +125,14 @@ initAllocationExecuteAgreement
 initAllocationExecuteAgreement config time prices portfolio
     =   totalValue prices portfolio > zero
     ==> valueAllocation prices portfolio'
-    === (Just $ initAllocation prices config) where
+    === (Just $ runInit prices config $ initAllocation) where
         portfolio'
             = fromRight undefined $ runExecute config time prices portfolio
+
+runInit
+    :: Instrument assets c s
+    => Prices assets -> c -> Sem (InstrumentInitEffects assets c) a -> a
+runInit prices config = run . runReader (IConfig config) . runReader prices
 
 runExecute
     :: forall assets c s. Instrument assets c s
@@ -126,6 +140,7 @@ runExecute
     -> Either String (Portfolio assets)
 runExecute config time prices portfolio
     = fmap fst $ run $ runError
-    $ runMarketSimulation time prices portfolio
-    $ runInstrument prices config
-    $ execute @_ @c @s prices portfolio
+    $ runReader prices
+    $ runMarketSimulation time portfolio
+    $ runInstrument config
+    $ execute @_ @c @s

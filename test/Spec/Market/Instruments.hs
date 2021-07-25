@@ -31,7 +31,7 @@ test_Hold =
     ] where
         onePointAllocation :: Prcs -> Property
         onePointAllocation prices = alloc === onePoint (labelIn @"a") where
-            alloc = initAllocation prices $ Hold #a
+            alloc = runInit prices (Hold #a) initAllocation
 
 test_Balance_Hold :: [TestTree]
 test_Balance_Hold =

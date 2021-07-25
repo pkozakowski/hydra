@@ -68,4 +68,5 @@ tests:
     - hydra
 
 default-extensions:
+- BlockArguments
 - TypeApplications

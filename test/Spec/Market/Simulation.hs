@@ -17,6 +17,7 @@ import Numeric.Algebra
 import Numeric.Delta
 import Polysemy
 import Polysemy.Error
+import Polysemy.Reader
 import Test.QuickCheck
 import Test.QuickCheck.Instances.Time
 import Test.Tasty
@@ -94,8 +95,8 @@ test_runMarketSimulation =
                     $ runTrade time prices portfolio from to orderAmount
 
         runTrade time prices portfolio from to orderAmount
-            = fmap fst $ run $ runError
-            $ runMarketSimulation time prices portfolio
+            = fmap fst $ run $ runError $ runReader prices
+            $ runMarketSimulation time portfolio
             $ trade from to orderAmount
 
 tests :: TestTree
