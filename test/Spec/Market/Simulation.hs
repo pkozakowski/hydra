@@ -1,23 +1,30 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Spec.Market.Simulation where
 
 import Data.Coerce
 import Data.Either
+import Data.List
 import Data.Maybe
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.Record.Hom
 import Data.Time
 import Market
+import Market.Instruments
 import Market.Ops
 import Market.Simulation
 import Market.Types
 import Market.Types.Test
-import Numeric.Algebra
+import Numeric.Algebra hiding ((>))
 import Numeric.Delta
 import Polysemy
 import Polysemy.Error
-import Polysemy.Reader
+import Polysemy.Input
+import Polysemy.Output as Output
+import Polysemy.State as State
 import Test.QuickCheck
 import Test.QuickCheck.Instances.Time
 import Test.Tasty
@@ -95,9 +102,26 @@ test_runMarketSimulation =
                     $ runTrade time prices portfolio from to orderAmount
 
         runTrade time prices portfolio from to orderAmount
-            = fmap fst $ run $ runError $ runReader prices
+            = fmap fst $ run $ runError $ runInputConst prices
             $ runMarketSimulation time portfolio
             $ trade from to orderAmount
+
+test_backtest :: [TestTree]
+test_backtest =
+    [ testProperty "Hold conserves portfolio" holdConservesPortfolio
+    ] where
+        holdConservesPortfolio :: TimeSeries Prcs -> Port -> Property
+        holdConservesPortfolio priceSeries initPortfolio
+            = counterexample ("portfolios: " ++ show portfolios)
+            $ n > 1 ==> length (nub portfolios) === 1 where
+                n = length srs where TimeSeries srs = priceSeries
+                portfolios :: [Port]
+                portfolios = runBacktest priceSeries initPortfolio (Hold #a)
+
+        runBacktest priceSeries initPortfolio config
+            = fromRight undefined $ run $ runError $ fmap fst $ runOutputList
+            $ backtest outputPortfolio priceSeries initPortfolio config where
+                outputPortfolio = Output.output =<< input @Port
 
 tests :: TestTree
 tests = $(testGroupGenerator)

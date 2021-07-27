@@ -134,3 +134,4 @@ absoluteAmount totalAmount = \case
 newtype OrderId = OrderId Int
 
 newtype TimeSeries a = TimeSeries (NonEmpty (UTCTime, a))
+    deriving Show

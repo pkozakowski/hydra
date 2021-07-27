@@ -7,8 +7,12 @@
 module Market.Types.Test where
 
 import Data.Coerce
+import Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.Record.Hom
 import Data.Record.Hom.Test
+import Data.Time
+import Data.Traversable
 import Market.Types
 import Numeric.Algebra hiding ((>), (>=))
 import Numeric.Algebra.Test
@@ -17,6 +21,7 @@ import Numeric.Domain.GCD
 import Numeric.Field.Fraction
 import Prelude hiding ((+), (/))
 import Test.QuickCheck
+import Test.QuickCheck.Instances.Time
 
 instance Arbitrary Amount where
     arbitrary = Amount <$> arbitraryNonNegativeFraction
@@ -92,3 +97,21 @@ instance Arbitrary OrderAmount where
     shrink = \case
         Absolute amount -> Absolute <$> shrink amount
         Relative share  -> Relative <$> shrink share
+
+instance Arbitrary a => Arbitrary (NonEmpty a) where
+    arbitrary = (:|) <$> arbitrary <*> arbitrary
+    shrink (x :| xs) = uncurry (:|) <$> shrink (x, xs)
+
+instance Arbitrary a => Arbitrary (TimeSeries a) where
+
+    arbitrary = do
+        initTime <- arbitrary
+        shape <- arbitrary @[()]
+        diffs <- forM shape $ const $ arbitrary `suchThat` (> 0)
+        let times = NonEmpty.fromList $ scanl (flip addUTCTime) initTime diffs
+        values <- (:|) <$> arbitrary <*> mapM (const arbitrary) shape
+        return $ TimeSeries $ NonEmpty.zip times values
+
+    shrink (TimeSeries srs)
+        = TimeSeries <$> NonEmpty.zip times <$> shrink values where
+            (times, values) = NonEmpty.unzip srs

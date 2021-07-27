@@ -69,4 +69,5 @@ tests:
 
 default-extensions:
 - BlockArguments
+- RankNTypes
 - TypeApplications

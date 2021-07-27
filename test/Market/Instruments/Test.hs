@@ -20,7 +20,7 @@ import Market.Types.Test
 import Numeric.Algebra hiding ((>))
 import Polysemy
 import Polysemy.Error
-import Polysemy.Reader
+import Polysemy.Input
 import Polysemy.State as State
 import Test.QuickCheck
 import Test.QuickCheck.Instances.Time
@@ -79,14 +79,14 @@ executeEfficiency config time prices portfolio
             -> Portfolio assets
             -> Sem
                  ( Market assets
-                ': Reader (Portfolio assets)
-                ': Reader (Prices assets)
+                ': Input (Portfolio assets)
+                ': Input (Prices assets)
                 ': r
                  ) a
             -> Sem r Property
         runEfficiencyTest prices portfolio
-            = runReader prices
-            . runReader portfolio
+            = runInputConst prices
+            . runInputConst portfolio
             . fmap eitherToProperty
             . runError
             . runState (pure Zero :: HomRec assets Sign)
@@ -132,7 +132,8 @@ initAllocationExecuteAgreement config time prices portfolio
 runInit
     :: Instrument assets c s
     => Prices assets -> c -> Sem (InstrumentInitEffects assets c) a -> a
-runInit prices config = run . runReader (IConfig config) . runReader prices
+runInit prices config
+    = run . runInputConst (IConfig config) . runInputConst prices
 
 runExecute
     :: forall assets c s. Instrument assets c s
@@ -140,7 +141,7 @@ runExecute
     -> Either String (Portfolio assets)
 runExecute config time prices portfolio
     = fmap fst $ run $ runError
-    $ runReader prices
+    $ runInputConst prices
     $ runMarketSimulation time portfolio
     $ runInstrument config
     $ execute @_ @c @s

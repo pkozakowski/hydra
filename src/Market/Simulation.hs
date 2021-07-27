@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
@@ -19,61 +20,92 @@ import Numeric.Delta
 import Numeric.Kappa
 import Polysemy
 import Polysemy.Error
-import Polysemy.Reader
+import Polysemy.Input
+import Polysemy.Internal
 import Polysemy.State as State
 import Prelude hiding (negate, pi)
 
 runMarketSimulation
     :: forall assets r a
-     . Members '[Reader (Prices assets), Error String] r
+     . Members '[Input (Prices assets), Error String] r
     => UTCTime
     -> Portfolio assets
-    -> Sem (Market assets ': Reader (Portfolio assets) ': r) a
+    -> Sem (Market assets ': Input (Portfolio assets) ': r) a
     -> Sem r (Portfolio assets, a)
 runMarketSimulation time initPortfolio monad
-    = runState initPortfolio $ marketReaderToState time monad
+    = runState initPortfolio
+    $ marketInputToState time monad
+
+type BacktestEffects assets c s (r :: EffectRow) =
+    ( Market assets
+    : Input (Portfolio assets)
+    : Input (Prices assets)
+    : State (IState s)
+    : Input (IConfig c)
+    : Input (Prices assets)
+    : State (Portfolio assets)
+    : r
+    )
+
+type OnStep assets c s r = Sem (BacktestEffects assets c s r) ()
 
 backtest
     :: forall assets c s r
      . (Instrument assets c s, Member (Error String) r)
-    => TimeSeries (Prices assets)
+    => OnStep assets c s r
+    -> TimeSeries (Prices assets)
     -> Portfolio assets
     -> c
     -> Sem r (Portfolio assets)
-backtest priceSeries initPortfolio config
+backtest onStep = backtest' (*> onStep)
+
+type OnStep' assets c s r
+    =  Sem (BacktestEffects assets c s r) ()
+    -> Sem (BacktestEffects assets c s r) ()
+
+backtest'
+    :: forall assets c s r
+     . (Instrument assets c s, Member (Error String) r)
+    => OnStep' assets c s r
+    -> TimeSeries (Prices assets)
+    -> Portfolio assets
+    -> c
+    -> Sem r (Portfolio assets)
+backtest' onStep' priceSeries initPortfolio config
     = execState initPortfolio
-    $ runReader initPrices
+    $ runInputConst initPrices
     $ runInstrument @assets config
     $ forM restOfPrices \(time, prices)
-       -> runReader prices
+       -> runInputConst prices
         $ subsume @(State (Portfolio assets))
-        $ marketReaderToState time
+        $ marketInputToState time
+        $ onStep'
         $ execute @assets @c @s
     where
         TimeSeries ((_, initPrices) :| restOfPrices) = priceSeries
 
-marketReaderToState
+marketInputToState
     :: forall assets r a
-     . Members [Reader (Prices assets), Error String] r
+     . Members [Input (Prices assets), Error String] r
     => UTCTime
-    -> Sem (Market assets ': Reader (Portfolio assets) ': r) a
+    -> Sem (Market assets ': Input (Portfolio assets) ': r) a
     -> Sem (State (Portfolio assets) : r) a
-marketReaderToState time monad =
+marketInputToState time monad =
     let monad' :: Sem
              ( Market assets
-            ': Reader (Portfolio assets)
+            ': Input (Portfolio assets)
             ': State (Portfolio assets)
             ': r
              )
              a
         monad' = insertAt @2 monad
     in
-        readerToState $ marketToState time monad'
+        inputToState $ marketToState time monad'
 
 marketToState
     :: forall assets r a
      . Members
-        [State (Portfolio assets), Reader (Prices assets), Error String] r
+        [State (Portfolio assets), Input (Prices assets), Error String] r
     => UTCTime
     -> Sem (Market assets ': r) a
     -> Sem r a
@@ -87,7 +119,7 @@ marketToState time = interpret \case
             Just amount -> return amount
             Nothing     -> throw $ "insufficient balance: " ++ show from
         if from == to then return () else do
-            prices <- ask @(Prices assets)
+            prices <- input @(Prices assets)
             let fromPrice = HR.getIn from prices
                 toPrice   = HR.getIn to prices
                 toDelta   = negate $ fromJust
@@ -97,11 +129,9 @@ marketToState time = interpret \case
             put $ setIn from fromAfter $ setIn to toAfter portfolio
     GetTime -> return time
 
-readerToState
+inputToState
     :: forall s r a
      . Member (State s) r
-    => Sem (Reader s ': r) a
+    => Sem (Input s ': r) a
     -> Sem r a
-readerToState monad = do
-    state <- State.get
-    runReader state monad
+inputToState = runInputSem $ State.get @s @r

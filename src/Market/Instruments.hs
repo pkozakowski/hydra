@@ -6,7 +6,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -28,7 +27,7 @@ import Numeric.Kappa
 import Numeric.Normalizable
 import Polysemy
 import Polysemy.Error
-import Polysemy.Reader
+import Polysemy.Input
 import Polysemy.State as State
 import Prelude hiding ((+), pi)
 
@@ -47,8 +46,8 @@ instance (Has held assets, KnownSymbol held, Labels assets)
     initAllocation = return $ onePoint $ labelIn @held
 
     execute = do
-        prices <- ask @(Prices assets)
-        portfolio <- ask @(Portfolio assets)
+        prices <- input @(Prices assets)
+        portfolio <- input @(Portfolio assets)
         allocationToTrades zero prices portfolio $ onePoint $ labelIn @held
 
 data BalanceConfig assets instrs = BalanceConfig
@@ -69,8 +68,8 @@ instance (Labels assets, Labels instrs)
         assets (BalanceConfig assets instrs) (BalanceState assets instrs) where
 
     initState = do
-        IConfig config <- ask @(IConfig (BalanceConfig assets instrs))
-        prices <- ask @(Prices assets)
+        IConfig config <- input @(IConfig (BalanceConfig assets instrs))
+        prices <- input @(Prices assets)
         states <- multiplexConfig (configs config)
             $ initState @assets @(SomeInstrumentConfig assets)
         allocations <- multiplexConfig (configs config)
@@ -82,7 +81,7 @@ instance (Labels assets, Labels instrs)
             }
 
     initAllocation = do
-        IConfig config <- ask @(IConfig (BalanceConfig assets instrs))
+        IConfig config <- input @(IConfig (BalanceConfig assets instrs))
         allocations <- multiplexConfig (configs config)
             $ initAllocation @assets @(SomeInstrumentConfig assets)
         return $ redistribute (target config) allocations
@@ -97,13 +96,13 @@ instance (Labels assets, Labels instrs)
     execute = do
         -- 0. Check if enough time has passed since the last update.
         time <- getTime @assets
-        IConfig config <- ask @(IConfig (BalanceConfig assets instrs))
+        IConfig config <- input @(IConfig (BalanceConfig assets instrs))
         IState state <- State.get
         when (time `diffUTCTime` lastUpdateTime state > updateEvery config) $ do
             -- 1. Compute the ideal per-instrument portfolios according to the
             -- value allocations.
-            prices <- ask @(Prices assets)
-            portfolio <- ask @(Portfolio assets)
+            prices <- input @(Prices assets)
+            portfolio <- input @(Portfolio assets)
             let Distribution targetShares = target config
                 Values targetValues
                     = totalValue prices portfolio `unnormalize` target config
@@ -161,6 +160,6 @@ allocationToTrades tolerance prices portfolio targetAlloc =
 
 multiplexConfig
     :: Traversable f
-    => f c -> Sem (Reader (IConfig c) : r) a -> Sem r (f a)
+    => f c -> Sem (Input (IConfig c) : r) a -> Sem r (f a)
 multiplexConfig configs monad
-    = sequence $ flip runReader monad <$> IConfig <$> configs
+    = sequence $ flip runInputConst monad <$> IConfig <$> configs

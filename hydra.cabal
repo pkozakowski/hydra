@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 505db1f2906fbbd294680936f81d077de54731c2bcccae96fc911e6981fd2226
+-- hash: bbb71d6d3490faf2073320a1ea7bc9c144eae8603b6c1a79a3da1fb919e8ee9f
 
 name:           hydra
 version:        0.1.0.0
@@ -43,7 +43,10 @@ library
       Paths_hydra
   hs-source-dirs:
       src
-  default-extensions: BlockArguments TypeApplications
+  default-extensions:
+      BlockArguments
+      RankNTypes
+      TypeApplications
   build-depends:
       QuickCheck
     , algebra
@@ -66,7 +69,10 @@ executable hydra-exe
       Paths_hydra
   hs-source-dirs:
       app
-  default-extensions: BlockArguments TypeApplications
+  default-extensions:
+      BlockArguments
+      RankNTypes
+      TypeApplications
   ghc-options: -O2 -fplugin=Polysemy.Plugin -flate-specialise -fspecialise-aggressively -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       QuickCheck
@@ -103,7 +109,10 @@ test-suite hydra-test
       Paths_hydra
   hs-source-dirs:
       test
-  default-extensions: BlockArguments TypeApplications
+  default-extensions:
+      BlockArguments
+      RankNTypes
+      TypeApplications
   ghc-options: -fplugin=Polysemy.Plugin -flate-specialise -fspecialise-aggressively -fno-ignore-asserts -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       QuickCheck
