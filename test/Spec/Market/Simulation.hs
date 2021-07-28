@@ -36,6 +36,7 @@ type Prcs = Prices ThreeLabels
 type Port = Portfolio ThreeLabels
 type AssetIn = LabelIn ThreeLabels
 
+-- | Low-level tests using raw Market actions.
 test_runMarketSimulation :: [TestTree]
 test_runMarketSimulation =
     [ testProperty "trade succeeds iff sufficient balance" tradeSucceedsIffSufficientBalance
@@ -106,6 +107,15 @@ test_runMarketSimulation =
             $ runMarketSimulation time portfolio
             $ trade from to orderAmount
 
+{- |
+High-level tests using Instruments.
+
+They assume that:
+
+    * backtest uses the same logic as runMarketSimulation in every step
+    * runMarketSimulation works correctly
+    * Hold and Balance work correctly with runMarketSimulation
+-}
 test_backtest :: [TestTree]
 test_backtest =
     [ testProperty "Hold conserves portfolio" holdConservesPortfolio
@@ -117,6 +127,8 @@ test_backtest =
                 n = length srs where TimeSeries srs = priceSeries
                 portfolios :: [Port]
                 portfolios = runBacktest priceSeries initPortfolio (Hold #a)
+
+        -- TODO: Balance with tol 0 changes portfolio iff price changes
 
         runBacktest priceSeries initPortfolio config
             = fromRight undefined $ run $ runError $ fmap fst $ runOutputList

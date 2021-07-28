@@ -49,6 +49,8 @@ type BacktestEffects assets c s (r :: EffectRow) =
 
 type OnStep assets c s r = Sem (BacktestEffects assets c s r) ()
 
+-- | Basic backtesting function, allowing to run arbitrary effects after each
+-- timestep.
 backtest
     :: forall assets c s r
      . (Instrument assets c s, Member (Error String) r)
@@ -63,6 +65,8 @@ type OnStep' assets c s r
     =  Sem (BacktestEffects assets c s r) ()
     -> Sem (BacktestEffects assets c s r) ()
 
+-- | Advanced backtesting function, allowing to intercept the executed actions
+-- at each timestep and run arbitrary effects.
 backtest'
     :: forall assets c s r
      . (Instrument assets c s, Member (Error String) r)

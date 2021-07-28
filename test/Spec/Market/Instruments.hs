@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Spec.Market.Instruments where
@@ -15,6 +16,8 @@ import Market.Ops
 import Market.Types
 import Market.Types.Test
 import Numeric.Algebra hiding ((>))
+import Polysemy
+import Polysemy.Input
 import Test.Tasty
 import Test.Tasty.QuickCheck hiding (tolerance)
 import Test.Tasty.TH
@@ -22,11 +25,13 @@ import Test.Tasty.TH
 type ThreeLabels = '["a", "b", "c"]
 type Prcs = Prices ThreeLabels
 type Port = Portfolio ThreeLabels
+type BalCfg = BalanceConfig ThreeLabels ThreeLabels
+type BalSt = BalanceState ThreeLabels ThreeLabels
 
 test_Hold :: [TestTree]
 test_Hold =
     [ testInstrumentLaws @ThreeLabels $ return $ Hold #a
-    , testInitAllocationExecuteAgreement @ThreeLabels $ return $ Hold #a
+    , testInitAllocationLaws @ThreeLabels $ return $ Hold #a
     , testProperty "allocation is one point" onePointAllocation
     ] where
         onePointAllocation :: Prcs -> Property
@@ -36,13 +41,21 @@ test_Hold =
 test_Balance_Hold :: [TestTree]
 test_Balance_Hold =
     [ testInstrumentLaws @ThreeLabels arbitraryConfig
-    , testInitAllocationExecuteAgreement @ThreeLabels
+    , testInitAllocationLaws @ThreeLabels
         $ arbitraryConfigWithTolerance zero
-    , testProperty "portfolio is balanced"
-        $ forAll arbitraryConfig portfolioIsBalanced
+    , testInstant "portfolio is balanced (instant)" portfolioIsBalanced
     ] where
+        portfolioIsBalanced = whenNotBroke do
+            IConfig config <- input
+            prices <- input
+            portfolio' <- fst <$> runExecuteM execute
+            let valueAlloc = fromJust $ valueAllocation prices portfolio'
+            return $ property
+                $ isBalanced (tolerance config) valueAlloc (target config)
+
         arbitraryConfig
             = arbitraryConfigWithTolerance =<< arbitraryPositiveFraction
+
         arbitraryConfigWithTolerance tolerance = do
             target <- arbitrary
             updateEvery <- arbitrary `suchThat` \x -> x > 0
@@ -57,15 +70,7 @@ test_Balance_Hold =
                 , updateEvery = updateEvery
                 }
 
-portfolioIsBalanced
-    :: BalanceConfig ThreeLabels ThreeLabels -> UTCTime -> Prcs -> Port
-    -> Property
-portfolioIsBalanced config time prices portfolio
-    =   totalValue prices portfolio > zero
-    ==> isBalanced (tolerance config) valueAlloc (target config) where
-        valueAlloc = fromJust $ valueAllocation prices portfolio' where
-            portfolio'
-                = fromRight undefined $ runExecute config time prices portfolio
+        testInstant = testInstrumentPropertyInstant arbitraryConfig
 
 tests :: TestTree
 tests = $(testGroupGenerator)
