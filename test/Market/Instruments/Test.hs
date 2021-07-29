@@ -10,6 +10,7 @@ module Market.Instruments.Test where
 
 import Control.Monad
 import Data.Either
+import Data.List.NonEmpty
 import Data.Record.Hom
 import Data.Time
 import Market
@@ -21,6 +22,7 @@ import Numeric.Algebra hiding ((>))
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.Output as Output
 import Polysemy.State as State
 import Test.QuickCheck
 import Test.QuickCheck.Instances.Time
@@ -30,30 +32,39 @@ import Test.Tasty.QuickCheck
 
 testInstrumentLaws
     :: forall assets c s. (Labels assets, Show c, Instrument assets c s)
-    => Gen c -> TestTree
-testInstrumentLaws arbitraryConfig = testGroup "Instrument"
-    [ testInstant "Execute Idempotence (Instant)" $ executeIdempotence @assets
-    , testInstant "Execute Efficiency (Instant)" $ executeEfficiency @assets
-    ] where
-        testInstant = testInstrumentPropertyInstant arbitraryConfig
+    => Gen c -> Gen c -> TestTree
+testInstrumentLaws arbitraryApproxConfig arbitraryExactConfig
+    = testGroup "Instrument"
+        [ testInstantApprox "Idempotence (Instant)"
+            $ idempotence @assets
+        , testContinuousApprox "Idempotence (Continuous)"
+            $ idempotence @assets
+        , testInstantApprox "Efficiency (Instant)"
+            $ efficiency @assets
+        , testContinuousApprox "Efficiency (Continuous)"
+            $ efficiency @assets
+        , testInstantExact "Allocation Agreement (Instant)"
+            $ allocationAgreement @assets
+        , testContinuousExact "Allocation Agreement (Continuous)"
+            $ allocationAgreement @assets
+        ] where
+            testInstantApprox
+                = testInstrumentPropertyInstant arbitraryApproxConfig
+            testContinuousApprox
+                = testInstrumentPropertyContinuous arbitraryApproxConfig
+            testInstantExact
+                = testInstrumentPropertyInstant arbitraryExactConfig
+            testContinuousExact
+                = testInstrumentPropertyContinuous arbitraryExactConfig
 
-testInitAllocationLaws
-    :: forall assets c s. (Labels assets, Instrument assets c s, Show c)
-    => Gen c -> TestTree
-testInitAllocationLaws arbitraryConfig = testGroup "initAllocation"
-    [ testInstant "Execute Agreement (Instant)"
-        $ initAllocationExecuteAgreement @assets
-    ] where
-        testInstant = testInstrumentPropertyInstant arbitraryConfig
-
-executeIdempotence
+idempotence
     :: forall assets c s r
      . ( Labels assets
        , Instrument assets c s
        , Members (InstrumentEffects assets c s) r
        )
     => Sem r Property
-executeIdempotence = whenNotBroke do
+idempotence = whenNotBroke do
     (portfolio', portfolio'') <- snd <$> runExecuteM do
         execute
         portfolio' <- input @(Portfolio assets)
@@ -73,14 +84,14 @@ type RunExecuteEffects assets c s =
     , Error String
     ]
 
-executeEfficiency
+efficiency
     :: forall assets c s r
      . ( Labels assets
        , Instrument assets c s
        , Members (InstrumentEffects assets c s) r
        )
     => Sem r Property
-executeEfficiency = whenNotBroke $ runEfficiencyTestM execute where
+efficiency = whenNotBroke $ runEfficiencyTestM execute where
     runEfficiencyTestM
         :: Sem (RunExecuteEffects assets c s) ()
         -> Sem r Property
@@ -125,14 +136,14 @@ executeEfficiency = whenNotBroke $ runEfficiencyTestM execute where
                 Absolute x         -> x == zero
                 Relative (Share x) -> x == zero
 
-initAllocationExecuteAgreement
+allocationAgreement
     :: forall assets c s r
      . ( Labels assets
        , Instrument assets c s
        , Members (InstrumentEffects assets c s) r
        )
     => Sem r Property
-initAllocationExecuteAgreement = whenNotBroke do
+allocationAgreement = whenNotBroke do
     IConfig config <- input
     prices <- input
     portfolio <- fst <$> runExecuteM execute
@@ -170,6 +181,30 @@ testInstrumentPropertyInstant arbitraryConfig name monad
         prop config time prices portfolio
             = snd $ fromRight undefined
             $ runInitExecute config time prices portfolio monad
+
+testInstrumentPropertyContinuous
+    :: forall assets c s
+     . (Labels assets, Show c, Instrument assets c s)
+    => Gen c -> String
+    -> Sem (RunExecuteEffects assets c s) Property
+    -> TestTree
+testInstrumentPropertyContinuous arbitraryConfig name monad
+    = testProperty name
+    $ forAll ((,) <$> arbitraryConfig <*> resize 5 arbitrary)
+    $ uncurry prop where
+        prop :: c -> TimeSeries (Prices assets) -> Portfolio assets -> Property
+        prop config priceSeries initPortfolio
+            = (totalValue initPrices initPortfolio > zero ==>)
+            $ conjoin
+            $ fromRight undefined $ run $ runError
+            $ fmap fst $ runOutputList
+            $ backtest' onStep priceSeries initPortfolio config where
+                onStep exec = do
+                    instantProp <- snd <$> runExecuteM monad
+                    Output.output instantProp
+                    exec
+
+                TimeSeries ((_, initPrices) :| _) = priceSeries
 
 runInitExecute
     :: forall assets c s a

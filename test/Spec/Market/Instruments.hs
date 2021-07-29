@@ -30,20 +30,23 @@ type BalSt = BalanceState ThreeLabels ThreeLabels
 
 test_Hold :: [TestTree]
 test_Hold =
-    [ testInstrumentLaws @ThreeLabels $ return $ Hold #a
-    , testInitAllocationLaws @ThreeLabels $ return $ Hold #a
+    [ testInstrumentLaws @ThreeLabels arbitraryConfig arbitraryConfig
     , testProperty "allocation is one point" onePointAllocation
     ] where
         onePointAllocation :: Prcs -> Property
         onePointAllocation prices = alloc === onePoint (labelIn @"a") where
             alloc = runInit prices (Hold #a) initAllocation
 
+        arbitraryConfig = return $ Hold #a
+
 test_Balance_Hold :: [TestTree]
 test_Balance_Hold =
-    [ testInstrumentLaws @ThreeLabels arbitraryConfig
-    , testInitAllocationLaws @ThreeLabels
-        $ arbitraryConfigWithTolerance zero
-    , testInstant "portfolio is balanced (instant)" portfolioIsBalanced
+    [ testInstrumentLaws @ThreeLabels arbitraryApproxConfig arbitraryExactConfig
+    , testInstantExact "portfolio is balanced (instant)"
+        portfolioIsBalanced
+    , testContinuousExact "portfolio is balanced (continuous)"
+        portfolioIsBalanced
+    -- TODO: no-op within updateEvery
     ] where
         portfolioIsBalanced = whenNotBroke do
             IConfig config <- input
@@ -53,12 +56,15 @@ test_Balance_Hold =
             return $ property
                 $ isBalanced (tolerance config) valueAlloc (target config)
 
-        arbitraryConfig
-            = arbitraryConfigWithTolerance =<< arbitraryPositiveFraction
+        arbitraryApproxConfig = do
+            tolerance <- arbitraryPositiveFraction
+            updateEvery <- arbitrary `suchThat` \x -> x >= 0
+            arbitraryConfig tolerance updateEvery
 
-        arbitraryConfigWithTolerance tolerance = do
+        arbitraryExactConfig = arbitraryConfig zero 0
+
+        arbitraryConfig tolerance updateEvery = do
             target <- arbitrary
-            updateEvery <- arbitrary `suchThat` \x -> x > 0
             return BalanceConfig
                 { configs
                      = #a := someInstrumentConfig @ThreeLabels (Hold #a)
@@ -70,7 +76,10 @@ test_Balance_Hold =
                 , updateEvery = updateEvery
                 }
 
-        testInstant = testInstrumentPropertyInstant arbitraryConfig
+        testInstantExact
+            = testInstrumentPropertyInstant arbitraryExactConfig
+        testContinuousExact
+            = testInstrumentPropertyContinuous arbitraryExactConfig
 
 tests :: TestTree
 tests = $(testGroupGenerator)

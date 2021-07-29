@@ -18,6 +18,7 @@ import Data.Maybe
 import Data.Proxy
 import Data.Record.Hom
 import Data.Time
+import GHC.Stack
 import GHC.TypeLits
 import Market
 import Market.Ops
@@ -127,7 +128,8 @@ instance (Labels assets, Labels instrs)
                 $  runMarketSimulation time <$> portfolios <*> executions
             let portfolios' = fst <$> portfoliosAndInstruments'
                 states' = snd <$> portfoliosAndInstruments'
-                allocations' = valueAlloc prices <$> portfolios'
+                allocations'
+                    = valueAllocOr prices <$> portfolios' <*> allocations state
             -- 3. Make the balancing trades between the old and new global
             -- portfolios.
             let portfolio' = foldl (+) zero portfolios'
@@ -142,7 +144,14 @@ instance (Labels assets, Labels instrs)
             where
                 idealPortfolio prices value allocation
                     = fromJust $ value `unnormalize` allocation `kappa'` prices
+
+                valueAlloc
+                    :: HasCallStack
+                    => Prices assets -> Portfolio assets -> Distribution assets
                 valueAlloc prices = fromJust . valueAllocation prices
+
+                valueAllocOr prices portfolio allocation
+                    = fromMaybe allocation $ valueAllocation prices portfolio
 
 allocationToTrades
     :: (Labels assets, Member (Market assets) r)
