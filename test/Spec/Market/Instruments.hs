@@ -101,10 +101,10 @@ test_Balance_Hold =
             target <- arbitrary
             return BalanceConfig
                 { configs
-                     = #a := someInstrumentConfig @ThreeLabels (Hold #a)
-                    :& #b := someInstrumentConfig @ThreeLabels (Hold #b)
-                    :& #c := someInstrumentConfig @ThreeLabels (Hold #c)
-                    :& Empty
+                     = #a := Hold #a
+                    ~& #b := Hold #b
+                    ~& #c := Hold #c
+                    ~& noConfigs @ThreeLabels
                 , target = target
                 , tolerance = tolerance
                 , updateEvery = updateEvery

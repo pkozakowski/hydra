@@ -11,7 +11,7 @@ import Data.List
 import Data.Maybe
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NonEmpty
-import Data.Record.Hom
+import Data.Record.Hom as HR
 import Data.Time
 import Market
 import Market.Instruments
@@ -26,6 +26,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Output as Output
 import Polysemy.State as State
+import Prelude hiding ((/))
 import Test.QuickCheck hiding (tolerance)
 import Test.QuickCheck.Instances.Time
 import Test.Tasty
@@ -121,9 +122,9 @@ They assume that:
 test_backtest :: [TestTree]
 test_backtest =
     [ testProperty "Hold conserves portfolio" holdConservesPortfolio
-    , testProperty "Balance changes portfolio <=> price changes"
+    , testProperty "Balance changes portfolio <=> price ratios change"
         $ forAll (resize 5 arbitrary)
-        $ balanceChangesPortfolioIffPriceChanges
+        $ balanceChangesPortfolioIffPriceRatiosChange
     ] where
         holdConservesPortfolio :: TimeSeries Prcs -> Port -> Property
         holdConservesPortfolio priceSeries initPortfolio
@@ -133,16 +134,23 @@ test_backtest =
                 portfolios :: [Port]
                 portfolios = runBacktest priceSeries initPortfolio (Hold #a)
 
-        balanceChangesPortfolioIffPriceChanges
+        balanceChangesPortfolioIffPriceRatiosChange
             :: TimeSeries Prcs -> Port -> Dist -> Property
-        balanceChangesPortfolioIffPriceChanges priceSeries initPortfolio target
-            =   fullSupport target && totalValue initPrices initPortfolio > zero
-            ==> changes prices === changes portfolios where
+        balanceChangesPortfolioIffPriceRatiosChange
+            priceSeries initPortfolio target
+            =   counterexample ("prices: "     ++ show prices    )
+            $   counterexample ("portfolios: " ++ show portfolios)
+            $   fullSupport target && totalValue initPrices initPortfolio > zero
+            ==> changes priceRatios === changes portfolios where
                 fullSupport (Distribution dist) = all (> Share zero) dist
                 TimeSeries ((_, initPrices) :| _) = priceSeries
                 changes (head :| tail)
                     = snd <$> scanl f (head, False) tail where
                         f (x, _) y = (y, x /= y)
+                priceRatios = rebase <$> prices where
+                    rebase (Prices prices) = rebaseOne <$> prices where
+                        rebaseOne (Price x) = Price $ x / base where
+                            Price base = HR.get #a prices
                 prices = snd <$> srs where
                     TimeSeries srs = priceSeries
                 portfolios
@@ -150,10 +158,10 @@ test_backtest =
                     :| runBacktest priceSeries initPortfolio config
                 config = BalanceConfig
                     { configs
-                         = #a := someInstrumentConfig @ThreeLabels (Hold #a)
-                        :& #b := someInstrumentConfig @ThreeLabels (Hold #b)
-                        :& #c := someInstrumentConfig @ThreeLabels (Hold #c)
-                        :& Empty
+                         = #a := Hold #a
+                        ~& #b := Hold #b
+                        ~& #c := Hold #c
+                        ~& noConfigs @ThreeLabels
                     , target = target
                     , tolerance = zero
                     , updateEvery = 0

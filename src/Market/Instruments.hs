@@ -64,6 +64,25 @@ data BalanceState assets instrs = BalanceState
     , lastUpdateTime :: UTCTime
     }
 
+noConfigs :: forall assets. HomRec '[] (SomeInstrumentConfig assets)
+noConfigs = Empty
+
+(~&)
+    :: forall i instrs assets c s
+     .  (NoDuplicateIn i instrs
+        , KnownSymbol i
+        , Labels instrs
+        , Instrument assets c s
+        , Show c
+        )
+    => i := c
+    -> HomRec instrs (SomeInstrumentConfig assets)
+    -> HomRec (i : instrs) (SomeInstrumentConfig assets)
+instr := config ~& configs
+    = instr := someInstrumentConfig @assets config :& configs
+
+infixr 5 ~&
+
 instance (Labels assets, Labels instrs)
     => Instrument
         assets (BalanceConfig assets instrs) (BalanceState assets instrs) where

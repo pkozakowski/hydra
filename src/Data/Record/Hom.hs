@@ -19,6 +19,7 @@ module Data.Record.Hom
     ( HomRec (..)
     , (:=) (..)
     , Has
+    , NoDuplicateIn
     , LabelIn (..)
     , Labels
     , (!)
