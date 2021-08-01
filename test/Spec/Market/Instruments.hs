@@ -6,6 +6,8 @@
 module Spec.Market.Instruments where
 
 import Data.Either
+import Data.List
+import Data.List.NonEmpty (NonEmpty(..))
 import Data.Maybe
 import Data.Record.Hom
 import Data.Time
@@ -13,11 +15,14 @@ import Market
 import Market.Instruments
 import Market.Instruments.Test
 import Market.Ops
+import Market.Simulation
 import Market.Types
 import Market.Types.Test
-import Numeric.Algebra hiding ((>))
+import Numeric.Algebra hiding ((>), (+), (-), (/))
 import Polysemy
+import Polysemy.Error
 import Polysemy.Input
+import Polysemy.Output as Output
 import Test.Tasty
 import Test.Tasty.QuickCheck hiding (tolerance)
 import Test.Tasty.TH
@@ -46,7 +51,9 @@ test_Balance_Hold =
         portfolioIsBalanced
     , testContinuousExact "portfolio is balanced (continuous)"
         portfolioIsBalanced
-    -- TODO: no-op within updateEvery
+    , testProperty "rebalance every updateEvery"
+        $ forAll ((,) <$> arbitraryApproxConfig <*> resize 5 arbitrary)
+        $ uncurry rebalanceEveryUpdateEvery
     ] where
         portfolioIsBalanced = whenNotBroke do
             IConfig config <- input
@@ -55,6 +62,33 @@ test_Balance_Hold =
             let valueAlloc = fromJust $ valueAllocation prices portfolio'
             return $ property
                 $ isBalanced (tolerance config) valueAlloc (target config)
+
+        rebalanceEveryUpdateEvery
+            :: BalCfg -> TimeSeries Prcs -> Port -> Property
+        rebalanceEveryUpdateEvery config priceSeries initPortfolio
+            =   totalValue initPrices initPortfolio > zero
+            &&  updateEvery config > 0
+            ==> prop where
+                prop = numRebalances <= limit where
+                    limit = fromEnum (diff / updateEvery config) + 1 where
+                        diff = diffUTCTime endTime beginTime
+                numRebalances
+                    = length (nubAdjacent $ initPortfolio : portfolios) where
+                        nubAdjacent xs
+                            = fmap snd $ nubBy eqAdjacent $ zip [0 ..] xs where
+                                eqAdjacent (i, x) (j, y)
+                                    = x == y && abs (i - j) <= 1
+                TimeSeries ((beginTime, initPrices) :| rest) = priceSeries
+                endTime
+                    | rest == [] = beginTime
+                    | otherwise  = fst $ last rest
+                portfolios
+                    = either error id $ run $ runError
+                    $ fmap fst $ runOutputList
+                    $ backtest onStep priceSeries initPortfolio config where
+                        onStep = do
+                            portfolio <- input @(Portfolio ThreeLabels)
+                            Output.output portfolio
 
         arbitraryApproxConfig = do
             tolerance <- arbitraryPositiveFraction
@@ -76,10 +110,13 @@ test_Balance_Hold =
                 , updateEvery = updateEvery
                 }
 
+        testContinuousApprox
+            = testInstrumentPropertyContinuous
+                @ThreeLabels arbitraryApproxConfig
         testInstantExact
-            = testInstrumentPropertyInstant arbitraryExactConfig
+            = testInstrumentPropertyInstant @ThreeLabels arbitraryExactConfig
         testContinuousExact
-            = testInstrumentPropertyContinuous arbitraryExactConfig
+            = testInstrumentPropertyContinuous @ThreeLabels arbitraryExactConfig
 
 tests :: TestTree
 tests = $(testGroupGenerator)
