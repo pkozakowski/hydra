@@ -51,9 +51,9 @@ test_Balance_Hold =
         portfolioIsBalanced
     , testContinuousExact "portfolio is balanced (continuous)"
         portfolioIsBalanced
-    , testProperty "rebalance every updateEvery"
+    , testProperty "rebalances are rare"
         $ forAll ((,) <$> arbitraryApproxConfig <*> resize 5 arbitrary)
-        $ uncurry rebalanceEveryUpdateEvery
+        $ uncurry rebalancesAreRare
     ] where
         portfolioIsBalanced = whenNotBroke do
             IConfig config <- input
@@ -63,9 +63,9 @@ test_Balance_Hold =
             return $ property
                 $ isBalanced (tolerance config) valueAlloc (target config)
 
-        rebalanceEveryUpdateEvery
+        rebalancesAreRare
             :: BalCfg -> TimeSeries Prcs -> Port -> Property
-        rebalanceEveryUpdateEvery config priceSeries initPortfolio
+        rebalancesAreRare config priceSeries initPortfolio
             =   totalValue initPrices initPortfolio > zero
             &&  updateEvery config > 0
             ==> prop where

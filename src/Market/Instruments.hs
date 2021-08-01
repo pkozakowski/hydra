@@ -95,15 +95,16 @@ instance (Labels assets, Labels instrs)
             ) r
         => Sem r ()
     execute = do
-        -- 0. Check if enough time has passed since the last update.
+        -- 0. Check if we have any money and if enough time has passed since the
+        -- last update.
+        prices <- input @(Prices assets)
+        portfolio <- input @(Portfolio assets)
         time <- getTime @assets
         IConfig config <- input @(IConfig (BalanceConfig assets instrs))
         IState state <- State.get
-        when (time `diffUTCTime` lastUpdateTime state > updateEvery config) $ do
+        when (shouldUpdate prices portfolio time config state) do
             -- 1. Compute the ideal per-instrument portfolios according to the
             -- value allocations.
-            prices <- input @(Prices assets)
-            portfolio <- input @(Portfolio assets)
             let Distribution targetShares = target config
                 Values targetValues
                     = totalValue prices portfolio `unnormalize` target config
@@ -142,6 +143,11 @@ instance (Labels assets, Labels instrs)
                 , lastUpdateTime = time
                 }
             where
+                shouldUpdate prices portfolio time config state
+                    =   totalValue prices portfolio > zero
+                    &&  diff > updateEvery config where
+                        diff = time `diffUTCTime` lastUpdateTime state
+
                 idealPortfolio prices value allocation
                     = fromJust $ value `unnormalize` allocation `kappa'` prices
 

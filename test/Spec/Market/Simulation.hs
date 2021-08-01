@@ -9,6 +9,7 @@ import Data.Coerce
 import Data.Either
 import Data.List
 import Data.Maybe
+import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Record.Hom
 import Data.Time
@@ -25,15 +26,16 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Output as Output
 import Polysemy.State as State
-import Test.QuickCheck
+import Test.QuickCheck hiding (tolerance)
 import Test.QuickCheck.Instances.Time
 import Test.Tasty
-import Test.Tasty.QuickCheck
+import Test.Tasty.QuickCheck hiding (tolerance)
 import Test.Tasty.TH
 
 type ThreeLabels = '["a", "b", "c"]
 type Prcs = Prices ThreeLabels
 type Port = Portfolio ThreeLabels
+type Dist = Distribution ThreeLabels
 type AssetIn = LabelIn ThreeLabels
 
 -- | Low-level tests using raw Market actions.
@@ -119,6 +121,9 @@ They assume that:
 test_backtest :: [TestTree]
 test_backtest =
     [ testProperty "Hold conserves portfolio" holdConservesPortfolio
+    , testProperty "Balance changes portfolio <=> price changes"
+        $ forAll (resize 5 arbitrary)
+        $ balanceChangesPortfolioIffPriceChanges
     ] where
         holdConservesPortfolio :: TimeSeries Prcs -> Port -> Property
         holdConservesPortfolio priceSeries initPortfolio
@@ -128,7 +133,31 @@ test_backtest =
                 portfolios :: [Port]
                 portfolios = runBacktest priceSeries initPortfolio (Hold #a)
 
-        -- TODO: Balance with tol 0 changes portfolio iff price changes
+        balanceChangesPortfolioIffPriceChanges
+            :: TimeSeries Prcs -> Port -> Dist -> Property
+        balanceChangesPortfolioIffPriceChanges priceSeries initPortfolio target
+            =   fullSupport target && totalValue initPrices initPortfolio > zero
+            ==> changes prices === changes portfolios where
+                fullSupport (Distribution dist) = all (> Share zero) dist
+                TimeSeries ((_, initPrices) :| _) = priceSeries
+                changes (head :| tail)
+                    = snd <$> scanl f (head, False) tail where
+                        f (x, _) y = (y, x /= y)
+                prices = snd <$> srs where
+                    TimeSeries srs = priceSeries
+                portfolios
+                    =  initPortfolio
+                    :| runBacktest priceSeries initPortfolio config
+                config = BalanceConfig
+                    { configs
+                         = #a := someInstrumentConfig @ThreeLabels (Hold #a)
+                        :& #b := someInstrumentConfig @ThreeLabels (Hold #b)
+                        :& #c := someInstrumentConfig @ThreeLabels (Hold #c)
+                        :& Empty
+                    , target = target
+                    , tolerance = zero
+                    , updateEvery = 0
+                    }
 
         runBacktest priceSeries initPortfolio config
             = fromRight undefined $ run $ runError $ fmap fst $ runOutputList
