@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
@@ -14,6 +13,7 @@ import Data.Record.Hom as HR
 import Data.Time
 import Data.Traversable
 import Market as Market
+import Market.Time
 import Market.Types
 import Numeric.Algebra
 import Numeric.Delta
@@ -28,18 +28,18 @@ import Prelude hiding (negate, pi)
 runMarketSimulation
     :: forall assets r a
      . Members '[Input (Prices assets), Error String] r
-    => UTCTime
-    -> Portfolio assets
+    => Portfolio assets
     -> Sem (Market assets ': Input (Portfolio assets) ': r) a
     -> Sem r (Portfolio assets, a)
-runMarketSimulation time initPortfolio monad
+runMarketSimulation initPortfolio monad
     = runState initPortfolio
-    $ marketInputToState time monad
+    $ marketInputToState monad
 
 type BacktestEffects assets c s (r :: EffectRow) =
     ( Market assets
     : Input (Portfolio assets)
     : Input (Prices assets)
+    : Time
     : State (IState s)
     : Input (IConfig c)
     : Input (Prices assets)
@@ -80,9 +80,10 @@ backtest' onStep' priceSeries initPortfolio config
     $ runInputConst initPrices
     $ runInstrument @assets config
     $ forM restOfPrices \(time, prices)
-       -> runInputConst prices
+       -> runTime time
+        $ runInputConst prices
         $ subsume @(State (Portfolio assets))
-        $ marketInputToState time
+        $ marketInputToState
         $ onStep'
         $ execute @assets @c @s
     where
@@ -91,10 +92,9 @@ backtest' onStep' priceSeries initPortfolio config
 marketInputToState
     :: forall assets r a
      . Members [Input (Prices assets), Error String] r
-    => UTCTime
-    -> Sem (Market assets ': Input (Portfolio assets) ': r) a
+    => Sem (Market assets ': Input (Portfolio assets) ': r) a
     -> Sem (State (Portfolio assets) : r) a
-marketInputToState time monad =
+marketInputToState monad =
     let monad' :: Sem
              ( Market assets
             ': Input (Portfolio assets)
@@ -104,16 +104,15 @@ marketInputToState time monad =
              a
         monad' = insertAt @2 monad
     in
-        inputToState $ marketToState time monad'
+        inputToState $ marketToState monad'
 
 marketToState
     :: forall assets r a
      . Members
         [State (Portfolio assets), Input (Prices assets), Error String] r
-    => UTCTime
-    -> Sem (Market assets ': r) a
+    => Sem (Market assets ': r) a
     -> Sem r a
-marketToState time = interpret \case
+marketToState = interpret \case
     Trade from to orderAmount -> do
         portfolio :: Portfolio assets <- State.get
         let fromBefore = HR.getIn from portfolio
@@ -131,7 +130,6 @@ marketToState time = interpret \case
                 toAfter   = fromJust
                     $ HR.getIn to portfolio `sigma` toDelta
             put $ setIn from fromAfter $ setIn to toAfter portfolio
-    GetTime -> return time
 
 inputToState
     :: forall s r a

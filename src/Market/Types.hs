@@ -1,6 +1,5 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
@@ -131,7 +130,5 @@ absoluteAmount totalAmount = \case
     Absolute amount      -> amount
     Relative (Share shr) -> shr .* totalAmount
 
-newtype OrderId = OrderId Int
-
-newtype TimeSeries a = TimeSeries (NonEmpty (UTCTime, a))
+newtype TimeSeries a = TimeSeries { unTimeSeries :: NonEmpty (UTCTime, a) }
     deriving Show

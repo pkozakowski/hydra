@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: bbb71d6d3490faf2073320a1ea7bc9c144eae8603b6c1a79a3da1fb919e8ee9f
+-- hash: 93f021bc9c329b2edf882455fc9f095bba5777d92f18e757d0e3a78f53be4031
 
 name:           hydra
 version:        0.1.0.0
@@ -31,9 +31,13 @@ library
       Data.Record.Hom
       Market
       Market.Deriving
+      Market.Feed
+      Market.Feed.PancakeSwap
+      Market.Feed.TH
       Market.Instruments
       Market.Ops
       Market.Simulation
+      Market.Time
       Market.Types
       Numeric.Algebra.Deriving
       Numeric.Delta
@@ -45,21 +49,28 @@ library
       src
   default-extensions:
       BlockArguments
+      FlexibleContexts
       RankNTypes
       TypeApplications
   build-depends:
       QuickCheck
+    , aeson
     , algebra
     , base >=4.7 && <5
+    , bytestring
     , constraints
+    , lazyio
+    , morpheus-graphql-client
     , polysemy
     , polysemy-plugin
     , quickcheck-classes
     , quickcheck-instances
+    , req
     , tasty
     , tasty-quickcheck
     , tasty-th
     , template-haskell
+    , text
     , time
   default-language: Haskell2010
 
@@ -71,23 +82,30 @@ executable hydra-exe
       app
   default-extensions:
       BlockArguments
+      FlexibleContexts
       RankNTypes
       TypeApplications
   ghc-options: -O2 -fplugin=Polysemy.Plugin -flate-specialise -fspecialise-aggressively -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       QuickCheck
+    , aeson
     , algebra
     , base >=4.7 && <5
+    , bytestring
     , constraints
     , hydra
+    , lazyio
+    , morpheus-graphql-client
     , polysemy
     , polysemy-plugin
     , quickcheck-classes
     , quickcheck-instances
+    , req
     , tasty
     , tasty-quickcheck
     , tasty-th
     , template-haskell
+    , text
     , time
   default-language: Haskell2010
 
@@ -111,22 +129,29 @@ test-suite hydra-test
       test
   default-extensions:
       BlockArguments
+      FlexibleContexts
       RankNTypes
       TypeApplications
   ghc-options: -fplugin=Polysemy.Plugin -flate-specialise -fspecialise-aggressively -fno-ignore-asserts -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       QuickCheck
+    , aeson
     , algebra
     , base >=4.7 && <5
+    , bytestring
     , constraints
     , hydra
+    , lazyio
+    , morpheus-graphql-client
     , polysemy
     , polysemy-plugin
     , quickcheck-classes
     , quickcheck-instances
+    , req
     , tasty
     , tasty-quickcheck
     , tasty-th
     , template-haskell
+    , text
     , time
   default-language: Haskell2010

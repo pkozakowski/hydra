@@ -33,6 +33,12 @@ dependencies:
 - polysemy
 - polysemy-plugin
 - time
+- morpheus-graphql-client
+- text
+- req
+- bytestring
+- aeson
+- lazyio
 
 library:
   source-dirs: src
@@ -69,5 +75,6 @@ tests:
 
 default-extensions:
 - BlockArguments
+- FlexibleContexts
 - RankNTypes
 - TypeApplications

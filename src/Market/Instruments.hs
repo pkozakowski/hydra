@@ -1,6 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -23,6 +22,7 @@ import GHC.TypeLits
 import Market
 import Market.Ops
 import Market.Simulation
+import Market.Time
 import Numeric.Algebra hiding ((>))
 import Numeric.Kappa
 import Numeric.Normalizable
@@ -31,8 +31,6 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.State as State
 import Prelude hiding ((+), pi)
-
-import Debug.Trace
 
 data Hold (held :: Symbol) = Hold (Proxy held)
 
@@ -118,7 +116,7 @@ instance (Labels assets, Labels instrs)
         -- last update.
         prices <- input @(Prices assets)
         portfolio <- input @(Portfolio assets)
-        time <- getTime @assets
+        time <- now
         IConfig config <- input @(IConfig (BalanceConfig assets instrs))
         IState state <- State.get
         when (shouldUpdate prices portfolio time config state) do
@@ -145,7 +143,7 @@ instance (Labels assets, Labels instrs)
                         <*> pure exec
             portfoliosAndInstruments'
                 <- sequence
-                $  runMarketSimulation time <$> portfolios <*> executions
+                $  runMarketSimulation <$> portfolios <*> executions
             let portfolios' = fst <$> portfoliosAndInstruments'
                 states' = snd <$> portfoliosAndInstruments'
                 allocations'

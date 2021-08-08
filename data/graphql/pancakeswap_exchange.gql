@@ -1,0 +1,2324 @@
+directive @entity on OBJECT
+
+directive @derivedFrom(field: String) on FIELD_DEFINITION
+
+directive @subgraphId(id: String) on OBJECT
+
+type _Block_ {
+  """The hash of the block"""
+  hash: Bytes
+
+  """The block number"""
+  number: Int!
+}
+
+"""The type for the top-level _meta field"""
+type _Meta_ {
+  """
+  Information about a specific subgraph block. The hash of the block
+  will be null if the _meta field has a block constraint that asks for
+  a block number. It will be filled if the _meta field has no block constraint
+  and therefore asks for the latest  block
+  
+  """
+  block: _Block_!
+
+  """The deployment ID"""
+  deployment: String!
+
+  """If `true`, the subgraph encountered indexing errors at some past block"""
+  hasIndexingErrors: Boolean!
+}
+
+enum _SubgraphErrorPolicy_ {
+  """Data will be returned even if the subgraph has indexing errors"""
+  allow
+
+  """
+  If the subgraph has indexing errors, data will be omitted. The default.
+  """
+  deny
+}
+
+scalar BigDecimal
+
+scalar BigInt
+
+input Block_height {
+  hash: Bytes
+  number: Int
+}
+
+type Bundle {
+  id: ID!
+
+  """BNB price, in USD"""
+  bnbPrice: BigDecimal!
+}
+
+input Bundle_filter {
+  id: ID
+  id_not: ID
+  id_gt: ID
+  id_lt: ID
+  id_gte: ID
+  id_lte: ID
+  id_in: [ID!]
+  id_not_in: [ID!]
+  bnbPrice: BigDecimal
+  bnbPrice_not: BigDecimal
+  bnbPrice_gt: BigDecimal
+  bnbPrice_lt: BigDecimal
+  bnbPrice_gte: BigDecimal
+  bnbPrice_lte: BigDecimal
+  bnbPrice_in: [BigDecimal!]
+  bnbPrice_not_in: [BigDecimal!]
+}
+
+enum Bundle_orderBy {
+  id
+  bnbPrice
+}
+
+type Burn {
+  id: ID!
+  transaction: Transaction!
+  timestamp: BigInt!
+  pair: Pair!
+  token0: Token!
+  token1: Token!
+  liquidity: BigDecimal!
+  sender: String
+  amount0: BigDecimal
+  amount1: BigDecimal
+  to: String
+  logIndex: BigInt
+  amountUSD: BigDecimal
+  needsComplete: Boolean!
+  feeTo: String
+  feeLiquidity: BigDecimal
+}
+
+input Burn_filter {
+  id: ID
+  id_not: ID
+  id_gt: ID
+  id_lt: ID
+  id_gte: ID
+  id_lte: ID
+  id_in: [ID!]
+  id_not_in: [ID!]
+  transaction: String
+  transaction_not: String
+  transaction_gt: String
+  transaction_lt: String
+  transaction_gte: String
+  transaction_lte: String
+  transaction_in: [String!]
+  transaction_not_in: [String!]
+  transaction_contains: String
+  transaction_not_contains: String
+  transaction_starts_with: String
+  transaction_not_starts_with: String
+  transaction_ends_with: String
+  transaction_not_ends_with: String
+  timestamp: BigInt
+  timestamp_not: BigInt
+  timestamp_gt: BigInt
+  timestamp_lt: BigInt
+  timestamp_gte: BigInt
+  timestamp_lte: BigInt
+  timestamp_in: [BigInt!]
+  timestamp_not_in: [BigInt!]
+  pair: String
+  pair_not: String
+  pair_gt: String
+  pair_lt: String
+  pair_gte: String
+  pair_lte: String
+  pair_in: [String!]
+  pair_not_in: [String!]
+  pair_contains: String
+  pair_not_contains: String
+  pair_starts_with: String
+  pair_not_starts_with: String
+  pair_ends_with: String
+  pair_not_ends_with: String
+  token0: String
+  token0_not: String
+  token0_gt: String
+  token0_lt: String
+  token0_gte: String
+  token0_lte: String
+  token0_in: [String!]
+  token0_not_in: [String!]
+  token0_contains: String
+  token0_not_contains: String
+  token0_starts_with: String
+  token0_not_starts_with: String
+  token0_ends_with: String
+  token0_not_ends_with: String
+  token1: String
+  token1_not: String
+  token1_gt: String
+  token1_lt: String
+  token1_gte: String
+  token1_lte: String
+  token1_in: [String!]
+  token1_not_in: [String!]
+  token1_contains: String
+  token1_not_contains: String
+  token1_starts_with: String
+  token1_not_starts_with: String
+  token1_ends_with: String
+  token1_not_ends_with: String
+  liquidity: BigDecimal
+  liquidity_not: BigDecimal
+  liquidity_gt: BigDecimal
+  liquidity_lt: BigDecimal
+  liquidity_gte: BigDecimal
+  liquidity_lte: BigDecimal
+  liquidity_in: [BigDecimal!]
+  liquidity_not_in: [BigDecimal!]
+  sender: String
+  sender_not: String
+  sender_gt: String
+  sender_lt: String
+  sender_gte: String
+  sender_lte: String
+  sender_in: [String!]
+  sender_not_in: [String!]
+  sender_contains: String
+  sender_not_contains: String
+  sender_starts_with: String
+  sender_not_starts_with: String
+  sender_ends_with: String
+  sender_not_ends_with: String
+  amount0: BigDecimal
+  amount0_not: BigDecimal
+  amount0_gt: BigDecimal
+  amount0_lt: BigDecimal
+  amount0_gte: BigDecimal
+  amount0_lte: BigDecimal
+  amount0_in: [BigDecimal!]
+  amount0_not_in: [BigDecimal!]
+  amount1: BigDecimal
+  amount1_not: BigDecimal
+  amount1_gt: BigDecimal
+  amount1_lt: BigDecimal
+  amount1_gte: BigDecimal
+  amount1_lte: BigDecimal
+  amount1_in: [BigDecimal!]
+  amount1_not_in: [BigDecimal!]
+  to: String
+  to_not: String
+  to_gt: String
+  to_lt: String
+  to_gte: String
+  to_lte: String
+  to_in: [String!]
+  to_not_in: [String!]
+  to_contains: String
+  to_not_contains: String
+  to_starts_with: String
+  to_not_starts_with: String
+  to_ends_with: String
+  to_not_ends_with: String
+  logIndex: BigInt
+  logIndex_not: BigInt
+  logIndex_gt: BigInt
+  logIndex_lt: BigInt
+  logIndex_gte: BigInt
+  logIndex_lte: BigInt
+  logIndex_in: [BigInt!]
+  logIndex_not_in: [BigInt!]
+  amountUSD: BigDecimal
+  amountUSD_not: BigDecimal
+  amountUSD_gt: BigDecimal
+  amountUSD_lt: BigDecimal
+  amountUSD_gte: BigDecimal
+  amountUSD_lte: BigDecimal
+  amountUSD_in: [BigDecimal!]
+  amountUSD_not_in: [BigDecimal!]
+  needsComplete: Boolean
+  needsComplete_not: Boolean
+  needsComplete_in: [Boolean!]
+  needsComplete_not_in: [Boolean!]
+  feeTo: String
+  feeTo_not: String
+  feeTo_gt: String
+  feeTo_lt: String
+  feeTo_gte: String
+  feeTo_lte: String
+  feeTo_in: [String!]
+  feeTo_not_in: [String!]
+  feeTo_contains: String
+  feeTo_not_contains: String
+  feeTo_starts_with: String
+  feeTo_not_starts_with: String
+  feeTo_ends_with: String
+  feeTo_not_ends_with: String
+  feeLiquidity: BigDecimal
+  feeLiquidity_not: BigDecimal
+  feeLiquidity_gt: BigDecimal
+  feeLiquidity_lt: BigDecimal
+  feeLiquidity_gte: BigDecimal
+  feeLiquidity_lte: BigDecimal
+  feeLiquidity_in: [BigDecimal!]
+  feeLiquidity_not_in: [BigDecimal!]
+}
+
+enum Burn_orderBy {
+  id
+  transaction
+  timestamp
+  pair
+  token0
+  token1
+  liquidity
+  sender
+  amount0
+  amount1
+  to
+  logIndex
+  amountUSD
+  needsComplete
+  feeTo
+  feeLiquidity
+}
+
+scalar Bytes
+
+type Mint {
+  id: ID!
+  transaction: Transaction!
+  timestamp: BigInt!
+  pair: Pair!
+  token0: Token!
+  token1: Token!
+  to: String!
+  liquidity: BigDecimal!
+  sender: String
+  amount0: BigDecimal
+  amount1: BigDecimal
+  logIndex: BigInt
+  amountUSD: BigDecimal
+  feeTo: String
+  feeLiquidity: BigDecimal
+}
+
+input Mint_filter {
+  id: ID
+  id_not: ID
+  id_gt: ID
+  id_lt: ID
+  id_gte: ID
+  id_lte: ID
+  id_in: [ID!]
+  id_not_in: [ID!]
+  transaction: String
+  transaction_not: String
+  transaction_gt: String
+  transaction_lt: String
+  transaction_gte: String
+  transaction_lte: String
+  transaction_in: [String!]
+  transaction_not_in: [String!]
+  transaction_contains: String
+  transaction_not_contains: String
+  transaction_starts_with: String
+  transaction_not_starts_with: String
+  transaction_ends_with: String
+  transaction_not_ends_with: String
+  timestamp: BigInt
+  timestamp_not: BigInt
+  timestamp_gt: BigInt
+  timestamp_lt: BigInt
+  timestamp_gte: BigInt
+  timestamp_lte: BigInt
+  timestamp_in: [BigInt!]
+  timestamp_not_in: [BigInt!]
+  pair: String
+  pair_not: String
+  pair_gt: String
+  pair_lt: String
+  pair_gte: String
+  pair_lte: String
+  pair_in: [String!]
+  pair_not_in: [String!]
+  pair_contains: String
+  pair_not_contains: String
+  pair_starts_with: String
+  pair_not_starts_with: String
+  pair_ends_with: String
+  pair_not_ends_with: String
+  token0: String
+  token0_not: String
+  token0_gt: String
+  token0_lt: String
+  token0_gte: String
+  token0_lte: String
+  token0_in: [String!]
+  token0_not_in: [String!]
+  token0_contains: String
+  token0_not_contains: String
+  token0_starts_with: String
+  token0_not_starts_with: String
+  token0_ends_with: String
+  token0_not_ends_with: String
+  token1: String
+  token1_not: String
+  token1_gt: String
+  token1_lt: String
+  token1_gte: String
+  token1_lte: String
+  token1_in: [String!]
+  token1_not_in: [String!]
+  token1_contains: String
+  token1_not_contains: String
+  token1_starts_with: String
+  token1_not_starts_with: String
+  token1_ends_with: String
+  token1_not_ends_with: String
+  to: String
+  to_not: String
+  to_gt: String
+  to_lt: String
+  to_gte: String
+  to_lte: String
+  to_in: [String!]
+  to_not_in: [String!]
+  to_contains: String
+  to_not_contains: String
+  to_starts_with: String
+  to_not_starts_with: String
+  to_ends_with: String
+  to_not_ends_with: String
+  liquidity: BigDecimal
+  liquidity_not: BigDecimal
+  liquidity_gt: BigDecimal
+  liquidity_lt: BigDecimal
+  liquidity_gte: BigDecimal
+  liquidity_lte: BigDecimal
+  liquidity_in: [BigDecimal!]
+  liquidity_not_in: [BigDecimal!]
+  sender: String
+  sender_not: String
+  sender_gt: String
+  sender_lt: String
+  sender_gte: String
+  sender_lte: String
+  sender_in: [String!]
+  sender_not_in: [String!]
+  sender_contains: String
+  sender_not_contains: String
+  sender_starts_with: String
+  sender_not_starts_with: String
+  sender_ends_with: String
+  sender_not_ends_with: String
+  amount0: BigDecimal
+  amount0_not: BigDecimal
+  amount0_gt: BigDecimal
+  amount0_lt: BigDecimal
+  amount0_gte: BigDecimal
+  amount0_lte: BigDecimal
+  amount0_in: [BigDecimal!]
+  amount0_not_in: [BigDecimal!]
+  amount1: BigDecimal
+  amount1_not: BigDecimal
+  amount1_gt: BigDecimal
+  amount1_lt: BigDecimal
+  amount1_gte: BigDecimal
+  amount1_lte: BigDecimal
+  amount1_in: [BigDecimal!]
+  amount1_not_in: [BigDecimal!]
+  logIndex: BigInt
+  logIndex_not: BigInt
+  logIndex_gt: BigInt
+  logIndex_lt: BigInt
+  logIndex_gte: BigInt
+  logIndex_lte: BigInt
+  logIndex_in: [BigInt!]
+  logIndex_not_in: [BigInt!]
+  amountUSD: BigDecimal
+  amountUSD_not: BigDecimal
+  amountUSD_gt: BigDecimal
+  amountUSD_lt: BigDecimal
+  amountUSD_gte: BigDecimal
+  amountUSD_lte: BigDecimal
+  amountUSD_in: [BigDecimal!]
+  amountUSD_not_in: [BigDecimal!]
+  feeTo: String
+  feeTo_not: String
+  feeTo_gt: String
+  feeTo_lt: String
+  feeTo_gte: String
+  feeTo_lte: String
+  feeTo_in: [String!]
+  feeTo_not_in: [String!]
+  feeTo_contains: String
+  feeTo_not_contains: String
+  feeTo_starts_with: String
+  feeTo_not_starts_with: String
+  feeTo_ends_with: String
+  feeTo_not_ends_with: String
+  feeLiquidity: BigDecimal
+  feeLiquidity_not: BigDecimal
+  feeLiquidity_gt: BigDecimal
+  feeLiquidity_lt: BigDecimal
+  feeLiquidity_gte: BigDecimal
+  feeLiquidity_lte: BigDecimal
+  feeLiquidity_in: [BigDecimal!]
+  feeLiquidity_not_in: [BigDecimal!]
+}
+
+enum Mint_orderBy {
+  id
+  transaction
+  timestamp
+  pair
+  token0
+  token1
+  to
+  liquidity
+  sender
+  amount0
+  amount1
+  logIndex
+  amountUSD
+  feeTo
+  feeLiquidity
+}
+
+enum OrderDirection {
+  asc
+  desc
+}
+
+type Pair {
+  id: ID!
+  name: String!
+  token0: Token!
+  token1: Token!
+  reserve0: BigDecimal!
+  reserve1: BigDecimal!
+  totalSupply: BigDecimal!
+  reserveBNB: BigDecimal!
+  reserveUSD: BigDecimal!
+  trackedReserveBNB: BigDecimal!
+  token0Price: BigDecimal!
+  token1Price: BigDecimal!
+  volumeToken0: BigDecimal!
+  volumeToken1: BigDecimal!
+  volumeUSD: BigDecimal!
+  untrackedVolumeUSD: BigDecimal!
+  totalTransactions: BigInt!
+  block: BigInt!
+  timestamp: BigInt!
+  pairHourData(skip: Int = 0, first: Int = 100, orderBy: PairHourData_orderBy, orderDirection: OrderDirection, where: PairHourData_filter): [PairHourData!]!
+  mints(skip: Int = 0, first: Int = 100, orderBy: Mint_orderBy, orderDirection: OrderDirection, where: Mint_filter): [Mint!]!
+  burns(skip: Int = 0, first: Int = 100, orderBy: Burn_orderBy, orderDirection: OrderDirection, where: Burn_filter): [Burn!]!
+  swaps(skip: Int = 0, first: Int = 100, orderBy: Swap_orderBy, orderDirection: OrderDirection, where: Swap_filter): [Swap!]!
+}
+
+input Pair_filter {
+  id: ID
+  id_not: ID
+  id_gt: ID
+  id_lt: ID
+  id_gte: ID
+  id_lte: ID
+  id_in: [ID!]
+  id_not_in: [ID!]
+  name: String
+  name_not: String
+  name_gt: String
+  name_lt: String
+  name_gte: String
+  name_lte: String
+  name_in: [String!]
+  name_not_in: [String!]
+  name_contains: String
+  name_not_contains: String
+  name_starts_with: String
+  name_not_starts_with: String
+  name_ends_with: String
+  name_not_ends_with: String
+  token0: String
+  token0_not: String
+  token0_gt: String
+  token0_lt: String
+  token0_gte: String
+  token0_lte: String
+  token0_in: [String!]
+  token0_not_in: [String!]
+  token0_contains: String
+  token0_not_contains: String
+  token0_starts_with: String
+  token0_not_starts_with: String
+  token0_ends_with: String
+  token0_not_ends_with: String
+  token1: String
+  token1_not: String
+  token1_gt: String
+  token1_lt: String
+  token1_gte: String
+  token1_lte: String
+  token1_in: [String!]
+  token1_not_in: [String!]
+  token1_contains: String
+  token1_not_contains: String
+  token1_starts_with: String
+  token1_not_starts_with: String
+  token1_ends_with: String
+  token1_not_ends_with: String
+  reserve0: BigDecimal
+  reserve0_not: BigDecimal
+  reserve0_gt: BigDecimal
+  reserve0_lt: BigDecimal
+  reserve0_gte: BigDecimal
+  reserve0_lte: BigDecimal
+  reserve0_in: [BigDecimal!]
+  reserve0_not_in: [BigDecimal!]
+  reserve1: BigDecimal
+  reserve1_not: BigDecimal
+  reserve1_gt: BigDecimal
+  reserve1_lt: BigDecimal
+  reserve1_gte: BigDecimal
+  reserve1_lte: BigDecimal
+  reserve1_in: [BigDecimal!]
+  reserve1_not_in: [BigDecimal!]
+  totalSupply: BigDecimal
+  totalSupply_not: BigDecimal
+  totalSupply_gt: BigDecimal
+  totalSupply_lt: BigDecimal
+  totalSupply_gte: BigDecimal
+  totalSupply_lte: BigDecimal
+  totalSupply_in: [BigDecimal!]
+  totalSupply_not_in: [BigDecimal!]
+  reserveBNB: BigDecimal
+  reserveBNB_not: BigDecimal
+  reserveBNB_gt: BigDecimal
+  reserveBNB_lt: BigDecimal
+  reserveBNB_gte: BigDecimal
+  reserveBNB_lte: BigDecimal
+  reserveBNB_in: [BigDecimal!]
+  reserveBNB_not_in: [BigDecimal!]
+  reserveUSD: BigDecimal
+  reserveUSD_not: BigDecimal
+  reserveUSD_gt: BigDecimal
+  reserveUSD_lt: BigDecimal
+  reserveUSD_gte: BigDecimal
+  reserveUSD_lte: BigDecimal
+  reserveUSD_in: [BigDecimal!]
+  reserveUSD_not_in: [BigDecimal!]
+  trackedReserveBNB: BigDecimal
+  trackedReserveBNB_not: BigDecimal
+  trackedReserveBNB_gt: BigDecimal
+  trackedReserveBNB_lt: BigDecimal
+  trackedReserveBNB_gte: BigDecimal
+  trackedReserveBNB_lte: BigDecimal
+  trackedReserveBNB_in: [BigDecimal!]
+  trackedReserveBNB_not_in: [BigDecimal!]
+  token0Price: BigDecimal
+  token0Price_not: BigDecimal
+  token0Price_gt: BigDecimal
+  token0Price_lt: BigDecimal
+  token0Price_gte: BigDecimal
+  token0Price_lte: BigDecimal
+  token0Price_in: [BigDecimal!]
+  token0Price_not_in: [BigDecimal!]
+  token1Price: BigDecimal
+  token1Price_not: BigDecimal
+  token1Price_gt: BigDecimal
+  token1Price_lt: BigDecimal
+  token1Price_gte: BigDecimal
+  token1Price_lte: BigDecimal
+  token1Price_in: [BigDecimal!]
+  token1Price_not_in: [BigDecimal!]
+  volumeToken0: BigDecimal
+  volumeToken0_not: BigDecimal
+  volumeToken0_gt: BigDecimal
+  volumeToken0_lt: BigDecimal
+  volumeToken0_gte: BigDecimal
+  volumeToken0_lte: BigDecimal
+  volumeToken0_in: [BigDecimal!]
+  volumeToken0_not_in: [BigDecimal!]
+  volumeToken1: BigDecimal
+  volumeToken1_not: BigDecimal
+  volumeToken1_gt: BigDecimal
+  volumeToken1_lt: BigDecimal
+  volumeToken1_gte: BigDecimal
+  volumeToken1_lte: BigDecimal
+  volumeToken1_in: [BigDecimal!]
+  volumeToken1_not_in: [BigDecimal!]
+  volumeUSD: BigDecimal
+  volumeUSD_not: BigDecimal
+  volumeUSD_gt: BigDecimal
+  volumeUSD_lt: BigDecimal
+  volumeUSD_gte: BigDecimal
+  volumeUSD_lte: BigDecimal
+  volumeUSD_in: [BigDecimal!]
+  volumeUSD_not_in: [BigDecimal!]
+  untrackedVolumeUSD: BigDecimal
+  untrackedVolumeUSD_not: BigDecimal
+  untrackedVolumeUSD_gt: BigDecimal
+  untrackedVolumeUSD_lt: BigDecimal
+  untrackedVolumeUSD_gte: BigDecimal
+  untrackedVolumeUSD_lte: BigDecimal
+  untrackedVolumeUSD_in: [BigDecimal!]
+  untrackedVolumeUSD_not_in: [BigDecimal!]
+  totalTransactions: BigInt
+  totalTransactions_not: BigInt
+  totalTransactions_gt: BigInt
+  totalTransactions_lt: BigInt
+  totalTransactions_gte: BigInt
+  totalTransactions_lte: BigInt
+  totalTransactions_in: [BigInt!]
+  totalTransactions_not_in: [BigInt!]
+  block: BigInt
+  block_not: BigInt
+  block_gt: BigInt
+  block_lt: BigInt
+  block_gte: BigInt
+  block_lte: BigInt
+  block_in: [BigInt!]
+  block_not_in: [BigInt!]
+  timestamp: BigInt
+  timestamp_not: BigInt
+  timestamp_gt: BigInt
+  timestamp_lt: BigInt
+  timestamp_gte: BigInt
+  timestamp_lte: BigInt
+  timestamp_in: [BigInt!]
+  timestamp_not_in: [BigInt!]
+}
+
+enum Pair_orderBy {
+  id
+  name
+  token0
+  token1
+  reserve0
+  reserve1
+  totalSupply
+  reserveBNB
+  reserveUSD
+  trackedReserveBNB
+  token0Price
+  token1Price
+  volumeToken0
+  volumeToken1
+  volumeUSD
+  untrackedVolumeUSD
+  totalTransactions
+  block
+  timestamp
+  pairHourData
+  mints
+  burns
+  swaps
+}
+
+type PairDayData {
+  id: ID!
+  date: Int!
+  pairAddress: Pair!
+  token0: Token!
+  token1: Token!
+  reserve0: BigDecimal!
+  reserve1: BigDecimal!
+  totalSupply: BigDecimal!
+  reserveUSD: BigDecimal!
+  dailyVolumeToken0: BigDecimal!
+  dailyVolumeToken1: BigDecimal!
+  dailyVolumeUSD: BigDecimal!
+  dailyTxns: BigInt!
+}
+
+input PairDayData_filter {
+  id: ID
+  id_not: ID
+  id_gt: ID
+  id_lt: ID
+  id_gte: ID
+  id_lte: ID
+  id_in: [ID!]
+  id_not_in: [ID!]
+  date: Int
+  date_not: Int
+  date_gt: Int
+  date_lt: Int
+  date_gte: Int
+  date_lte: Int
+  date_in: [Int!]
+  date_not_in: [Int!]
+  pairAddress: String
+  pairAddress_not: String
+  pairAddress_gt: String
+  pairAddress_lt: String
+  pairAddress_gte: String
+  pairAddress_lte: String
+  pairAddress_in: [String!]
+  pairAddress_not_in: [String!]
+  pairAddress_contains: String
+  pairAddress_not_contains: String
+  pairAddress_starts_with: String
+  pairAddress_not_starts_with: String
+  pairAddress_ends_with: String
+  pairAddress_not_ends_with: String
+  token0: String
+  token0_not: String
+  token0_gt: String
+  token0_lt: String
+  token0_gte: String
+  token0_lte: String
+  token0_in: [String!]
+  token0_not_in: [String!]
+  token0_contains: String
+  token0_not_contains: String
+  token0_starts_with: String
+  token0_not_starts_with: String
+  token0_ends_with: String
+  token0_not_ends_with: String
+  token1: String
+  token1_not: String
+  token1_gt: String
+  token1_lt: String
+  token1_gte: String
+  token1_lte: String
+  token1_in: [String!]
+  token1_not_in: [String!]
+  token1_contains: String
+  token1_not_contains: String
+  token1_starts_with: String
+  token1_not_starts_with: String
+  token1_ends_with: String
+  token1_not_ends_with: String
+  reserve0: BigDecimal
+  reserve0_not: BigDecimal
+  reserve0_gt: BigDecimal
+  reserve0_lt: BigDecimal
+  reserve0_gte: BigDecimal
+  reserve0_lte: BigDecimal
+  reserve0_in: [BigDecimal!]
+  reserve0_not_in: [BigDecimal!]
+  reserve1: BigDecimal
+  reserve1_not: BigDecimal
+  reserve1_gt: BigDecimal
+  reserve1_lt: BigDecimal
+  reserve1_gte: BigDecimal
+  reserve1_lte: BigDecimal
+  reserve1_in: [BigDecimal!]
+  reserve1_not_in: [BigDecimal!]
+  totalSupply: BigDecimal
+  totalSupply_not: BigDecimal
+  totalSupply_gt: BigDecimal
+  totalSupply_lt: BigDecimal
+  totalSupply_gte: BigDecimal
+  totalSupply_lte: BigDecimal
+  totalSupply_in: [BigDecimal!]
+  totalSupply_not_in: [BigDecimal!]
+  reserveUSD: BigDecimal
+  reserveUSD_not: BigDecimal
+  reserveUSD_gt: BigDecimal
+  reserveUSD_lt: BigDecimal
+  reserveUSD_gte: BigDecimal
+  reserveUSD_lte: BigDecimal
+  reserveUSD_in: [BigDecimal!]
+  reserveUSD_not_in: [BigDecimal!]
+  dailyVolumeToken0: BigDecimal
+  dailyVolumeToken0_not: BigDecimal
+  dailyVolumeToken0_gt: BigDecimal
+  dailyVolumeToken0_lt: BigDecimal
+  dailyVolumeToken0_gte: BigDecimal
+  dailyVolumeToken0_lte: BigDecimal
+  dailyVolumeToken0_in: [BigDecimal!]
+  dailyVolumeToken0_not_in: [BigDecimal!]
+  dailyVolumeToken1: BigDecimal
+  dailyVolumeToken1_not: BigDecimal
+  dailyVolumeToken1_gt: BigDecimal
+  dailyVolumeToken1_lt: BigDecimal
+  dailyVolumeToken1_gte: BigDecimal
+  dailyVolumeToken1_lte: BigDecimal
+  dailyVolumeToken1_in: [BigDecimal!]
+  dailyVolumeToken1_not_in: [BigDecimal!]
+  dailyVolumeUSD: BigDecimal
+  dailyVolumeUSD_not: BigDecimal
+  dailyVolumeUSD_gt: BigDecimal
+  dailyVolumeUSD_lt: BigDecimal
+  dailyVolumeUSD_gte: BigDecimal
+  dailyVolumeUSD_lte: BigDecimal
+  dailyVolumeUSD_in: [BigDecimal!]
+  dailyVolumeUSD_not_in: [BigDecimal!]
+  dailyTxns: BigInt
+  dailyTxns_not: BigInt
+  dailyTxns_gt: BigInt
+  dailyTxns_lt: BigInt
+  dailyTxns_gte: BigInt
+  dailyTxns_lte: BigInt
+  dailyTxns_in: [BigInt!]
+  dailyTxns_not_in: [BigInt!]
+}
+
+enum PairDayData_orderBy {
+  id
+  date
+  pairAddress
+  token0
+  token1
+  reserve0
+  reserve1
+  totalSupply
+  reserveUSD
+  dailyVolumeToken0
+  dailyVolumeToken1
+  dailyVolumeUSD
+  dailyTxns
+}
+
+type PairHourData {
+  id: ID!
+  hourStartUnix: Int!
+  pair: Pair!
+  reserve0: BigDecimal!
+  reserve1: BigDecimal!
+  totalSupply: BigDecimal!
+  reserveUSD: BigDecimal!
+  hourlyVolumeToken0: BigDecimal!
+  hourlyVolumeToken1: BigDecimal!
+  hourlyVolumeUSD: BigDecimal!
+  hourlyTxns: BigInt!
+}
+
+input PairHourData_filter {
+  id: ID
+  id_not: ID
+  id_gt: ID
+  id_lt: ID
+  id_gte: ID
+  id_lte: ID
+  id_in: [ID!]
+  id_not_in: [ID!]
+  hourStartUnix: Int
+  hourStartUnix_not: Int
+  hourStartUnix_gt: Int
+  hourStartUnix_lt: Int
+  hourStartUnix_gte: Int
+  hourStartUnix_lte: Int
+  hourStartUnix_in: [Int!]
+  hourStartUnix_not_in: [Int!]
+  pair: String
+  pair_not: String
+  pair_gt: String
+  pair_lt: String
+  pair_gte: String
+  pair_lte: String
+  pair_in: [String!]
+  pair_not_in: [String!]
+  pair_contains: String
+  pair_not_contains: String
+  pair_starts_with: String
+  pair_not_starts_with: String
+  pair_ends_with: String
+  pair_not_ends_with: String
+  reserve0: BigDecimal
+  reserve0_not: BigDecimal
+  reserve0_gt: BigDecimal
+  reserve0_lt: BigDecimal
+  reserve0_gte: BigDecimal
+  reserve0_lte: BigDecimal
+  reserve0_in: [BigDecimal!]
+  reserve0_not_in: [BigDecimal!]
+  reserve1: BigDecimal
+  reserve1_not: BigDecimal
+  reserve1_gt: BigDecimal
+  reserve1_lt: BigDecimal
+  reserve1_gte: BigDecimal
+  reserve1_lte: BigDecimal
+  reserve1_in: [BigDecimal!]
+  reserve1_not_in: [BigDecimal!]
+  totalSupply: BigDecimal
+  totalSupply_not: BigDecimal
+  totalSupply_gt: BigDecimal
+  totalSupply_lt: BigDecimal
+  totalSupply_gte: BigDecimal
+  totalSupply_lte: BigDecimal
+  totalSupply_in: [BigDecimal!]
+  totalSupply_not_in: [BigDecimal!]
+  reserveUSD: BigDecimal
+  reserveUSD_not: BigDecimal
+  reserveUSD_gt: BigDecimal
+  reserveUSD_lt: BigDecimal
+  reserveUSD_gte: BigDecimal
+  reserveUSD_lte: BigDecimal
+  reserveUSD_in: [BigDecimal!]
+  reserveUSD_not_in: [BigDecimal!]
+  hourlyVolumeToken0: BigDecimal
+  hourlyVolumeToken0_not: BigDecimal
+  hourlyVolumeToken0_gt: BigDecimal
+  hourlyVolumeToken0_lt: BigDecimal
+  hourlyVolumeToken0_gte: BigDecimal
+  hourlyVolumeToken0_lte: BigDecimal
+  hourlyVolumeToken0_in: [BigDecimal!]
+  hourlyVolumeToken0_not_in: [BigDecimal!]
+  hourlyVolumeToken1: BigDecimal
+  hourlyVolumeToken1_not: BigDecimal
+  hourlyVolumeToken1_gt: BigDecimal
+  hourlyVolumeToken1_lt: BigDecimal
+  hourlyVolumeToken1_gte: BigDecimal
+  hourlyVolumeToken1_lte: BigDecimal
+  hourlyVolumeToken1_in: [BigDecimal!]
+  hourlyVolumeToken1_not_in: [BigDecimal!]
+  hourlyVolumeUSD: BigDecimal
+  hourlyVolumeUSD_not: BigDecimal
+  hourlyVolumeUSD_gt: BigDecimal
+  hourlyVolumeUSD_lt: BigDecimal
+  hourlyVolumeUSD_gte: BigDecimal
+  hourlyVolumeUSD_lte: BigDecimal
+  hourlyVolumeUSD_in: [BigDecimal!]
+  hourlyVolumeUSD_not_in: [BigDecimal!]
+  hourlyTxns: BigInt
+  hourlyTxns_not: BigInt
+  hourlyTxns_gt: BigInt
+  hourlyTxns_lt: BigInt
+  hourlyTxns_gte: BigInt
+  hourlyTxns_lte: BigInt
+  hourlyTxns_in: [BigInt!]
+  hourlyTxns_not_in: [BigInt!]
+}
+
+enum PairHourData_orderBy {
+  id
+  hourStartUnix
+  pair
+  reserve0
+  reserve1
+  totalSupply
+  reserveUSD
+  hourlyVolumeToken0
+  hourlyVolumeToken1
+  hourlyVolumeUSD
+  hourlyTxns
+}
+
+type PancakeDayData {
+  id: ID!
+  date: Int!
+  dailyVolumeBNB: BigDecimal!
+  dailyVolumeUSD: BigDecimal!
+  dailyVolumeUntracked: BigDecimal!
+  totalVolumeBNB: BigDecimal!
+  totalLiquidityBNB: BigDecimal!
+  totalVolumeUSD: BigDecimal!
+  totalLiquidityUSD: BigDecimal!
+  totalTransactions: BigInt!
+}
+
+input PancakeDayData_filter {
+  id: ID
+  id_not: ID
+  id_gt: ID
+  id_lt: ID
+  id_gte: ID
+  id_lte: ID
+  id_in: [ID!]
+  id_not_in: [ID!]
+  date: Int
+  date_not: Int
+  date_gt: Int
+  date_lt: Int
+  date_gte: Int
+  date_lte: Int
+  date_in: [Int!]
+  date_not_in: [Int!]
+  dailyVolumeBNB: BigDecimal
+  dailyVolumeBNB_not: BigDecimal
+  dailyVolumeBNB_gt: BigDecimal
+  dailyVolumeBNB_lt: BigDecimal
+  dailyVolumeBNB_gte: BigDecimal
+  dailyVolumeBNB_lte: BigDecimal
+  dailyVolumeBNB_in: [BigDecimal!]
+  dailyVolumeBNB_not_in: [BigDecimal!]
+  dailyVolumeUSD: BigDecimal
+  dailyVolumeUSD_not: BigDecimal
+  dailyVolumeUSD_gt: BigDecimal
+  dailyVolumeUSD_lt: BigDecimal
+  dailyVolumeUSD_gte: BigDecimal
+  dailyVolumeUSD_lte: BigDecimal
+  dailyVolumeUSD_in: [BigDecimal!]
+  dailyVolumeUSD_not_in: [BigDecimal!]
+  dailyVolumeUntracked: BigDecimal
+  dailyVolumeUntracked_not: BigDecimal
+  dailyVolumeUntracked_gt: BigDecimal
+  dailyVolumeUntracked_lt: BigDecimal
+  dailyVolumeUntracked_gte: BigDecimal
+  dailyVolumeUntracked_lte: BigDecimal
+  dailyVolumeUntracked_in: [BigDecimal!]
+  dailyVolumeUntracked_not_in: [BigDecimal!]
+  totalVolumeBNB: BigDecimal
+  totalVolumeBNB_not: BigDecimal
+  totalVolumeBNB_gt: BigDecimal
+  totalVolumeBNB_lt: BigDecimal
+  totalVolumeBNB_gte: BigDecimal
+  totalVolumeBNB_lte: BigDecimal
+  totalVolumeBNB_in: [BigDecimal!]
+  totalVolumeBNB_not_in: [BigDecimal!]
+  totalLiquidityBNB: BigDecimal
+  totalLiquidityBNB_not: BigDecimal
+  totalLiquidityBNB_gt: BigDecimal
+  totalLiquidityBNB_lt: BigDecimal
+  totalLiquidityBNB_gte: BigDecimal
+  totalLiquidityBNB_lte: BigDecimal
+  totalLiquidityBNB_in: [BigDecimal!]
+  totalLiquidityBNB_not_in: [BigDecimal!]
+  totalVolumeUSD: BigDecimal
+  totalVolumeUSD_not: BigDecimal
+  totalVolumeUSD_gt: BigDecimal
+  totalVolumeUSD_lt: BigDecimal
+  totalVolumeUSD_gte: BigDecimal
+  totalVolumeUSD_lte: BigDecimal
+  totalVolumeUSD_in: [BigDecimal!]
+  totalVolumeUSD_not_in: [BigDecimal!]
+  totalLiquidityUSD: BigDecimal
+  totalLiquidityUSD_not: BigDecimal
+  totalLiquidityUSD_gt: BigDecimal
+  totalLiquidityUSD_lt: BigDecimal
+  totalLiquidityUSD_gte: BigDecimal
+  totalLiquidityUSD_lte: BigDecimal
+  totalLiquidityUSD_in: [BigDecimal!]
+  totalLiquidityUSD_not_in: [BigDecimal!]
+  totalTransactions: BigInt
+  totalTransactions_not: BigInt
+  totalTransactions_gt: BigInt
+  totalTransactions_lt: BigInt
+  totalTransactions_gte: BigInt
+  totalTransactions_lte: BigInt
+  totalTransactions_in: [BigInt!]
+  totalTransactions_not_in: [BigInt!]
+}
+
+enum PancakeDayData_orderBy {
+  id
+  date
+  dailyVolumeBNB
+  dailyVolumeUSD
+  dailyVolumeUntracked
+  totalVolumeBNB
+  totalLiquidityBNB
+  totalVolumeUSD
+  totalLiquidityUSD
+  totalTransactions
+}
+
+type PancakeFactory {
+  id: ID!
+
+  """Total of pairs"""
+  totalPairs: BigInt!
+
+  """Total of transactions"""
+  totalTransactions: BigInt!
+  totalVolumeUSD: BigDecimal!
+  totalVolumeBNB: BigDecimal!
+  untrackedVolumeUSD: BigDecimal!
+  totalLiquidityUSD: BigDecimal!
+  totalLiquidityBNB: BigDecimal!
+}
+
+input PancakeFactory_filter {
+  id: ID
+  id_not: ID
+  id_gt: ID
+  id_lt: ID
+  id_gte: ID
+  id_lte: ID
+  id_in: [ID!]
+  id_not_in: [ID!]
+  totalPairs: BigInt
+  totalPairs_not: BigInt
+  totalPairs_gt: BigInt
+  totalPairs_lt: BigInt
+  totalPairs_gte: BigInt
+  totalPairs_lte: BigInt
+  totalPairs_in: [BigInt!]
+  totalPairs_not_in: [BigInt!]
+  totalTransactions: BigInt
+  totalTransactions_not: BigInt
+  totalTransactions_gt: BigInt
+  totalTransactions_lt: BigInt
+  totalTransactions_gte: BigInt
+  totalTransactions_lte: BigInt
+  totalTransactions_in: [BigInt!]
+  totalTransactions_not_in: [BigInt!]
+  totalVolumeUSD: BigDecimal
+  totalVolumeUSD_not: BigDecimal
+  totalVolumeUSD_gt: BigDecimal
+  totalVolumeUSD_lt: BigDecimal
+  totalVolumeUSD_gte: BigDecimal
+  totalVolumeUSD_lte: BigDecimal
+  totalVolumeUSD_in: [BigDecimal!]
+  totalVolumeUSD_not_in: [BigDecimal!]
+  totalVolumeBNB: BigDecimal
+  totalVolumeBNB_not: BigDecimal
+  totalVolumeBNB_gt: BigDecimal
+  totalVolumeBNB_lt: BigDecimal
+  totalVolumeBNB_gte: BigDecimal
+  totalVolumeBNB_lte: BigDecimal
+  totalVolumeBNB_in: [BigDecimal!]
+  totalVolumeBNB_not_in: [BigDecimal!]
+  untrackedVolumeUSD: BigDecimal
+  untrackedVolumeUSD_not: BigDecimal
+  untrackedVolumeUSD_gt: BigDecimal
+  untrackedVolumeUSD_lt: BigDecimal
+  untrackedVolumeUSD_gte: BigDecimal
+  untrackedVolumeUSD_lte: BigDecimal
+  untrackedVolumeUSD_in: [BigDecimal!]
+  untrackedVolumeUSD_not_in: [BigDecimal!]
+  totalLiquidityUSD: BigDecimal
+  totalLiquidityUSD_not: BigDecimal
+  totalLiquidityUSD_gt: BigDecimal
+  totalLiquidityUSD_lt: BigDecimal
+  totalLiquidityUSD_gte: BigDecimal
+  totalLiquidityUSD_lte: BigDecimal
+  totalLiquidityUSD_in: [BigDecimal!]
+  totalLiquidityUSD_not_in: [BigDecimal!]
+  totalLiquidityBNB: BigDecimal
+  totalLiquidityBNB_not: BigDecimal
+  totalLiquidityBNB_gt: BigDecimal
+  totalLiquidityBNB_lt: BigDecimal
+  totalLiquidityBNB_gte: BigDecimal
+  totalLiquidityBNB_lte: BigDecimal
+  totalLiquidityBNB_in: [BigDecimal!]
+  totalLiquidityBNB_not_in: [BigDecimal!]
+}
+
+enum PancakeFactory_orderBy {
+  id
+  totalPairs
+  totalTransactions
+  totalVolumeUSD
+  totalVolumeBNB
+  untrackedVolumeUSD
+  totalLiquidityUSD
+  totalLiquidityBNB
+}
+
+type Query {
+  pancakeFactory(
+    id: ID!
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): PancakeFactory
+  pancakeFactories(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: PancakeFactory_orderBy
+    orderDirection: OrderDirection
+    where: PancakeFactory_filter
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): [PancakeFactory!]!
+  bundle(
+    id: ID!
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): Bundle
+  bundles(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: Bundle_orderBy
+    orderDirection: OrderDirection
+    where: Bundle_filter
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): [Bundle!]!
+  token(
+    id: ID!
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): Token
+  tokens(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: Token_orderBy
+    orderDirection: OrderDirection
+    where: Token_filter
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): [Token!]!
+  pair(
+    id: ID!
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): Pair
+  pairs(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: Pair_orderBy
+    orderDirection: OrderDirection
+    where: Pair_filter
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): [Pair!]!
+  transaction(
+    id: ID!
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): Transaction
+  transactions(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: Transaction_orderBy
+    orderDirection: OrderDirection
+    where: Transaction_filter
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): [Transaction!]!
+  mint(
+    id: ID!
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): Mint
+  mints(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: Mint_orderBy
+    orderDirection: OrderDirection
+    where: Mint_filter
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): [Mint!]!
+  burn(
+    id: ID!
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): Burn
+  burns(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: Burn_orderBy
+    orderDirection: OrderDirection
+    where: Burn_filter
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): [Burn!]!
+  swap(
+    id: ID!
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): Swap
+  swaps(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: Swap_orderBy
+    orderDirection: OrderDirection
+    where: Swap_filter
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): [Swap!]!
+  pancakeDayData(
+    id: ID!
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): PancakeDayData
+  pancakeDayDatas(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: PancakeDayData_orderBy
+    orderDirection: OrderDirection
+    where: PancakeDayData_filter
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): [PancakeDayData!]!
+  pairHourData(
+    id: ID!
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): PairHourData
+  pairHourDatas(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: PairHourData_orderBy
+    orderDirection: OrderDirection
+    where: PairHourData_filter
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): [PairHourData!]!
+  pairDayData(
+    id: ID!
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): PairDayData
+  pairDayDatas(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: PairDayData_orderBy
+    orderDirection: OrderDirection
+    where: PairDayData_filter
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): [PairDayData!]!
+  tokenDayData(
+    id: ID!
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): TokenDayData
+  tokenDayDatas(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: TokenDayData_orderBy
+    orderDirection: OrderDirection
+    where: TokenDayData_filter
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): [TokenDayData!]!
+
+  """Access to subgraph metadata"""
+  _meta(block: Block_height): _Meta_
+}
+
+type Subscription {
+  pancakeFactory(
+    id: ID!
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): PancakeFactory
+  pancakeFactories(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: PancakeFactory_orderBy
+    orderDirection: OrderDirection
+    where: PancakeFactory_filter
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): [PancakeFactory!]!
+  bundle(
+    id: ID!
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): Bundle
+  bundles(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: Bundle_orderBy
+    orderDirection: OrderDirection
+    where: Bundle_filter
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): [Bundle!]!
+  token(
+    id: ID!
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): Token
+  tokens(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: Token_orderBy
+    orderDirection: OrderDirection
+    where: Token_filter
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): [Token!]!
+  pair(
+    id: ID!
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): Pair
+  pairs(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: Pair_orderBy
+    orderDirection: OrderDirection
+    where: Pair_filter
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): [Pair!]!
+  transaction(
+    id: ID!
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): Transaction
+  transactions(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: Transaction_orderBy
+    orderDirection: OrderDirection
+    where: Transaction_filter
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): [Transaction!]!
+  mint(
+    id: ID!
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): Mint
+  mints(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: Mint_orderBy
+    orderDirection: OrderDirection
+    where: Mint_filter
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): [Mint!]!
+  burn(
+    id: ID!
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): Burn
+  burns(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: Burn_orderBy
+    orderDirection: OrderDirection
+    where: Burn_filter
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): [Burn!]!
+  swap(
+    id: ID!
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): Swap
+  swaps(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: Swap_orderBy
+    orderDirection: OrderDirection
+    where: Swap_filter
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): [Swap!]!
+  pancakeDayData(
+    id: ID!
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): PancakeDayData
+  pancakeDayDatas(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: PancakeDayData_orderBy
+    orderDirection: OrderDirection
+    where: PancakeDayData_filter
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): [PancakeDayData!]!
+  pairHourData(
+    id: ID!
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): PairHourData
+  pairHourDatas(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: PairHourData_orderBy
+    orderDirection: OrderDirection
+    where: PairHourData_filter
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): [PairHourData!]!
+  pairDayData(
+    id: ID!
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): PairDayData
+  pairDayDatas(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: PairDayData_orderBy
+    orderDirection: OrderDirection
+    where: PairDayData_filter
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): [PairDayData!]!
+  tokenDayData(
+    id: ID!
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): TokenDayData
+  tokenDayDatas(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: TokenDayData_orderBy
+    orderDirection: OrderDirection
+    where: TokenDayData_filter
+
+    """
+    The block at which the query should be executed. Can either be an `{ number:
+    Int }` containing the block number or a `{ hash: Bytes }` value containing a
+    block hash. Defaults to the latest block when omitted.
+    """
+    block: Block_height
+  ): [TokenDayData!]!
+
+  """Access to subgraph metadata"""
+  _meta(block: Block_height): _Meta_
+}
+
+type Swap {
+  id: ID!
+  transaction: Transaction!
+  timestamp: BigInt!
+  pair: Pair!
+  token0: Token!
+  token1: Token!
+  sender: String!
+  from: String!
+  amount0In: BigDecimal!
+  amount1In: BigDecimal!
+  amount0Out: BigDecimal!
+  amount1Out: BigDecimal!
+  to: String!
+  logIndex: BigInt
+  amountUSD: BigDecimal!
+}
+
+input Swap_filter {
+  id: ID
+  id_not: ID
+  id_gt: ID
+  id_lt: ID
+  id_gte: ID
+  id_lte: ID
+  id_in: [ID!]
+  id_not_in: [ID!]
+  transaction: String
+  transaction_not: String
+  transaction_gt: String
+  transaction_lt: String
+  transaction_gte: String
+  transaction_lte: String
+  transaction_in: [String!]
+  transaction_not_in: [String!]
+  transaction_contains: String
+  transaction_not_contains: String
+  transaction_starts_with: String
+  transaction_not_starts_with: String
+  transaction_ends_with: String
+  transaction_not_ends_with: String
+  timestamp: BigInt
+  timestamp_not: BigInt
+  timestamp_gt: BigInt
+  timestamp_lt: BigInt
+  timestamp_gte: BigInt
+  timestamp_lte: BigInt
+  timestamp_in: [BigInt!]
+  timestamp_not_in: [BigInt!]
+  pair: String
+  pair_not: String
+  pair_gt: String
+  pair_lt: String
+  pair_gte: String
+  pair_lte: String
+  pair_in: [String!]
+  pair_not_in: [String!]
+  pair_contains: String
+  pair_not_contains: String
+  pair_starts_with: String
+  pair_not_starts_with: String
+  pair_ends_with: String
+  pair_not_ends_with: String
+  token0: String
+  token0_not: String
+  token0_gt: String
+  token0_lt: String
+  token0_gte: String
+  token0_lte: String
+  token0_in: [String!]
+  token0_not_in: [String!]
+  token0_contains: String
+  token0_not_contains: String
+  token0_starts_with: String
+  token0_not_starts_with: String
+  token0_ends_with: String
+  token0_not_ends_with: String
+  token1: String
+  token1_not: String
+  token1_gt: String
+  token1_lt: String
+  token1_gte: String
+  token1_lte: String
+  token1_in: [String!]
+  token1_not_in: [String!]
+  token1_contains: String
+  token1_not_contains: String
+  token1_starts_with: String
+  token1_not_starts_with: String
+  token1_ends_with: String
+  token1_not_ends_with: String
+  sender: String
+  sender_not: String
+  sender_gt: String
+  sender_lt: String
+  sender_gte: String
+  sender_lte: String
+  sender_in: [String!]
+  sender_not_in: [String!]
+  sender_contains: String
+  sender_not_contains: String
+  sender_starts_with: String
+  sender_not_starts_with: String
+  sender_ends_with: String
+  sender_not_ends_with: String
+  from: String
+  from_not: String
+  from_gt: String
+  from_lt: String
+  from_gte: String
+  from_lte: String
+  from_in: [String!]
+  from_not_in: [String!]
+  from_contains: String
+  from_not_contains: String
+  from_starts_with: String
+  from_not_starts_with: String
+  from_ends_with: String
+  from_not_ends_with: String
+  amount0In: BigDecimal
+  amount0In_not: BigDecimal
+  amount0In_gt: BigDecimal
+  amount0In_lt: BigDecimal
+  amount0In_gte: BigDecimal
+  amount0In_lte: BigDecimal
+  amount0In_in: [BigDecimal!]
+  amount0In_not_in: [BigDecimal!]
+  amount1In: BigDecimal
+  amount1In_not: BigDecimal
+  amount1In_gt: BigDecimal
+  amount1In_lt: BigDecimal
+  amount1In_gte: BigDecimal
+  amount1In_lte: BigDecimal
+  amount1In_in: [BigDecimal!]
+  amount1In_not_in: [BigDecimal!]
+  amount0Out: BigDecimal
+  amount0Out_not: BigDecimal
+  amount0Out_gt: BigDecimal
+  amount0Out_lt: BigDecimal
+  amount0Out_gte: BigDecimal
+  amount0Out_lte: BigDecimal
+  amount0Out_in: [BigDecimal!]
+  amount0Out_not_in: [BigDecimal!]
+  amount1Out: BigDecimal
+  amount1Out_not: BigDecimal
+  amount1Out_gt: BigDecimal
+  amount1Out_lt: BigDecimal
+  amount1Out_gte: BigDecimal
+  amount1Out_lte: BigDecimal
+  amount1Out_in: [BigDecimal!]
+  amount1Out_not_in: [BigDecimal!]
+  to: String
+  to_not: String
+  to_gt: String
+  to_lt: String
+  to_gte: String
+  to_lte: String
+  to_in: [String!]
+  to_not_in: [String!]
+  to_contains: String
+  to_not_contains: String
+  to_starts_with: String
+  to_not_starts_with: String
+  to_ends_with: String
+  to_not_ends_with: String
+  logIndex: BigInt
+  logIndex_not: BigInt
+  logIndex_gt: BigInt
+  logIndex_lt: BigInt
+  logIndex_gte: BigInt
+  logIndex_lte: BigInt
+  logIndex_in: [BigInt!]
+  logIndex_not_in: [BigInt!]
+  amountUSD: BigDecimal
+  amountUSD_not: BigDecimal
+  amountUSD_gt: BigDecimal
+  amountUSD_lt: BigDecimal
+  amountUSD_gte: BigDecimal
+  amountUSD_lte: BigDecimal
+  amountUSD_in: [BigDecimal!]
+  amountUSD_not_in: [BigDecimal!]
+}
+
+enum Swap_orderBy {
+  id
+  transaction
+  timestamp
+  pair
+  token0
+  token1
+  sender
+  from
+  amount0In
+  amount1In
+  amount0Out
+  amount1Out
+  to
+  logIndex
+  amountUSD
+}
+
+type Token {
+  id: ID!
+
+  """Name"""
+  name: String!
+
+  """Symbol"""
+  symbol: String!
+
+  """Decimals"""
+  decimals: BigInt!
+  tradeVolume: BigDecimal!
+  tradeVolumeUSD: BigDecimal!
+  untrackedVolumeUSD: BigDecimal!
+  totalTransactions: BigInt!
+  totalLiquidity: BigDecimal!
+  derivedBNB: BigDecimal
+  derivedUSD: BigDecimal
+  tokenDayData(skip: Int = 0, first: Int = 100, orderBy: TokenDayData_orderBy, orderDirection: OrderDirection, where: TokenDayData_filter): [TokenDayData!]!
+  pairDayDataBase(skip: Int = 0, first: Int = 100, orderBy: PairDayData_orderBy, orderDirection: OrderDirection, where: PairDayData_filter): [PairDayData!]!
+  pairDayDataQuote(skip: Int = 0, first: Int = 100, orderBy: PairDayData_orderBy, orderDirection: OrderDirection, where: PairDayData_filter): [PairDayData!]!
+  pairBase(skip: Int = 0, first: Int = 100, orderBy: Pair_orderBy, orderDirection: OrderDirection, where: Pair_filter): [Pair!]!
+  pairQuote(skip: Int = 0, first: Int = 100, orderBy: Pair_orderBy, orderDirection: OrderDirection, where: Pair_filter): [Pair!]!
+}
+
+input Token_filter {
+  id: ID
+  id_not: ID
+  id_gt: ID
+  id_lt: ID
+  id_gte: ID
+  id_lte: ID
+  id_in: [ID!]
+  id_not_in: [ID!]
+  name: String
+  name_not: String
+  name_gt: String
+  name_lt: String
+  name_gte: String
+  name_lte: String
+  name_in: [String!]
+  name_not_in: [String!]
+  name_contains: String
+  name_not_contains: String
+  name_starts_with: String
+  name_not_starts_with: String
+  name_ends_with: String
+  name_not_ends_with: String
+  symbol: String
+  symbol_not: String
+  symbol_gt: String
+  symbol_lt: String
+  symbol_gte: String
+  symbol_lte: String
+  symbol_in: [String!]
+  symbol_not_in: [String!]
+  symbol_contains: String
+  symbol_not_contains: String
+  symbol_starts_with: String
+  symbol_not_starts_with: String
+  symbol_ends_with: String
+  symbol_not_ends_with: String
+  decimals: BigInt
+  decimals_not: BigInt
+  decimals_gt: BigInt
+  decimals_lt: BigInt
+  decimals_gte: BigInt
+  decimals_lte: BigInt
+  decimals_in: [BigInt!]
+  decimals_not_in: [BigInt!]
+  tradeVolume: BigDecimal
+  tradeVolume_not: BigDecimal
+  tradeVolume_gt: BigDecimal
+  tradeVolume_lt: BigDecimal
+  tradeVolume_gte: BigDecimal
+  tradeVolume_lte: BigDecimal
+  tradeVolume_in: [BigDecimal!]
+  tradeVolume_not_in: [BigDecimal!]
+  tradeVolumeUSD: BigDecimal
+  tradeVolumeUSD_not: BigDecimal
+  tradeVolumeUSD_gt: BigDecimal
+  tradeVolumeUSD_lt: BigDecimal
+  tradeVolumeUSD_gte: BigDecimal
+  tradeVolumeUSD_lte: BigDecimal
+  tradeVolumeUSD_in: [BigDecimal!]
+  tradeVolumeUSD_not_in: [BigDecimal!]
+  untrackedVolumeUSD: BigDecimal
+  untrackedVolumeUSD_not: BigDecimal
+  untrackedVolumeUSD_gt: BigDecimal
+  untrackedVolumeUSD_lt: BigDecimal
+  untrackedVolumeUSD_gte: BigDecimal
+  untrackedVolumeUSD_lte: BigDecimal
+  untrackedVolumeUSD_in: [BigDecimal!]
+  untrackedVolumeUSD_not_in: [BigDecimal!]
+  totalTransactions: BigInt
+  totalTransactions_not: BigInt
+  totalTransactions_gt: BigInt
+  totalTransactions_lt: BigInt
+  totalTransactions_gte: BigInt
+  totalTransactions_lte: BigInt
+  totalTransactions_in: [BigInt!]
+  totalTransactions_not_in: [BigInt!]
+  totalLiquidity: BigDecimal
+  totalLiquidity_not: BigDecimal
+  totalLiquidity_gt: BigDecimal
+  totalLiquidity_lt: BigDecimal
+  totalLiquidity_gte: BigDecimal
+  totalLiquidity_lte: BigDecimal
+  totalLiquidity_in: [BigDecimal!]
+  totalLiquidity_not_in: [BigDecimal!]
+  derivedBNB: BigDecimal
+  derivedBNB_not: BigDecimal
+  derivedBNB_gt: BigDecimal
+  derivedBNB_lt: BigDecimal
+  derivedBNB_gte: BigDecimal
+  derivedBNB_lte: BigDecimal
+  derivedBNB_in: [BigDecimal!]
+  derivedBNB_not_in: [BigDecimal!]
+  derivedUSD: BigDecimal
+  derivedUSD_not: BigDecimal
+  derivedUSD_gt: BigDecimal
+  derivedUSD_lt: BigDecimal
+  derivedUSD_gte: BigDecimal
+  derivedUSD_lte: BigDecimal
+  derivedUSD_in: [BigDecimal!]
+  derivedUSD_not_in: [BigDecimal!]
+}
+
+enum Token_orderBy {
+  id
+  name
+  symbol
+  decimals
+  tradeVolume
+  tradeVolumeUSD
+  untrackedVolumeUSD
+  totalTransactions
+  totalLiquidity
+  derivedBNB
+  derivedUSD
+  tokenDayData
+  pairDayDataBase
+  pairDayDataQuote
+  pairBase
+  pairQuote
+}
+
+type TokenDayData {
+  id: ID!
+  date: Int!
+  token: Token!
+  dailyVolumeToken: BigDecimal!
+  dailyVolumeBNB: BigDecimal!
+  dailyVolumeUSD: BigDecimal!
+  dailyTxns: BigInt!
+  totalLiquidityToken: BigDecimal!
+  totalLiquidityBNB: BigDecimal!
+  totalLiquidityUSD: BigDecimal!
+  priceUSD: BigDecimal!
+}
+
+input TokenDayData_filter {
+  id: ID
+  id_not: ID
+  id_gt: ID
+  id_lt: ID
+  id_gte: ID
+  id_lte: ID
+  id_in: [ID!]
+  id_not_in: [ID!]
+  date: Int
+  date_not: Int
+  date_gt: Int
+  date_lt: Int
+  date_gte: Int
+  date_lte: Int
+  date_in: [Int!]
+  date_not_in: [Int!]
+  token: String
+  token_not: String
+  token_gt: String
+  token_lt: String
+  token_gte: String
+  token_lte: String
+  token_in: [String!]
+  token_not_in: [String!]
+  token_contains: String
+  token_not_contains: String
+  token_starts_with: String
+  token_not_starts_with: String
+  token_ends_with: String
+  token_not_ends_with: String
+  dailyVolumeToken: BigDecimal
+  dailyVolumeToken_not: BigDecimal
+  dailyVolumeToken_gt: BigDecimal
+  dailyVolumeToken_lt: BigDecimal
+  dailyVolumeToken_gte: BigDecimal
+  dailyVolumeToken_lte: BigDecimal
+  dailyVolumeToken_in: [BigDecimal!]
+  dailyVolumeToken_not_in: [BigDecimal!]
+  dailyVolumeBNB: BigDecimal
+  dailyVolumeBNB_not: BigDecimal
+  dailyVolumeBNB_gt: BigDecimal
+  dailyVolumeBNB_lt: BigDecimal
+  dailyVolumeBNB_gte: BigDecimal
+  dailyVolumeBNB_lte: BigDecimal
+  dailyVolumeBNB_in: [BigDecimal!]
+  dailyVolumeBNB_not_in: [BigDecimal!]
+  dailyVolumeUSD: BigDecimal
+  dailyVolumeUSD_not: BigDecimal
+  dailyVolumeUSD_gt: BigDecimal
+  dailyVolumeUSD_lt: BigDecimal
+  dailyVolumeUSD_gte: BigDecimal
+  dailyVolumeUSD_lte: BigDecimal
+  dailyVolumeUSD_in: [BigDecimal!]
+  dailyVolumeUSD_not_in: [BigDecimal!]
+  dailyTxns: BigInt
+  dailyTxns_not: BigInt
+  dailyTxns_gt: BigInt
+  dailyTxns_lt: BigInt
+  dailyTxns_gte: BigInt
+  dailyTxns_lte: BigInt
+  dailyTxns_in: [BigInt!]
+  dailyTxns_not_in: [BigInt!]
+  totalLiquidityToken: BigDecimal
+  totalLiquidityToken_not: BigDecimal
+  totalLiquidityToken_gt: BigDecimal
+  totalLiquidityToken_lt: BigDecimal
+  totalLiquidityToken_gte: BigDecimal
+  totalLiquidityToken_lte: BigDecimal
+  totalLiquidityToken_in: [BigDecimal!]
+  totalLiquidityToken_not_in: [BigDecimal!]
+  totalLiquidityBNB: BigDecimal
+  totalLiquidityBNB_not: BigDecimal
+  totalLiquidityBNB_gt: BigDecimal
+  totalLiquidityBNB_lt: BigDecimal
+  totalLiquidityBNB_gte: BigDecimal
+  totalLiquidityBNB_lte: BigDecimal
+  totalLiquidityBNB_in: [BigDecimal!]
+  totalLiquidityBNB_not_in: [BigDecimal!]
+  totalLiquidityUSD: BigDecimal
+  totalLiquidityUSD_not: BigDecimal
+  totalLiquidityUSD_gt: BigDecimal
+  totalLiquidityUSD_lt: BigDecimal
+  totalLiquidityUSD_gte: BigDecimal
+  totalLiquidityUSD_lte: BigDecimal
+  totalLiquidityUSD_in: [BigDecimal!]
+  totalLiquidityUSD_not_in: [BigDecimal!]
+  priceUSD: BigDecimal
+  priceUSD_not: BigDecimal
+  priceUSD_gt: BigDecimal
+  priceUSD_lt: BigDecimal
+  priceUSD_gte: BigDecimal
+  priceUSD_lte: BigDecimal
+  priceUSD_in: [BigDecimal!]
+  priceUSD_not_in: [BigDecimal!]
+}
+
+enum TokenDayData_orderBy {
+  id
+  date
+  token
+  dailyVolumeToken
+  dailyVolumeBNB
+  dailyVolumeUSD
+  dailyTxns
+  totalLiquidityToken
+  totalLiquidityBNB
+  totalLiquidityUSD
+  priceUSD
+}
+
+type Transaction {
+  id: ID!
+  block: BigInt!
+  timestamp: BigInt!
+  mints(skip: Int = 0, first: Int = 100, orderBy: Mint_orderBy, orderDirection: OrderDirection, where: Mint_filter): [Mint]!
+  burns(skip: Int = 0, first: Int = 100, orderBy: Burn_orderBy, orderDirection: OrderDirection, where: Burn_filter): [Burn]!
+  swaps(skip: Int = 0, first: Int = 100, orderBy: Swap_orderBy, orderDirection: OrderDirection, where: Swap_filter): [Swap]!
+}
+
+input Transaction_filter {
+  id: ID
+  id_not: ID
+  id_gt: ID
+  id_lt: ID
+  id_gte: ID
+  id_lte: ID
+  id_in: [ID!]
+  id_not_in: [ID!]
+  block: BigInt
+  block_not: BigInt
+  block_gt: BigInt
+  block_lt: BigInt
+  block_gte: BigInt
+  block_lte: BigInt
+  block_in: [BigInt!]
+  block_not_in: [BigInt!]
+  timestamp: BigInt
+  timestamp_not: BigInt
+  timestamp_gt: BigInt
+  timestamp_lt: BigInt
+  timestamp_gte: BigInt
+  timestamp_lte: BigInt
+  timestamp_in: [BigInt!]
+  timestamp_not_in: [BigInt!]
+  mints: [String!]
+  mints_not: [String!]
+  mints_contains: [String!]
+  mints_not_contains: [String!]
+  burns: [String!]
+  burns_not: [String!]
+  burns_contains: [String!]
+  burns_not_contains: [String!]
+  swaps: [String!]
+  swaps_not: [String!]
+  swaps_contains: [String!]
+  swaps_not_contains: [String!]
+}
+
+enum Transaction_orderBy {
+  id
+  block
+  timestamp
+  mints
+  burns
+  swaps
+}
+

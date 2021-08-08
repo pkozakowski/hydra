@@ -1,7 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs #-}
@@ -18,7 +17,7 @@ module Market
 
 import Data.Proxy
 import Data.Record.Hom
-import Data.Time
+import Market.Time
 import Market.Types
 import Polysemy
 import Polysemy.Error
@@ -26,23 +25,10 @@ import Polysemy.Input
 import Polysemy.Internal
 import Polysemy.State as State
 
-data Market assets m b where
-    
-    Trade :: LabelIn assets -> LabelIn assets -> OrderAmount -> Market assets m ()
+data Market assets m a where
 
-    GetTime :: Market assets m UTCTime
-
-    -- not implemented yet:
-
-    Stake :: Has a assets => Asset a -> OrderAmount -> Market assets m OrderId
-
-    Swap
-        :: (Has a1 assets, Has a2 assets)
-        => Asset a1 -> OrderAmount -> Asset a2 -> OrderAmount -> Market assets m OrderId
-
-    Disown :: Has a assets => Asset a -> OrderAmount -> Market assets m ()
-
-    Cancel :: OrderId -> Market assets m ()
+    Trade :: LabelIn assets -> LabelIn assets -> OrderAmount
+          -> Market assets m ()
 
 trade
     :: forall assets r
@@ -50,10 +36,6 @@ trade
     => LabelIn assets -> LabelIn assets -> OrderAmount -> Sem r ()
 trade from to amount
     = send (Trade from to amount :: Market assets (Sem r) ()) where
-
-getTime
-    :: forall assets r. (Member (Market assets) r) => Sem r UTCTime
-getTime = send (GetTime :: Market assets (Sem r) UTCTime)
 
 newtype IConfig c = IConfig c
 newtype IState c = IState c
@@ -63,6 +45,7 @@ type InstrumentInitEffects assets c
 
 type InstrumentEffects assets c s =
    '[ Market assets
+    , Time
     , Input (Prices assets)
     , Input (Portfolio assets)
     , Input (IConfig c)
