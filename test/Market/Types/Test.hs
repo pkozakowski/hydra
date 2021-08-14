@@ -1,6 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
 module Market.Types.Test where
@@ -51,7 +50,8 @@ instance Arbitrary Share where
     arbitrary
         = Share <$> arbitraryNonNegativeFraction `suchThat` \x -> x <= one
 
-    shrink (Share frac) = Share <$> filter (<= one) (shrinkPositiveFraction frac)
+    shrink (Share frac)
+        = Share <$> filter (<= one) (shrinkPositiveFraction frac)
 
 deriving instance Arbitrary ShareDelta
 
@@ -70,23 +70,30 @@ instance Labels assets => Arbitrary (DistributionDelta assets) where
     arbitrary = delta <$> arbitrary <*> arbitrary
     shrink _ = []
 
-arbitraryNonNegativeFraction :: (Arbitrary i, Integral i, GCDDomain i) => Gen (Fraction i)
 arbitraryNonNegativeFraction
-    = (%) <$> arbitrary `suchThat` isNonNegative <*> arbitrary `suchThat` isPositive where
+    :: (Arbitrary i, Integral i, GCDDomain i) => Gen (Fraction i)
+arbitraryNonNegativeFraction
+      = (%)
+    <$> arbitrary `suchThat` isNonNegative
+    <*> arbitrary `suchThat` isPositive where
         isNonNegative = (>= 0) . fromIntegral
         isPositive = (> 0) . fromIntegral
 
-shrinkNonNegativeFraction :: (Arbitrary i, Integral i, GCDDomain i) => Fraction i -> [Fraction i]
-shrinkNonNegativeFraction frac = ((% den) <$> shrinkNum) ++ ((num %) <$> shrinkDen) where
-    shrinkNum = filter ((>= 0) . fromIntegral) $ shrink num
-    shrinkDen = filter ((> 0) . fromIntegral) $ shrink den
-    num = numerator frac
-    den = denominator frac 
+shrinkNonNegativeFraction
+    :: (Arbitrary i, Integral i, GCDDomain i) => Fraction i -> [Fraction i]
+shrinkNonNegativeFraction frac
+    = ((% den) <$> shrinkNum) ++ ((num %) <$> shrinkDen) where
+        shrinkNum = filter ((>= 0) . fromIntegral) $ shrink num
+        shrinkDen = filter ((> 0) . fromIntegral) $ shrink den
+        num = numerator frac
+        den = denominator frac 
 
-arbitraryPositiveFraction :: (Arbitrary i, Integral i, GCDDomain i) => Gen (Fraction i)
+arbitraryPositiveFraction
+    :: (Arbitrary i, Integral i, GCDDomain i) => Gen (Fraction i)
 arbitraryPositiveFraction = arbitraryNonNegativeFraction `suchThat` (/= zero)
 
-shrinkPositiveFraction :: (Arbitrary i, Integral i, GCDDomain i) => Fraction i -> [Fraction i]
+shrinkPositiveFraction
+    :: (Arbitrary i, Integral i, GCDDomain i) => Fraction i -> [Fraction i]
 shrinkPositiveFraction frac = filter (/= zero) $ shrinkNonNegativeFraction frac
 
 instance Arbitrary OrderAmount where

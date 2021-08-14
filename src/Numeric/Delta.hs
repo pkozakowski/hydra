@@ -1,7 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Numeric.Delta where
@@ -22,7 +21,8 @@ class Group b => Delta a b | a -> b, b -> a where
     -- | Opportunity to reintegrate b into a. May fail.
     sigma :: a -> b -> Maybe a
 
--- | Derive an instance for a comparable Relative with the same representation as the other type.
+-- | Derive an instance for a comparable type with the same representation as
+-- another type.
 deriveDeltaOrd :: Name -> Name -> Q [Dec]
 deriveDeltaOrd abs rel =
     [d| instance Delta $(conT abs) $(conT rel) where

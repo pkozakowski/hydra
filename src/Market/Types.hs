@@ -5,7 +5,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -49,7 +48,8 @@ newtype AmountDelta = AmountDelta Scalar
 newtype Portfolio assets = Portfolio (HomRec assets Amount)
 newtype PortfolioDelta assets = PortfolioDelta (HomRec assets AmountDelta)
 
-deriveQuantityInstances ''Scalar ''Amount ''AmountDelta ''Portfolio ''PortfolioDelta
+deriveQuantityInstances
+    ''Scalar ''Amount ''AmountDelta ''Portfolio ''PortfolioDelta
 
 -- | Price of a given Asset, measured in units of the baseline asset (e.g. USD).
 newtype Price = Price Scalar
@@ -93,16 +93,18 @@ newtype Distribution assets = Distribution (HomRec assets Share)
 -- | Delta between two Distributions. Sums to 0.
 newtype DistributionDelta assets = DistributionDelta (HomRec assets ShareDelta)
 
-deriveDistributionInstances ''Scalar ''Share ''ShareDelta ''Distribution ''DistributionDelta
+deriveDistributionInstances
+    ''Scalar ''Share ''ShareDelta ''Distribution ''DistributionDelta
 
--- | Only Values are (Un)Normalizable, because it only makes sense to add up Values held in
--- different Assets.
+-- | Only Values are (Un)Normalizable, because it only makes sense to add up
+-- Values held in different Assets.
 deriveUnnormalizable ''Scalar ''Distribution ''Value ''Values
 deriveUnnormalizable ''Scalar ''DistributionDelta ''ValueDelta ''ValueDeltas
 deriveNormalizable ''Scalar '' Distribution ''Value ''Values
 
 onePoint :: Labels assets => HR.LabelIn assets -> Distribution assets
-onePoint assetIn = Distribution $ HR.setIn assetIn (share one) $ pure $ share zero
+onePoint assetIn
+    = Distribution $ HR.setIn assetIn (share one) $ pure $ share zero
 
 distributionValid :: Labels assets => Distribution assets -> Bool
 distributionValid (Distribution shares)

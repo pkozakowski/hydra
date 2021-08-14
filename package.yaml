@@ -39,6 +39,12 @@ dependencies:
 - bytestring
 - aeson
 - lazyio
+- vector
+- AesonBson
+- mongoDB
+- logging
+- hashmap
+- hashable
 
 library:
   source-dirs: src
@@ -77,4 +83,5 @@ default-extensions:
 - BlockArguments
 - FlexibleContexts
 - RankNTypes
+- ScopedTypeVariables
 - TypeApplications

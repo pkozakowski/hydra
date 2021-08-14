@@ -1,9 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -17,6 +15,10 @@ data Time m a where
 
 makeSem ''Time
 
-runTime :: UTCTime -> Sem (Time : r) a -> Sem r a
-runTime time = interpret \case
+runTimeConst :: UTCTime -> Sem (Time : r) a -> Sem r a
+runTimeConst time = interpret \case
     Now -> return time
+
+runTimeIO :: Member (Embed IO) r => Sem (Time : r) a -> Sem r a
+runTimeIO = interpret \case
+    Now -> embed getCurrentTime

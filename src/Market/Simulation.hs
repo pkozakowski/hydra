@@ -2,7 +2,6 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Market.Simulation where
@@ -80,7 +79,7 @@ backtest' onStep' priceSeries initPortfolio config
     $ runInputConst initPrices
     $ runInstrument @assets config
     $ forM restOfPrices \(time, prices)
-       -> runTime time
+       -> runTimeConst time
         $ runInputConst prices
         $ subsume @(State (Portfolio assets))
         $ marketInputToState

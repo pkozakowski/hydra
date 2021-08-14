@@ -1,7 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 
 module Market.Ops where
 
@@ -32,46 +31,64 @@ data BalancingState (assets :: [Symbol])
         } deriving Show
 
 balancingTransfers
-    :: forall (assets :: [Symbol]). Labels assets
-    => Scalar -> Distribution assets -> Distribution assets -> [ShareTransfer assets]
+    :: forall (assets :: [Symbol])
+     . Labels assets
+    => Scalar
+    -> Distribution assets
+    -> Distribution assets
+    -> [ShareTransfer assets]
 balancingTransfers tolRel current target
-    = transfers $ fix (\go state -> if done state then state else go $ next state) initState where
+    = transfers $ fix iteration initState where
+        iteration go state = if done state then state else go $ next state
         initState = BalancingState diff [] where
             diff = delta current target
         next state = BalancingState
             (diff state + transferDelta transfer)
             (transfer : transfers state) where
                 transfer = ShareTransfer maxAssetIn minAssetIn transShare where
-                    transShare = fromJust $ fromDelta $ min maxShareDelta $ negate minShareDelta
+                    transShare
+                        = fromJust $ fromDelta
+                        $ min maxShareDelta $ negate minShareDelta
                     (minAssetIn, minShareDelta) = minDelta $ diff state
                     (maxAssetIn, maxShareDelta) = maxDelta $ diff state
-        done state = isBalanced tolRel (fromJust $ target `sigma` diff state) target
+        done state
+            = isBalanced tolRel (fromJust $ target `sigma` diff state) target
 
-transferDelta :: Labels assets => ShareTransfer assets -> DistributionDelta assets
+transferDelta
+    :: Labels assets
+    => ShareTransfer assets -> DistributionDelta assets
 transferDelta (ShareTransfer from to share)
     = DistributionDelta
     $ setIn from (negate $ toDelta share)
     $ setIn to (toDelta share)
     $ zero
 
-isBalanced :: Labels assets => Scalar -> Distribution assets -> Distribution assets -> Bool
+isBalanced
+    :: Labels assets
+    => Scalar -> Distribution assets -> Distribution assets -> Bool
 isBalanced _ _ (Distribution Empty) = True
 isBalanced tolRel current target@(Distribution targetRec)
-    = maxShareDelta <= tolAbs maxAssetIn && minShareDelta >= negate (tolAbs minAssetIn) where
+    =  maxShareDelta <= tolAbs maxAssetIn
+    && minShareDelta >= negate (tolAbs minAssetIn) where
         tolAbs assetIn = tolRel .* (toDelta $ getIn assetIn targetRec) where
         (minAssetIn, minShareDelta) = minDelta $ current `delta` target
         (maxAssetIn, maxShareDelta) = maxDelta $ current `delta` target
 
-minDelta :: Labels assets => DistributionDelta assets -> (LabelIn assets, ShareDelta)
+minDelta
+    :: Labels assets
+    => DistributionDelta assets -> (LabelIn assets, ShareDelta)
 minDelta (DistributionDelta diff) = argMinimumOn id diff
 
-maxDelta :: Labels assets => DistributionDelta assets -> (LabelIn assets, ShareDelta)
+maxDelta
+    :: Labels assets
+    => DistributionDelta assets -> (LabelIn assets, ShareDelta)
 maxDelta (DistributionDelta diff) = argMinimumOn negate diff
 
 argMinimumOn :: (Labels ls, Ord a) => (a -> a) -> HomRec ls a -> (LabelIn ls, a)
 argMinimumOn f r = (assetIn, getIn assetIn r) where
     assetIn = minimumOn $ f . flip getIn r where
-        minimumOn f = foldl (\x y -> if f x < f y then x else y) (head labels) labels
+        minimumOn f
+            = foldl (\x y -> if f x < f y then x else y) (head labels) labels
 
 fromDelta :: ShareDelta -> Maybe Share
 fromDelta (ShareDelta x) = if x >= zero then Just $ Share x else Nothing
@@ -79,7 +96,8 @@ fromDelta (ShareDelta x) = if x >= zero then Just $ Share x else Nothing
 toDelta :: Share -> ShareDelta
 toDelta (Share x) = ShareDelta x
 
--- | Vector-matrix product between a Distribution and a matrix with Distributions in columns.
+-- | Vector-matrix product between a Distribution and a matrix with
+-- Distributions in columns.
 redistribute
     :: (Labels ls1, Labels ls2)
     => Distribution ls1 -> HomRec ls1 (Distribution ls2) -> Distribution ls2
@@ -90,7 +108,7 @@ redistribute (Distribution vector) matrix
             = (scalar .*) . unShare <$> vector where
                 unShare (Share scalar') = scalar'
 
-totalValue :: forall assets. Labels assets => Prices assets -> Portfolio assets -> Value
+totalValue :: Labels assets => Prices assets -> Portfolio assets -> Value
 totalValue prices portfolio = foldl (+) zero values where
     Values values = portfolio `pi` prices
 

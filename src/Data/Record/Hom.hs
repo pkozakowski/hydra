@@ -7,7 +7,6 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -87,7 +86,9 @@ instance HasAt l (l ': ls) AtHead where
     getImpl _ (_ := x :& _) = x
     setImpl lp x (_ :& r) = lp := x :& r
 
-instance (HasAt l ls i, Where l (l' ': ls) ~ AtTail) => HasAt l (l' ': ls) AtTail where
+instance (HasAt l ls i, Where l (l' ': ls) ~ AtTail)
+    => HasAt l (l' ': ls) AtTail where
+
     getImpl lp (_ :& r) = getImpl lp r
     setImpl lp x (fld :& r) = fld :& setImpl lp x r
 
@@ -135,7 +136,8 @@ instance HomRecord ls t (HomRec ls t) where
 
     toList Empty = []
     toList (lp := x :& r)
-        = (LabelIn (Dict :: Dict (HasAt l (l ': ls') AtHead)), x) : fmap inj (toList r) where
+        = (LabelIn (Dict :: Dict (HasAt l (l ': ls') AtHead)), x)
+        : fmap inj (toList r) where
             inj :: (LabelIn ls', t) -> (LabelIn (l ': ls'), t)
             inj (LabelIn proof, x) = (LabelIn proof', x) where
                 proof' = mapDict membershipMonotonicity proof
@@ -153,7 +155,8 @@ infixl 9 !
 
 type family NoDuplicateIn (l :: u) (ls :: [u]) :: Constraint where
     NoDuplicateIn l '[] = ()
-    NoDuplicateIn l (l ': ls) = TypeError (Text "Duplicate key " :<>: ShowType l :<>: Text ".")
+    NoDuplicateIn l (l ': ls)
+        = TypeError (Text "Duplicate key " :<>: ShowType l :<>: Text ".")
     NoDuplicateIn l (_ ': ls) = NoDuplicateIn l ls
 
 class Labels ls where
@@ -162,7 +165,9 @@ class Labels ls where
 instance Labels '[] where
     fill _ = Empty
 
-instance (NoDuplicateIn l ls, KnownSymbol l, Labels ls) => Labels (l ': ls) where
+instance (NoDuplicateIn l ls, KnownSymbol l, Labels ls)
+    => Labels (l ': ls) where
+
     fill x = Proxy := x :& fill x
 
 instance Labels ls => Functor (HomRec ls) where
@@ -237,6 +242,7 @@ deriveDelta abs rel = do
     TyConI (NewtypeD _ _ _ _ (NormalC relCons _) _) <- reify rel
     let absP v = conP absCons [varP v]
         relP v = conP relCons [varP v]
+
     [d| instance Labels ls => Delta ($(conT abs) ls) ($(conT rel) ls) where
 
             delta $(absP xn) $(absP yn) = $(conE relCons) $ delta <$> x <*> y
@@ -255,9 +261,16 @@ deriveKappa a b c = do
     let aP v = conP aCons [varP v]
         bP v = conP bCons [varP v]
         cP v = conP cCons [varP v]
-    [d| instance Labels ls => Kappa ($(conT a) ls) ($(conT b) ls) ($(conT c) ls) where
-            kappa $(aP xn) $(bP yn) = fmap $(conE cCons) $ sequenceA $ kappa <$> x <*> y
-            kappa' $(aP xn) $(cP yn) = fmap $(conE bCons) $ sequenceA $ kappa' <$> x <*> y
+
+    [d| instance Labels ls
+            => Kappa ($(conT a) ls) ($(conT b) ls) ($(conT c) ls) where
+
+            kappa $(aP xn) $(bP yn)
+                = fmap $(conE cCons) $ sequenceA $ kappa <$> x <*> y
+
+            kappa' $(aP xn) $(cP yn)
+                = fmap $(conE bCons) $ sequenceA $ kappa' <$> x <*> y
+
             pi $(bP xn) $(cP yn) = $(conE aCons) $ pi <$> x <*> y |]
     where
         xn = mkName "x"

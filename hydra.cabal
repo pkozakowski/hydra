@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 93f021bc9c329b2edf882455fc9f095bba5777d92f18e757d0e3a78f53be4031
+-- hash: 1c7c7affbd07a0a83303beca35ac0abc7f630a2bd8ca99b865195ba0b538b458
 
 name:           hydra
 version:        0.1.0.0
@@ -32,9 +32,12 @@ library
       Market
       Market.Deriving
       Market.Feed
+      Market.Feed.MongoDB
       Market.Feed.PancakeSwap
       Market.Feed.TH
+      Market.Feed.Types
       Market.Instruments
+      Market.Internal.IO
       Market.Ops
       Market.Simulation
       Market.Time
@@ -51,15 +54,21 @@ library
       BlockArguments
       FlexibleContexts
       RankNTypes
+      ScopedTypeVariables
       TypeApplications
   build-depends:
-      QuickCheck
+      AesonBson
+    , QuickCheck
     , aeson
     , algebra
     , base >=4.7 && <5
     , bytestring
     , constraints
+    , hashable
+    , hashmap
     , lazyio
+    , logging
+    , mongoDB
     , morpheus-graphql-client
     , polysemy
     , polysemy-plugin
@@ -72,6 +81,7 @@ library
     , template-haskell
     , text
     , time
+    , vector
   default-language: Haskell2010
 
 executable hydra-exe
@@ -84,17 +94,23 @@ executable hydra-exe
       BlockArguments
       FlexibleContexts
       RankNTypes
+      ScopedTypeVariables
       TypeApplications
   ghc-options: -O2 -fplugin=Polysemy.Plugin -flate-specialise -fspecialise-aggressively -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      QuickCheck
+      AesonBson
+    , QuickCheck
     , aeson
     , algebra
     , base >=4.7 && <5
     , bytestring
     , constraints
+    , hashable
+    , hashmap
     , hydra
     , lazyio
+    , logging
+    , mongoDB
     , morpheus-graphql-client
     , polysemy
     , polysemy-plugin
@@ -107,6 +123,7 @@ executable hydra-exe
     , template-haskell
     , text
     , time
+    , vector
   default-language: Haskell2010
 
 test-suite hydra-test
@@ -131,17 +148,23 @@ test-suite hydra-test
       BlockArguments
       FlexibleContexts
       RankNTypes
+      ScopedTypeVariables
       TypeApplications
   ghc-options: -fplugin=Polysemy.Plugin -flate-specialise -fspecialise-aggressively -fno-ignore-asserts -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      QuickCheck
+      AesonBson
+    , QuickCheck
     , aeson
     , algebra
     , base >=4.7 && <5
     , bytestring
     , constraints
+    , hashable
+    , hashmap
     , hydra
     , lazyio
+    , logging
+    , mongoDB
     , morpheus-graphql-client
     , polysemy
     , polysemy-plugin
@@ -154,4 +177,5 @@ test-suite hydra-test
     , template-haskell
     , text
     , time
+    , vector
   default-language: Haskell2010

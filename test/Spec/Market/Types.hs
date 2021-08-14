@@ -2,7 +2,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MonoLocalBinds #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 
@@ -32,8 +31,10 @@ testAllQuantityLaws ::
     , Abelian q, Abelian qd, Abelian qr, Abelian qdr
     , Monoidal q, Monoidal qr
     , Group qd, Group qdr
-    , LeftModule scr q, LeftModule scr qd, LeftModule scr qr, LeftModule scr qdr
-    , RightModule scr q, RightModule scr qd, RightModule scr qr, RightModule scr qdr
+    , LeftModule scr q, LeftModule scr qd
+    , LeftModule scr qr, LeftModule scr qdr
+    , RightModule scr q, RightModule scr qd
+    , RightModule scr qr, RightModule scr qdr
     , Delta q qd, Delta qr qdr
     , Arbitrary scr, Arbitrary q, Arbitrary qd, Arbitrary qr, Arbitrary qdr
     , Eq q, Eq qd, Eq qr, Eq qdr
@@ -65,7 +66,9 @@ testAllQuantityLaws pscr pq pqd pqr pqdr =
         nqr = showProxyType pqr
         nqdr = showProxyType pqdr
 
-testCommonScalarLaws :: (Eq a, Ord a, Show a, Arbitrary a) => Proxy a -> [TestTree]
+testCommonScalarLaws
+    :: (Eq a, Ord a, Show a, Arbitrary a)
+    => Proxy a -> [TestTree]
 testCommonScalarLaws p =
     [ testLaws (eqLaws p)
     , testLaws (ordLaws p)
@@ -80,15 +83,19 @@ testCommonRecordLaws p =
 
 test_quantity_laws_for_Portfolio :: [TestTree]
 test_quantity_laws_for_Portfolio = testAllQuantityLaws
-    @Scalar @Amount @AmountDelta @(Portfolio ThreeLabels) @(PortfolioDelta ThreeLabels) p p p p p
+    @Scalar @Amount @AmountDelta
+    @(Portfolio ThreeLabels) @(PortfolioDelta ThreeLabels)
+    p p p p p
 
 test_quantity_laws_for_Prices :: [TestTree]
 test_quantity_laws_for_Prices = testAllQuantityLaws
-    @Scalar @Price @PriceDelta @(Prices ThreeLabels) @(PriceDeltas ThreeLabels) p p p p p
+    @Scalar @Price @PriceDelta @(Prices ThreeLabels) @(PriceDeltas ThreeLabels)
+    p p p p p
 
 test_quantity_laws_for_Values :: [TestTree]
 test_quantity_laws_for_Values = testAllQuantityLaws
-    @Scalar @Value @ValueDelta @(Values ThreeLabels) @(ValueDeltas ThreeLabels) p p p p p
+    @Scalar @Value @ValueDelta @(Values ThreeLabels) @(ValueDeltas ThreeLabels)
+    p p p p p
 
 test_Kappa_Value_Amount_Price :: [TestTree]
 test_Kappa_Value_Amount_Price
@@ -170,7 +177,8 @@ testAllDistributionLaws pscr pq pqd pqr pqdr =
 
 test_distribution_laws_for_Distribution :: [TestTree]
 test_distribution_laws_for_Distribution = testAllDistributionLaws
-    @Scalar @Share @ShareDelta @(Distribution ThreeLabels) @(DistributionDelta ThreeLabels)
+    @Scalar @Share @ShareDelta
+    @(Distribution ThreeLabels) @(DistributionDelta ThreeLabels)
     p p p p p
 
 test_Normalizable_Distribution_Value_Values :: [TestTree]

@@ -1,10 +1,12 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -13,11 +15,15 @@
 module Market.Feed.PancakeSwap where
 
 import Control.Exception
+import Control.Logging
 import Control.Monad
 import Data.Aeson.Types as AesonTypes
 import Data.ByteString.Lazy (ByteString)
 import Data.Either
 import Data.Function
+import Data.Hashable
+import qualified Data.HashMap as HashMap
+import Data.IORef
 import Data.List
 import Data.List.NonEmpty (nonEmpty)
 import Data.Monoid (Last(..))
@@ -26,14 +32,18 @@ import Data.Text (Text, pack, unpack)
 import Data.Text.Read
 import Data.Time
 import Data.Time.Clock.POSIX
+import GHC.Generics (Generic)
+import Market.Internal.IO
 import Market.Types
 import Market.Feed
 import Market.Feed.TH
+import Market.Feed.Types
 import Network.HTTP.Req
 import Polysemy
 import Polysemy.Error
 import Polysemy.Output
 import Prelude hiding (id)
+import System.IO.Unsafe
 import qualified System.IO.Lazy as LazyIO
 
 newtype BigInt = BigInt { unBigInt :: Integer }
@@ -42,6 +52,7 @@ newtype BigInt = BigInt { unBigInt :: Integer }
 instance FromJSON BigInt where
     parseJSON (AesonTypes.String s)
         = either fail return $ BigInt . fst <$> signed decimal s
+    parseJSON _ = fail "invalid JSON type; expected a string"
 
 instance ToJSON BigInt where
     toJSON = AesonTypes.String . pack . show . unBigInt
@@ -52,6 +63,7 @@ newtype BigDecimal = BigDecimal { unBigDecimal :: Double }
 instance FromJSON BigDecimal where
     parseJSON (AesonTypes.String s)
         = either fail return $ BigDecimal . fst <$> double s
+    parseJSON _ = fail "invalid JSON type; expected a string"
 
 instance ToJSON BigDecimal where
     toJSON = AesonTypes.String . pack . show . unBigDecimal
@@ -137,14 +149,37 @@ fetchFail
 fetchFail resolver args = fetch resolver args >>= either fail return
 
 fetchPancakeSwap
-    :: (Fetch a, FromJSON a)
+    :: (Fetch a, FromJSON a, Show (Args a))
     => Args a -> IO a
-fetchPancakeSwap = fetchFail $ resolver pancakeSwapUrl
+fetchPancakeSwap args = do
+    debug $ "fetching from PancakeSwap: " <> pack (show args)
+    fetchFail (resolver pancakeSwapUrl) args
 
 data WhichToken = Token0 | Token1
-    deriving (Show)
+    deriving (Generic, Show, Eq, Ord, Hashable)
+
+deriving instance Ord ID
 
 type TokenInPair = (WhichToken, ID)
+
+cachedFetchIORef
+    :: (Hashable k, Ord k)
+    => IORef (HashMap.Map k v)
+    -> (k -> IO v)
+    -> (k -> Text)
+    -> k
+    -> IO v
+cachedFetchIORef cache fetch describe key = do
+    maybeValue <- HashMap.lookup key <$> readIORef cache
+    case maybeValue of
+        Just value -> do
+            debug $ describe key <> " found in cache"
+            return value
+        Nothing -> do
+            debug $ describe key <> " not found in cache; fetching"
+            value <- fetch key
+            modifyIORef cache $ HashMap.insert key value
+            return value
 
 fetchStrongestPair :: String -> IO TokenInPair
 fetchStrongestPair tokenName = do
@@ -167,8 +202,14 @@ fetchStrongestPair tokenName = do
         returnAsToken0 = return . (Token0,) . idPrefix . head
         returnAsToken1 = return . (Token1,) . idSuffix . head
 
-data PriceVolume = PriceVolume { price :: Double, volume :: Double }
-    deriving (Show)
+pairCache :: IORef (HashMap.Map String TokenInPair)
+pairCache = unsafePerformIO $ newIORef HashMap.empty
+{-# NOINLINE pairCache #-}
+
+cachedFetchStrongestPair :: String -> IO TokenInPair
+cachedFetchStrongestPair
+    = cachedFetchIORef pairCache fetchStrongestPair
+    $ \tokenName -> "strongest pair for token " <> pack tokenName
 
 fetchPriceVolumes
     :: UTCTime -> UTCTime -> TokenInPair
@@ -202,18 +243,61 @@ fetchPriceVolumes from to (whichToken, pairID) = do
                 volume = unBigDecimal $ amountUSD swap
 
 fetchSwaps :: UTCTime -> UTCTime -> ID -> IO [SwapsSwap]
-fetchSwaps from to id = concat <$> takeWhile (not . null) <$> pages where
-    pages = LazyIO.run $ forM [0, 100 ..] $ LazyIO.interleave . \skip -> do
-        GetSwaps swaps <- fetchPancakeSwap GetSwapsArgs
-            { pair = unpack $ unpackID id
-            , from = toTimestamp from
-            , to = toTimestamp to
-            , first = 100
-            , skip = skip
-            }
+fetchSwaps from to id
+    = fmap concat
+    $ LazyIO.run
+    -- Iterate first over short time intervals...
+    $ forM [0, interval .. diffUTCTime to from] 
+    $ LazyIO.interleave
+    . \offset
+   -> fmap (concat . takeWhile (not . null))
+    $ LazyIO.run
+    -- ... then over pages of the result.
+    -- That's because there's a limit for "skip".
+    $ forM [0, pageSize ..]
+    $ LazyIO.interleave
+    . \skip -> do
+        let args = GetSwapsArgs
+                { pair = unpack $ unpackID id
+                , from = toTimestamp $ addUTCTime offset from
+                , to = toTimestamp
+                     $ min to
+                     $ addUTCTime (offset + interval) from
+                , first = pageSize
+                , skip = skip
+                }
+        GetSwaps swaps <- fetchPancakeSwap args
         return swaps
         where
+            interval = fromInteger 600
+            pageSize = 100
             toTimestamp = BigInt . floor . utcTimeToPOSIXSeconds
+
+fetchBeginTime :: TokenInPair -> IO (Maybe UTCTime)
+fetchBeginTime (_, pairID) = do
+    now <- getCurrentTime
+    let args = GetSwapsArgs
+            { pair = unpack $ unpackID pairID
+            , from = BigInt 0
+            , to = BigInt $ floor $ utcTimeToPOSIXSeconds now
+            , first = 1
+            , skip = 0
+            }
+    GetSwaps swaps <- fetchPancakeSwap args
+    if null swaps then
+        return Nothing
+    else
+        return $ Just $ posixSecondsToUTCTime $ fromInteger
+               $ unBigInt $ timestamp $ head swaps
+
+beginTimeCache :: IORef (HashMap.Map TokenInPair (Maybe UTCTime))
+beginTimeCache = unsafePerformIO $ newIORef HashMap.empty
+{-# NOINLINE beginTimeCache #-}
+
+cachedFetchBeginTime :: TokenInPair -> IO (Maybe UTCTime)
+cachedFetchBeginTime
+    = cachedFetchIORef beginTimeCache fetchBeginTime
+    $ \(_, pairID) -> "begin time for pair " <> pack (show pairID)
 
 resolver :: Url a -> ByteString -> IO ByteString
 resolver url body = runReq defaultHttpConfig do
@@ -226,13 +310,12 @@ runPriceVolumeFeedPancakeSwap
     -> Sem (Feed PriceVolume : r) a
     -> Sem r a
 runPriceVolumeFeedPancakeSwap tokenName = interpret \case
-    Between' from to -> do
-        tokenInPair <- ioToSem $ fetchStrongestPair tokenName
-        ioToSem $ fetchPriceVolumes from to tokenInPair
+    Between' from to -> ioToSem $ withStderrLogging do
+        tokenInPair <- cachedFetchStrongestPair tokenName
+        cachedFetchBeginTime tokenInPair >>= \case
+            Just beginTime -> do
+                let from' = max from beginTime
+                fetchPriceVolumes from' to tokenInPair
+            Nothing -> return Nothing
     where
         mapFst f (x, y) = (f x, y)
-
-ioToSem :: Members [Error String, Embed IO] r => IO a -> Sem r a
-ioToSem monad = do
-    resultOrError <- embed $ Control.Exception.try @IOException monad
-    either (Polysemy.Error.throw . show) pure resultOrError

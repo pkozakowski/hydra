@@ -1,5 +1,3 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-
 module Numeric.Test where
 
 import Data.Maybe
@@ -47,7 +45,8 @@ deltaRightIdentity _ _ = property
     -> x `sigma` zero == Just x
 
 deltaAdditionAgreement
-    :: forall a b proxy. (Delta a b, Monoidal a, Monoidal b, Arbitrary a, Eq a, Show a)
+    :: forall a b proxy
+     . (Delta a b, Monoidal a, Monoidal b, Arbitrary a, Eq a, Show a)
     => proxy a -> proxy b -> Property
 deltaAdditionAgreement _ _ = property test where
     test (x :: a) (y :: a)
@@ -86,7 +85,8 @@ testDeltaMonoidalOrdLaws ap bp = testLaws $ Laws "Delta + Monoidal + Ord"
     ]
 
 deltaPositiveDefiniteness
-    :: forall a b proxy. (Delta a b, Monoidal a, Ord b, Arbitrary b, Eq a, Show b)
+    :: forall a b proxy
+     . (Delta a b, Monoidal a, Ord b, Arbitrary b, Eq a, Show b)
     => proxy a -> proxy b -> Property
 deltaPositiveDefiniteness _ _ = property
     $ \(x :: b)
@@ -199,8 +199,9 @@ kappaDivisionAgreement ::
     ) =>
     proxy a -> proxy b -> proxy c -> proxy scr -> Property
 kappaDivisionAgreement _ _ _ _ = property
-    $ \(x :: scr) (y :: scr) (x' :: a) (y' :: b)
-    -> y /= zero ==> (x .* x') `kappa` (y .* y') == fmap (x / y .*) (x' `kappa` y')
+      $ \(x :: scr) (y :: scr) (x' :: a) (y' :: b)
+     -> y /= zero
+    ==> (x .* x') `kappa` (y .* y') == fmap (x / y .*) (x' `kappa` y')
 
 kappaDivisionAgreementPrime ::
     forall proxy a b c scr.
@@ -214,8 +215,9 @@ kappaDivisionAgreementPrime ::
     ) =>
     proxy a -> proxy b -> proxy c -> proxy scr -> Property
 kappaDivisionAgreementPrime _ _ _ _ = property
-    $ \(x :: scr) (z :: scr) (x' :: a) (z' :: c)
-    -> z /= zero ==> (x .* x') `kappa'` (z .* z') == fmap (x / z .*) (x' `kappa'` z')
+      $ \(x :: scr) (z :: scr) (x' :: a) (z' :: c)
+     -> z /= zero
+    ==> (x .* x') `kappa'` (z .* z') == fmap (x / z .*) (x' `kappa'` z')
 
 testNormalizableLaws ::
     ( Normalizable d a as
@@ -225,8 +227,12 @@ testNormalizableLaws ::
     ) =>
     proxy d -> proxy a -> proxy as -> TestTree
 testNormalizableLaws dp ap asp = testLaws $ Laws "Normalizable"
-    [ ("Normalize Inverses Unnormalize", normalizableNormalizeInversesUnnormalize dp ap asp)
-    , ("Unnormalize Inverses Normalize", normalizableUnnormalizeInversesNormalize dp ap asp)
+    [   ( "Normalize Inverses Unnormalize"
+        , normalizableNormalizeInversesUnnormalize dp ap asp
+        )
+    ,   ("Unnormalize Inverses Normalize"
+        , normalizableUnnormalizeInversesNormalize dp ap asp
+        )
     ]
 
 normalizableNormalizeInversesUnnormalize 
@@ -260,14 +266,23 @@ testNormalizableSemimoduleOrdLaws ::
     Proxy d -> Proxy a -> Proxy as -> Proxy scr -> TestTree
 testNormalizableSemimoduleOrdLaws dp ap asp scrp
     = testLaws $ Laws "Normalizable + (semi) Module + Ord"
-        [ ("Normalize Inverses Unnormalize", normalizableNormalizeInversesUnnormalize dp ap asp)
-        , ("Unnormalize Inverses Normalize", normalizableUnnormalizeInversesNormalize dp ap asp)
-        , ("Triangle Inequality", normalizableTriangleInequality dp ap asp scrp)
-        , ("Absolute Homogeneity", normalizableAbsoluteHomogeneity dp ap asp scrp)
-        , ("Norm Positive Definiteness", normalizableNormPositiveDefiniteness dp ap asp scrp)
-        , ( "Normalize Positive Definiteness"
-          , normalizableNormalizePositiveDefiniteness dp ap asp scrp
-          )
+        [   ( "Normalize Inverses Unnormalize"
+            , normalizableNormalizeInversesUnnormalize dp ap asp
+            )
+        ,   ( "Unnormalize Inverses Normalize"
+            , normalizableUnnormalizeInversesNormalize dp ap asp
+            )
+        ,   ( "Triangle Inequality"
+            , normalizableTriangleInequality dp ap asp scrp)
+        ,   ( "Absolute Homogeneity"
+            , normalizableAbsoluteHomogeneity dp ap asp scrp
+            )
+        ,   ( "Norm Positive Definiteness"
+            , normalizableNormPositiveDefiniteness dp ap asp scrp
+            )
+        ,   ( "Normalize Positive Definiteness"
+            , normalizableNormalizePositiveDefiniteness dp ap asp scrp
+            )
         ]
 
 normalizableTriangleInequality ::

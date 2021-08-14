@@ -5,7 +5,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -108,7 +107,9 @@ instance (Labels assets, Labels instrs)
         :: forall r
         .  Members
             ( InstrumentEffects
-                assets (BalanceConfig assets instrs) (BalanceState assets instrs)
+                assets
+                (BalanceConfig assets instrs)
+                (BalanceState assets instrs)
             ) r
         => Sem r ()
     execute = do
