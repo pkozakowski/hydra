@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1c7c7affbd07a0a83303beca35ac0abc7f630a2bd8ca99b865195ba0b538b458
+-- hash: 167d56008d756d67d8157c543b3249391af134699dc559db89cdad29f51539d2
 
 name:           hydra
 version:        0.1.0.0
@@ -34,6 +34,7 @@ library
       Market.Feed
       Market.Feed.MongoDB
       Market.Feed.PancakeSwap
+      Market.Feed.Prices
       Market.Feed.TH
       Market.Feed.Types
       Market.Instruments
@@ -56,6 +57,7 @@ library
       RankNTypes
       ScopedTypeVariables
       TypeApplications
+      TypeOperators
   build-depends:
       AesonBson
     , QuickCheck
@@ -96,6 +98,7 @@ executable hydra-exe
       RankNTypes
       ScopedTypeVariables
       TypeApplications
+      TypeOperators
   ghc-options: -O2 -fplugin=Polysemy.Plugin -flate-specialise -fspecialise-aggressively -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       AesonBson
@@ -150,6 +153,7 @@ test-suite hydra-test
       RankNTypes
       ScopedTypeVariables
       TypeApplications
+      TypeOperators
   ghc-options: -fplugin=Polysemy.Plugin -flate-specialise -fspecialise-aggressively -fno-ignore-asserts -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       AesonBson

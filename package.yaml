@@ -85,3 +85,4 @@ default-extensions:
 - RankNTypes
 - ScopedTypeVariables
 - TypeApplications
+- TypeOperators

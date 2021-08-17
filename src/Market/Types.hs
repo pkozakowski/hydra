@@ -132,5 +132,7 @@ absoluteAmount totalAmount = \case
     Absolute amount      -> amount
     Relative (Share shr) -> shr .* totalAmount
 
-newtype TimeSeries a = TimeSeries { unTimeSeries :: NonEmpty (UTCTime, a) }
+type TimeStep a = (UTCTime, a)
+
+newtype TimeSeries a = TimeSeries { unTimeSeries :: NonEmpty (TimeStep a) }
     deriving Show

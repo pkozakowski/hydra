@@ -6,7 +6,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeOperators #-}
 
 module Market.Feed.MongoDB where
 
@@ -57,9 +56,9 @@ mongo :: String -> Action IO a -> IO a
 mongo hostName action = bracket (connect $ host hostName) close
     \pipe -> access pipe master db action
 
-type FetchInterpreter
-    =  forall r a
-    .  Members [Error String, Embed IO] r
+type PriceVolumeInterpreter
+     = forall r a
+     . Members [Error String, Embed IO] r
     => String
     -> Sem (Feed PriceVolume : r) a
     -> Sem r a
@@ -67,7 +66,7 @@ type FetchInterpreter
 cachedFetchHourPriceVolumes
     :: String
     -> String
-    -> FetchInterpreter
+    -> PriceVolumeInterpreter
     -> Int
     -> IO (Maybe (TimeSeries PriceVolume))
 cachedFetchHourPriceVolumes hostName token interpreter hourstamp = do
@@ -148,11 +147,11 @@ cachedFetchHourPriceVolumes hostName token interpreter hourstamp = do
 runPriceVolumeFeedWithMongoCache
     :: Members [Error String, Embed IO] r
     => String
+    -> PriceVolumeInterpreter
     -> String
-    -> FetchInterpreter
     -> Sem (Feed PriceVolume : r) a
     -> Sem r a
-runPriceVolumeFeedWithMongoCache hostName token interpreter = interpret \case
+runPriceVolumeFeedWithMongoCache hostName interpreter token = interpret \case
     Between' from to
         -- Prefetch the first datapoint to know where to begin in case of broad
         -- queries. This takes advantage of lazy IO, so we don't fetch the
