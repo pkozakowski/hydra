@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c0fbe923af789c2e517524eb5579f27af10337dd2790822da22ab464a6a1ef4b
+-- hash: 95bb7a2ba8fb9f90f45edb53b5c18ce49e68eb2698a132ab501c1ca1b63b20eb
 
 name:           hydra
 version:        0.1.0.0
@@ -55,6 +55,7 @@ library
       src
   default-extensions:
       BlockArguments
+      DataKinds
       FlexibleContexts
       RankNTypes
       ScopedTypeVariables
@@ -99,6 +100,7 @@ executable hydra-exe
       app
   default-extensions:
       BlockArguments
+      DataKinds
       FlexibleContexts
       RankNTypes
       ScopedTypeVariables
@@ -159,6 +161,7 @@ test-suite hydra-test
       test
   default-extensions:
       BlockArguments
+      DataKinds
       FlexibleContexts
       RankNTypes
       ScopedTypeVariables
