@@ -1,5 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
-
 module Market.Feed.TH where
 
 import Debug.Trace
