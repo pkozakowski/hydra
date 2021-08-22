@@ -47,6 +47,7 @@ import Numeric.Algebra
 import qualified Numeric.Algebra.Deriving as AlgDeriving
 import Numeric.Delta
 import Numeric.Kappa
+import Numeric.Truncatable
 import Prelude hiding ((+), (-), (*), pi)
 import Unsafe.Coerce
 
@@ -209,6 +210,9 @@ instance (Labels ls, RightModule a t) => RightModule a (HomRec ls t) where
     r *. n = (*. n) <$> r
 
 instance (Labels ls, Module a t) => Module a (HomRec ls t)
+
+instance (Labels ls, Truncatable a) => Truncatable (HomRec ls a) where
+    truncateTo = fmap . truncateTo
 
 deriveHomRecord :: Name -> Name -> Q [Dec]
 deriveHomRecord t r

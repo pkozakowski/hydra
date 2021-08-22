@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -16,7 +17,7 @@ import Control.Exception
 import Data.Coerce
 import Data.List.NonEmpty
 import Data.Proxy
-import Data.Record.Hom (HomRec, Labels)
+import Data.Record.Hom (HomRec(..), Labels, (:=) (..))
 import qualified Data.Record.Hom as HR
 import Data.Time
 import GHC.TypeLits
@@ -26,7 +27,8 @@ import Numeric.Delta
 import Numeric.Field.Fraction
 import Numeric.Kappa
 import Numeric.Normalizable
-import Prelude hiding ((+), (*), (/), pi)
+import Numeric.Truncatable
+import Prelude hiding ((+), (-), (*), (/), pi, sum)
 
 type Asset (asset :: Symbol) = Proxy asset
 
@@ -102,6 +104,22 @@ deriveDistributionInstances
 deriveUnnormalizable ''Scalar ''Distribution ''Value ''Values
 deriveUnnormalizable ''Scalar ''DistributionDelta ''ValueDelta ''ValueDeltas
 deriveNormalizable ''Scalar ''Distribution ''Value ''Values
+
+instance Labels assets => Truncatable (Distribution assets) where
+
+    truncateTo res (Distribution shares)
+        = Distribution $ share <$> xs'' where
+            xs'' = addToFirst (one - sum xs') xs' where
+                addToFirst
+                    :: Scalar
+                    -> HomRec assets Scalar
+                    -> HomRec assets Scalar
+                addToFirst toAdd = \case
+                    Empty -> Empty
+                    l := x :& lxs -> l := (x + toAdd) :& lxs
+            xs' = truncateTo res xs
+            xs = unShare <$> shares where
+                unShare (Share x) = x
 
 onePoint :: Labels assets => HR.LabelIn assets -> Distribution assets
 onePoint assetIn

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 95bb7a2ba8fb9f90f45edb53b5c18ce49e68eb2698a132ab501c1ca1b63b20eb
+-- hash: 0c0b1f0b03f75e3a7e578de0620ae6851ee001490065ab4dbb6db790fa3b5ff7
 
 name:           hydra
 version:        0.1.0.0
@@ -49,6 +49,8 @@ library
       Numeric.Delta
       Numeric.Kappa
       Numeric.Normalizable
+      Numeric.Precision
+      Numeric.Truncatable
   other-modules:
       Paths_hydra
   hs-source-dirs:

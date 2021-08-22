@@ -22,6 +22,7 @@ import Market.Time
 import Numeric.Algebra hiding ((>))
 import Numeric.Kappa
 import Numeric.Normalizable
+import Numeric.Truncatable
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -32,6 +33,9 @@ data Hold (held :: Symbol) = Hold (Proxy held)
 
 instance KnownSymbol held => Show (Hold held) where
     show _ = "Hold " ++ symbolVal (Proxy @held)
+
+instance Truncatable (Hold held) where
+    truncateTo _ = id
 
 instance (Has held assets, KnownSymbol held, Labels assets)
     => Instrument assets (Hold held) (Hold held) where
@@ -80,6 +84,16 @@ instr := config ~& configs
     = instr := someInstrumentConfig @assets config :& configs
 
 infixr 5 ~&
+
+instance (Labels assets, Labels sis)
+    => Truncatable (BalanceState assets sis) where
+
+    truncateTo res
+        = BalanceState
+            <$> truncateTo res . states
+            <*> truncateTo res . allocations
+            <*> truncateTo res . portfolios
+            <*> lastUpdateTime
 
 instance (Labels assets, Labels sis)
     => Instrument

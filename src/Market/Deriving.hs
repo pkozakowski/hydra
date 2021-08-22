@@ -10,21 +10,27 @@ import Numeric.Algebra
 import Numeric.Algebra.Deriving
 import Numeric.Delta
 import Numeric.Normalizable
+import Numeric.Truncatable
 import Prelude hiding ((+), (*), (/))
 
--- | Derives instances of Semimodule, Module and Delta for two pairs of types: scalar and record
--- of absolute and relative quantities. (Semi)modules are over a single, unitless scalar type.
+-- | Derives instances of Semimodule, Module, Delta and Truncatable for two
+-- pairs of types: scalar and record of absolute and relative quantities.
+-- (Semi)modules are over a single, unitless scalar type.
 -- Additionally derives HomRecord for the record types.
 deriveQuantityInstances :: Name -> Name -> Name -> Name -> Name -> Q [Dec]
 deriveQuantityInstances scr q qd qr qdr = fmap concat $ sequence $
     -- Scalar instances:
-    [deriveUnary t [''Eq, ''Ord, ''Show, ''Typeable] | t <- [q, qd]] ++ [
+    [ deriveUnary t [''Eq, ''Ord, ''Show, ''Typeable, ''Truncatable]
+    | t <- [q, qd]
+    ] ++ [
         deriveSemimodule scr q,
         deriveModule scr qd,
         deriveDeltaOrd q qd
     ] ++
     -- Record instances:
-    [HR.deriveUnary tr [''Eq, ''Show, ''Typeable] | tr <- [qr, qdr]] ++ [
+    [ HR.deriveUnary tr [''Eq, ''Show, ''Typeable, ''Truncatable]
+    | tr <- [qr, qdr]
+    ] ++ [
         HR.deriveSemimodule scr qr,
         HR.deriveModule scr qdr,
         HR.deriveDelta qr qdr,
@@ -33,9 +39,10 @@ deriveQuantityInstances scr q qd qr qdr = fmap concat $ sequence $
     ]
 
 -- | Same as above, but without:
--- * a Semimodule instance, as it doesn't make sense to e.g. add two Distributions,
--- * a HomRecord instance, because setting values arbitrarily can break the constraint that the
---   elements should sum to either 1 or 0.
+-- * a Semimodule instance, as it doesn't make sense to e.g. add two
+--   Distributions,
+-- * a HomRecord instance, because setting values arbitrarily can break the
+--   constraint that the elements should sum to either 1 or 0.
 deriveDistributionInstances :: Name -> Name -> Name -> Name -> Name -> Q [Dec]
 deriveDistributionInstances scr q qd qr qdr = fmap concat $ sequence $
     -- Scalar instances:
@@ -72,8 +79,11 @@ deriveUnnormalizable :: Name -> Name -> Name -> Name -> Q [Dec]
 deriveUnnormalizable scr d q qr = do
     TyConI (NewtypeD _ _ _ _ (NormalC dCon _) _) <- reify d
     TyConI (NewtypeD _ _ _ _ (NormalC qrCon _) _) <- reify qr
-    [d| instance HR.Labels assets =>
-            Unnormalizable ($(conT d) assets) $(conT q) ($(conT qr) assets) where
+    [d| instance HR.Labels assets
+            => Unnormalizable
+                ($(conT d) assets)
+                $(conT q)
+                ($(conT qr) assets) where
 
             unnormalize n $(conP dCon [varP $ mkName "sr"])
                 = $(conE qrCon) $ coerce . mul <$> sr where

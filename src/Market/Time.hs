@@ -1,6 +1,6 @@
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE GADTs #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Market.Time where

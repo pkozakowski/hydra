@@ -12,10 +12,12 @@ module Market
     , module Market.Types
     ) where
 
+import Data.Fixed
 import Data.Proxy
 import Data.Record.Hom
 import Market.Time
 import Market.Types
+import Numeric.Truncatable
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -63,7 +65,7 @@ type Visitor assets self agg
     -> SelfVisitor assets self
     -> agg
 
-class Instrument assets c s | s -> c, c -> s where
+class Truncatable s => Instrument assets c s | s -> c, c -> s where
 
     initState :: Members (InstrumentInitEffects assets c) r => Sem r s
 
@@ -123,7 +125,15 @@ data SomeInstrumentState assets = SomeInstrumentState
             ) r
         => Sem r ()
     , someVisit :: forall self agg. Portfolio assets -> Visitor assets self agg
+    , someTruncateTo
+        :: forall res
+         . HasResolution res
+        => res
+        -> SomeInstrumentState assets
     }
+
+instance Truncatable (SomeInstrumentState assets) where
+    truncateTo = flip someTruncateTo
 
 instance
     Instrument
@@ -169,7 +179,7 @@ someInstrumentState
     :: forall assets c s
     .  Instrument assets c s
     => c -> s -> SomeInstrumentState assets
-someInstrumentState config state = SomeInstrumentState exec vis where
+someInstrumentState config state = SomeInstrumentState exec vis trunc where
     exec
         :: forall r
         .  Members
@@ -189,3 +199,6 @@ someInstrumentState config state = SomeInstrumentState exec vis where
 
     vis :: Portfolio assets -> Visitor assets self agg
     vis = visit config state
+
+    trunc :: forall res. HasResolution res => res -> SomeInstrumentState assets
+    trunc res = someInstrumentState config $ truncateTo res state
