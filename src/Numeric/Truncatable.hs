@@ -24,3 +24,9 @@ instance Truncatable (Fraction Integer) where
 
 fixedToFraction :: HasResolution r => Fixed r -> Fraction Integer
 fixedToFraction fixed@(MkFixed num) = num % resolution fixed
+
+realToFraction :: Real a => a -> Fraction Integer
+realToFraction = ratioToFraction . toRational
+
+ratioToFraction :: Ratio.Ratio Integer -> Fraction Integer
+ratioToFraction = (%) <$> Ratio.numerator <*> Ratio.denominator

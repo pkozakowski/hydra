@@ -5,6 +5,7 @@ module Market.Notebook
     ) where
 
 import Data.Composition
+import Data.Fixed
 import Data.List.NonEmpty as NonEmpty
 import Data.Record.Hom
 import Data.Time.Clock
@@ -18,20 +19,22 @@ import Market.Internal.IO
 import Market.Time
 import Market.Types
 import qualified Market.Feed.Prices as Prices
+import Numeric.Precision
 import Polysemy
 
 runPricesFeed
-    :: forall assets
-     . Labels assets
-    => Double
+    :: forall assets res
+     . (Labels assets, HasResolution res)
+    => res
     -> UTCTime
     -> UTCTime
     -> IO (Maybe (TimeSeries (Prices assets)))
-runPricesFeed tolerance from to
+runPricesFeed res from to
     = fmap (fmap forceSeries)
     $ semToIO
+    $ runPrecision res
     $ runTimeIO
-    $ Prices.runPricesFeed @assets tolerance runPriceVolumeFeed
+    $ Prices.runPricesFeed @assets runPriceVolumeFeed
     $ between from to where
         runPriceVolumeFeed
             = runPriceVolumeFeedWithMongoCache "127.0.0.1"

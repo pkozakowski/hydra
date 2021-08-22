@@ -12,21 +12,21 @@ import Market.Types
 import Market.Feed
 import Market.Feed.Types
 import Numeric.Field.Fraction
+import Numeric.Precision
 import Polysemy
 import Polysemy.Error
 
 runPricesFeed
     :: forall assets r b
-     . Labels assets
-    => Double
-    -> (forall a. String -> Sem (Feed PriceVolume : r) a -> Sem r a)
+     . (Labels assets, Member Precision r)
+    => (forall a. String -> Sem (Feed PriceVolume : r) a -> Sem r a)
     -> Sem (Feed (Prices assets) : r) b
     -> Sem r b
-runPricesFeed tolerance interpreter = interpret \case
+runPricesFeed interpreter = interpret \case
     Between' from to -> do
         assetMaybeSeries :: HomRec assets (Maybe (TimeSeries Price))
             <- fromList Nothing <$> forM (labels @assets) \label -> do
-                prices <- runPriceFeed tolerance interpreter (show label)
+                prices <- runPriceFeed interpreter (show label)
                         $ between' @Price @(Feed Price : r) from to
                 return (label, prices)
         return
@@ -67,18 +67,15 @@ sweep assetSeries =
                     | otherwise -> series
 
 runPriceFeed
-    :: Double
-    -> (forall a. String -> Sem (Feed PriceVolume : r) a -> Sem r a)
+    :: Member Precision r
+    => (forall a. String -> Sem (Feed PriceVolume : r) a -> Sem r a)
     -> String
     -> Sem (Feed Price : r) b
     -> Sem r b
-runPriceFeed tolerance interpreter token = interpret \case
+runPriceFeed interpreter token = interpret \case
     Between' from to
         -> interpreter token (between' @PriceVolume from to) >>= \case
-            Nothing -> return Nothing
-            Just (TimeSeries srs)
-                -> return $ Just $ TimeSeries $ convertTimeStep <$> srs
-            where
-                convertTimeStep (t, pv) = (t, toPrice $ price pv)
-                toPrice float = Price $ floor (float / tolerance) % denominator
-                denominator = floor $ 1 / tolerance
+            Nothing
+                -> return Nothing
+            Just series
+                -> Just <$> mapM (fmap Price . truncateReal . price) series
