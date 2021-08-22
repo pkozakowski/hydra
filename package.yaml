@@ -45,6 +45,9 @@ dependencies:
 - logging
 - hashmap
 - hashable
+- bson
+- composition
+- approx
 
 library:
   source-dirs: src

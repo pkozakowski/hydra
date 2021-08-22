@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -100,7 +101,7 @@ deriveDistributionInstances
 -- Values held in different Assets.
 deriveUnnormalizable ''Scalar ''Distribution ''Value ''Values
 deriveUnnormalizable ''Scalar ''DistributionDelta ''ValueDelta ''ValueDeltas
-deriveNormalizable ''Scalar '' Distribution ''Value ''Values
+deriveNormalizable ''Scalar ''Distribution ''Value ''Values
 
 onePoint :: Labels assets => HR.LabelIn assets -> Distribution assets
 onePoint assetIn
@@ -135,4 +136,7 @@ absoluteAmount totalAmount = \case
 type TimeStep a = (UTCTime, a)
 
 newtype TimeSeries a = TimeSeries { unTimeSeries :: NonEmpty (TimeStep a) }
-    deriving Show
+    deriving (Show, Functor, Foldable, Traversable, Semigroup)
+
+seriesFromList :: [TimeStep a] -> Maybe (TimeSeries a)
+seriesFromList = fmap TimeSeries . nonEmpty

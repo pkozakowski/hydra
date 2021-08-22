@@ -84,10 +84,9 @@ test_Balance_Hold =
                 portfolios
                     = either error id $ run $ runError
                     $ fmap fst $ runOutputList
-                    $ backtest onStep priceSeries initPortfolio config where
-                        onStep = do
-                            portfolio <- input @(Portfolio ThreeLabels)
-                            Output.output portfolio
+                    $ backtest priceSeries initPortfolio config do
+                        portfolio <- input @(Portfolio ThreeLabels)
+                        Output.output portfolio
 
         arbitraryApproxConfig = do
             tolerance <- arbitraryPositiveFraction

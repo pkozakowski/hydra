@@ -51,6 +51,19 @@ type InstrumentEffects assets c s =
     , Error String
     ]
 
+type AggregateVisitor self agg
+    = forall sis. self -> HomRec sis agg -> agg
+
+type SelfVisitor assets self
+     = forall c' s'
+     . Instrument assets c' s'
+    => c' -> s' -> Portfolio assets -> self
+
+type Visitor assets self agg
+     = AggregateVisitor self agg
+    -> SelfVisitor assets self
+    -> agg
+
 class Instrument assets c s | s -> c, c -> s where
 
     initState :: Members (InstrumentInitEffects assets c) r => Sem r s
@@ -62,6 +75,20 @@ class Instrument assets c s | s -> c, c -> s where
     execute
         :: Members (InstrumentEffects assets c s) r
         => Sem r ()
+
+    visit :: c -> s -> Portfolio assets -> Visitor assets self agg
+
+visit'
+    :: forall assets self agg c s
+     . Instrument assets c s
+    => AggregateVisitor self agg
+    -> SelfVisitor assets self
+    -> c
+    -> s
+    -> Portfolio assets
+    -> agg
+visit' visitAgg visitSelf config state portfolio
+    = visit @assets config state portfolio visitAgg visitSelf
 
 runInstrument
     :: forall assets c s r a
@@ -96,6 +123,7 @@ data SomeInstrumentState assets = SomeInstrumentState
                 (SomeInstrumentState assets)
             ) r
         => Sem r ()
+    , someVisit :: forall self agg. Portfolio assets -> Visitor assets self agg
     }
 
 instance
@@ -119,6 +147,8 @@ instance
         IState state <- State.get @(IState (SomeInstrumentState assets))
         someExecute state
 
+    visit _ = someVisit
+
 instance Show (SomeInstrumentConfig assets) where
     show = someShow
 
@@ -140,7 +170,7 @@ someInstrumentState
     :: forall assets c s
     .  Instrument assets c s
     => c -> s -> SomeInstrumentState assets
-someInstrumentState config instr = SomeInstrumentState exec where
+someInstrumentState config state = SomeInstrumentState exec vis where
     exec
         :: forall r
         .  Members
@@ -152,8 +182,11 @@ someInstrumentState config instr = SomeInstrumentState exec where
             r
         => Sem r ()
     exec = do
-        IState instr'
-           <- runInputConst (IConfig config) $ execState (IState instr)
+        IState state'
+           <- runInputConst (IConfig config) $ execState (IState state)
             $ execute @assets @c @s
         put @(IState (SomeInstrumentState assets))
-            $ IState $ someInstrumentState config instr'
+            $ IState $ someInstrumentState config state'
+
+    vis :: Portfolio assets -> Visitor assets self agg
+    vis = visit config state

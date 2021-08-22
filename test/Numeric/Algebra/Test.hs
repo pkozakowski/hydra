@@ -1,5 +1,9 @@
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE PolyKinds #-}
+
 module Numeric.Algebra.Test where
 
+import Data.Constraint
 import Numeric.Algebra
 import Numeric.Domain.GCD
 import Numeric.Field.Fraction
@@ -153,16 +157,19 @@ groupTimesNegative _ = property
     $ \(n :: Natural) (x :: r)
     -> negate (fromIntegral n :: Integer) `times` x == negate (sinnum n x)
 
+type LeftModuleConstraints r m proxy =
+    ( Rig r
+    , Monoidal m
+    , LeftModule r m
+    , Arbitrary r
+    , Arbitrary m
+    , Eq m
+    , Show r
+    , Show m
+    )
+
 testLeftModuleLaws
-    ::  ( Rig r
-        , Monoidal m
-        , LeftModule r m
-        , Arbitrary r
-        , Arbitrary m
-        , Eq m
-        , Show r
-        , Show m
-        )
+    :: LeftModuleConstraints r m proxy
     => proxy r -> proxy m -> TestTree
 testLeftModuleLaws rp mp = testLaws $ Laws "LeftModule"
     [ ("Module Distributivity", leftModuleModuleDistributivity rp mp)
@@ -173,20 +180,9 @@ testLeftModuleLaws rp mp = testLaws $ Laws "LeftModule"
     , ("Module Annihilation", leftModuleModuleAnnihilation rp mp)
     ]
 
-type ModuleConstraints r m proxy =
-     ( Rig r
-     , Monoidal m
-     , LeftModule r m
-     , Arbitrary r
-     , Arbitrary m
-     , Eq m
-     , Show r
-     , Show m
-     )
-
 leftModuleModuleDistributivity
     :: forall r m proxy
-     . ModuleConstraints r m proxy
+     . LeftModuleConstraints r m proxy
     => proxy r -> proxy m -> Property
 leftModuleModuleDistributivity _ _ = property
     $ \(a :: r) (x :: m) (y :: m)
@@ -194,7 +190,7 @@ leftModuleModuleDistributivity _ _ = property
 
 leftModuleScalarDistributivity
     :: forall r m proxy
-     . ModuleConstraints r m proxy
+     . LeftModuleConstraints r m proxy
     => proxy r -> proxy m -> Property
 leftModuleScalarDistributivity _ _ = property
     $ \(a :: r) (b :: r) (x :: m)
@@ -202,7 +198,7 @@ leftModuleScalarDistributivity _ _ = property
 
 leftModuleAssociativity
     :: forall r m proxy
-     . ModuleConstraints r m proxy
+     . LeftModuleConstraints r m proxy
     => proxy r -> proxy m -> Property
 leftModuleAssociativity _ _ = property
     $ \(a :: r) (b :: r) (x :: m)
@@ -210,7 +206,7 @@ leftModuleAssociativity _ _ = property
 
 leftModuleIdentity
     :: forall r m proxy
-     . ModuleConstraints r m proxy
+     . LeftModuleConstraints r m proxy
     => proxy r -> proxy m -> Property
 leftModuleIdentity _ _ = property
     $ \(x :: m)
@@ -218,7 +214,7 @@ leftModuleIdentity _ _ = property
 
 leftModuleScalarAnnihilation
     :: forall r m proxy
-     . ModuleConstraints r m proxy
+     . LeftModuleConstraints r m proxy
     => proxy r -> proxy m -> Property
 leftModuleScalarAnnihilation _ _ = property
     $ \(x :: m)
@@ -226,14 +222,25 @@ leftModuleScalarAnnihilation _ _ = property
 
 leftModuleModuleAnnihilation
     :: forall r m proxy
-     . ModuleConstraints r m proxy
+     . LeftModuleConstraints r m proxy
     => proxy r -> proxy m -> Property
 leftModuleModuleAnnihilation _ _ = property
     $ \(a :: r)
     -> a .* (zero :: m) == zero
 
+type RightModuleConstraints r m proxy =
+    ( Rig r
+    , Monoidal m
+    , RightModule r m
+    , Arbitrary r
+    , Arbitrary m
+    , Eq m
+    , Show r
+    , Show m
+    )
+
 testRightModuleLaws
-    :: ModuleConstraints r m proxy
+    :: RightModuleConstraints r m proxy
     => proxy r -> proxy m -> TestTree
 testRightModuleLaws rp mp = testLaws $ Laws "RightModule"
     [ ("Module Distributivity", rightModuleModuleDistributivity rp mp)
@@ -246,7 +253,7 @@ testRightModuleLaws rp mp = testLaws $ Laws "RightModule"
 
 rightModuleModuleDistributivity
     :: forall r m proxy
-     . ModuleConstraints r m proxy
+     . RightModuleConstraints r m proxy
     => proxy r -> proxy m -> Property
 rightModuleModuleDistributivity _ _ = property
     $ \(x :: m) (y :: m) (a :: r)
@@ -254,7 +261,7 @@ rightModuleModuleDistributivity _ _ = property
 
 rightModuleScalarDistributivity
     :: forall r m proxy
-     . ModuleConstraints r m proxy
+     . RightModuleConstraints r m proxy
     => proxy r -> proxy m -> Property
 rightModuleScalarDistributivity _ _ = property
     $ \(x :: m) (a :: r) (b :: r)
@@ -262,7 +269,7 @@ rightModuleScalarDistributivity _ _ = property
 
 rightModuleAssociativity
     :: forall r m proxy
-     . ModuleConstraints r m proxy
+     . RightModuleConstraints r m proxy
     => proxy r -> proxy m -> Property
 rightModuleAssociativity _ _ = property
     $ \(x :: m) (a :: r) (b :: r)
@@ -270,7 +277,7 @@ rightModuleAssociativity _ _ = property
 
 rightModuleIdentity
     :: forall r m proxy
-     . ModuleConstraints r m proxy
+     . RightModuleConstraints r m proxy
     => proxy r -> proxy m -> Property
 rightModuleIdentity _ _ = property
     $ \(x :: m)
@@ -278,7 +285,7 @@ rightModuleIdentity _ _ = property
 
 rightModuleScalarAnnihilation
     :: forall r m proxy
-     . ModuleConstraints r m proxy
+     . RightModuleConstraints r m proxy
     => proxy r -> proxy m -> Property
 rightModuleScalarAnnihilation _ _ = property
     $ \(x :: m)
@@ -286,7 +293,7 @@ rightModuleScalarAnnihilation _ _ = property
 
 rightModuleModuleAnnihilation
     :: forall r m proxy
-     . ModuleConstraints r m proxy
+     . RightModuleConstraints r m proxy
     => proxy r -> proxy m -> Property
 rightModuleModuleAnnihilation _ _ = property
     $ \(a :: r)

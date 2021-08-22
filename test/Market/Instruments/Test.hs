@@ -13,6 +13,7 @@ import Data.Time
 import Market
 import Market.Ops
 import Market.Simulation
+import Market.Time
 import Market.Types
 import Market.Types.Test
 import Numeric.Algebra hiding ((>))
@@ -75,6 +76,7 @@ data Sign = Plus | Zero | Minus deriving Eq
 type RunExecuteEffects assets c s =
     [ State (IState s)
     , Input (IConfig c)
+    , Time
     , Market assets
     , Input (Portfolio assets)
     , Input (Prices assets)
@@ -95,7 +97,7 @@ efficiency = whenNotBroke $ runEfficiencyTestM execute where
     runEfficiencyTestM monad = do
         IConfig config <- input
         IState state <- State.get
-        time <- getTime
+        time <- now
         prices <- input @(Prices assets)
         portfolio <- input @(Portfolio assets)
         subsume_
@@ -112,7 +114,7 @@ efficiency = whenNotBroke $ runEfficiencyTestM execute where
                     assertSign from Plus signs
                     assertSign to Minus signs
                     put $ setIn from Minus $ setIn to Plus $ signs
-                GetTime -> return time
+            $ runTimeConst time
             $ runInstrument' config state
             $ monad
         where
@@ -195,12 +197,11 @@ testInstrumentPropertyContinuous arbitraryConfig name monad
             $ conjoin
             $ fromRight undefined $ run $ runError
             $ fmap fst $ runOutputList
-            $ backtest' onStep priceSeries initPortfolio config where
-                onStep exec = do
-                    instantProp <- snd <$> runExecuteM monad
-                    Output.output instantProp
-                    exec
-
+            $ backtest' priceSeries initPortfolio config \exec -> do
+                instantProp <- snd <$> runExecuteM monad
+                Output.output instantProp
+                exec
+            where
                 TimeSeries ((_, initPrices) :| _) = priceSeries
 
 runInitExecute
@@ -222,7 +223,8 @@ runExecute
 runExecute config state time prices portfolio
     = run . runError
     . runInputConst prices
-    . runMarketSimulation time portfolio
+    . runMarketSimulation portfolio
+    . runTimeConst time
     . fmap snd
     . runInstrument' config state
 
@@ -234,7 +236,7 @@ runExecuteM
 runExecuteM monad = do
     IConfig config <- input
     IState state <- State.get
-    time <- getTime
+    time <- now
     prices <- input
     portfolio <- input
     fromEither $ runExecute config state time prices portfolio monad

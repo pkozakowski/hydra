@@ -39,6 +39,27 @@ packages:
       sha256: c77494ff9ecf48cf4675e4973f8cbcf946e5a4badb023c50ea5a7c788aced7b4
   original:
     hackage: AesonBson-0.4.0@sha256:fb368ec6f750d582c0630b2eb0d562d7eecab87da4a099593746298b27184a95,1333
+- completed:
+    hackage: approx-0.1.0.1@sha256:fe0c176d0b07d8d282732d66a92517a5552a3b755b8d41cd2aef3bb41dc6494e,2094
+    pantry-tree:
+      size: 413
+      sha256: 6c1cf96fd1d7cb3c2cfcea15842ea60ce062c6118e7480b2c316c0a9a0c10b82
+  original:
+    hackage: approx-0.1.0.1@sha256:fe0c176d0b07d8d282732d66a92517a5552a3b755b8d41cd2aef3bb41dc6494e,2094
+- completed:
+    hackage: unordered-containers-0.2.13.0@sha256:6310c636f92ed4908fdd0de582b6be31c2851c7b5f2ec14e9f416eb94df7a078,4978
+    pantry-tree:
+      size: 1388
+      sha256: 0cdd70d603c621e2b184ff7baa232af8a88a01745710b975b97df63e92c700dd
+  original:
+    hackage: unordered-containers-0.2.13.0@sha256:6310c636f92ed4908fdd0de582b6be31c2851c7b5f2ec14e9f416eb94df7a078,4978
+- completed:
+    hackage: vector-0.12.2.0@sha256:6e81683c2c19b4aea58f1f453547cb03851b3cfd4031b8eb82abfa4643a13494,7953
+    pantry-tree:
+      size: 3841
+      sha256: 666939d042ad8880bb66f4c00ebe71167354649ed4f1e4ddce99de355921c25e
+  original:
+    hackage: vector-0.12.2.0@sha256:6e81683c2c19b4aea58f1f453547cb03851b3cfd4031b8eb82abfa4643a13494,7953
 snapshots:
 - completed:
     size: 585817

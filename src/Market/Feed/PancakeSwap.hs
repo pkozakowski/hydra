@@ -59,6 +59,8 @@ instance ToJSON BigInt where
 newtype BigDecimal = BigDecimal { unBigDecimal :: Double }
     deriving (Eq, Show, Ord)
 
+deriving newtype instance Num BigDecimal
+
 instance FromJSON BigDecimal where
     parseJSON (AesonTypes.String s)
         = either fail return $ BigDecimal . fst <$> double s
@@ -215,8 +217,12 @@ fetchPriceVolumes
     -> IO (Maybe (TimeSeries PriceVolume))
 fetchPriceVolumes from to (whichToken, pairID) = do
     swaps <- fetchSwaps from to pairID
-    return $ fmap TimeSeries $ nonEmpty
-           $ aggregateSameTime $ swapToTimeStep <$> swaps
+    return
+        $ fmap TimeSeries
+        $ nonEmpty
+        $ aggregateSameTime
+        $ fmap swapToTimeStep
+        $ filter isValid swaps
     where
         aggregateSameTime = fmap agg . groupBy sameTime where
             agg timeSteps =
@@ -240,6 +246,9 @@ fetchPriceVolumes from to (whichToken, pairID) = do
                         Token1 -> unBigDecimal (amount1In  swap)
                                 + unBigDecimal (amount1Out swap)
                 volume = unBigDecimal $ amountUSD swap
+        isValid swap
+            = amount0In swap + amount0Out swap > BigDecimal 0.0
+           && amount1In swap + amount1Out swap > BigDecimal 0.0
 
 fetchSwaps :: UTCTime -> UTCTime -> ID -> IO [SwapsSwap]
 fetchSwaps from to id
@@ -252,7 +261,7 @@ fetchSwaps from to id
    -> fmap (concat . takeWhile (not . null))
     $ LazyIO.run
     -- ... then over pages of the result.
-    -- That's because there's a limit for "skip".
+    -- We can't do this in one loop because there's a limit for "skip".
     $ forM [0, pageSize ..]
     $ LazyIO.interleave
     . \skip -> do

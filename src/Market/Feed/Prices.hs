@@ -18,7 +18,8 @@ import Polysemy
 import Polysemy.Error
 
 runPricesFeed
-    :: forall assets r b. Labels assets
+    :: forall assets r b
+     . Labels assets
     => Double
     -> (forall a. String -> Sem (Feed PriceVolume : r) a -> Sem r a)
     -> Sem (Feed (Prices assets) : r) b

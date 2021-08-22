@@ -52,12 +52,13 @@ type OnStep assets c s r = Sem (BacktestEffects assets c s r) ()
 backtest
     :: forall assets c s r
      . (Instrument assets c s, Member (Error String) r)
-    => OnStep assets c s r
-    -> TimeSeries (Prices assets)
+    => TimeSeries (Prices assets)
     -> Portfolio assets
     -> c
+    -> OnStep assets c s r
     -> Sem r (Portfolio assets)
-backtest onStep = backtest' (*> onStep)
+backtest priceSeries initPortfolio config onStep
+    = backtest' priceSeries initPortfolio config (*> onStep)
 
 type OnStep' assets c s r
     =  Sem (BacktestEffects assets c s r) ()
@@ -68,12 +69,12 @@ type OnStep' assets c s r
 backtest'
     :: forall assets c s r
      . (Instrument assets c s, Member (Error String) r)
-    => OnStep' assets c s r
-    -> TimeSeries (Prices assets)
+    => TimeSeries (Prices assets)
     -> Portfolio assets
     -> c
+    -> OnStep' assets c s r
     -> Sem r (Portfolio assets)
-backtest' onStep' priceSeries initPortfolio config
+backtest' priceSeries initPortfolio config onStep'
     = execState initPortfolio
     $ runInputConst initPrices
     $ runInstrument @assets config

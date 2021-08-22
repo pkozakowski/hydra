@@ -47,16 +47,20 @@ instance (Has held assets, KnownSymbol held, Labels assets)
         portfolio <- input @(Portfolio assets)
         allocationToTrades zero prices portfolio $ onePoint $ labelIn @held
 
-data BalanceConfig assets instrs = BalanceConfig
-    { configs :: HomRec instrs (SomeInstrumentConfig assets)
-    , target :: Distribution instrs
+    visit config state portfolio visitAgg visitSelf
+        = visitAgg (visitSelf config state portfolio) Empty
+
+data BalanceConfig assets sis = BalanceConfig
+    { configs :: HomRec sis (SomeInstrumentConfig assets)
+    , target :: Distribution sis
     , tolerance :: Scalar
     , updateEvery :: NominalDiffTime
     } deriving (Show)
 
-data BalanceState assets instrs = BalanceState
-    { states :: HomRec instrs (SomeInstrumentState assets)
-    , allocations :: HomRec instrs (Distribution assets)
+data BalanceState assets sis = BalanceState
+    { states :: HomRec sis (SomeInstrumentState assets)
+    , allocations :: HomRec sis (Distribution assets)
+    , portfolios :: HomRec sis (Portfolio assets)
     , lastUpdateTime :: UTCTime
     }
 
@@ -64,27 +68,29 @@ noConfigs :: forall assets. HomRec '[] (SomeInstrumentConfig assets)
 noConfigs = Empty
 
 (~&)
-    :: forall i instrs assets c s
-     .  (NoDuplicateIn i instrs
+    :: forall i sis assets c s
+     .  (NoDuplicateIn i sis
         , KnownSymbol i
-        , Labels instrs
+        , Labels sis
         , Instrument assets c s
         , Show c
         )
     => i := c
-    -> HomRec instrs (SomeInstrumentConfig assets)
-    -> HomRec (i : instrs) (SomeInstrumentConfig assets)
+    -> HomRec sis (SomeInstrumentConfig assets)
+    -> HomRec (i : sis) (SomeInstrumentConfig assets)
 instr := config ~& configs
     = instr := someInstrumentConfig @assets config :& configs
 
 infixr 5 ~&
 
-instance (Labels assets, Labels instrs)
+instance (Labels assets, Labels sis)
     => Instrument
-        assets (BalanceConfig assets instrs) (BalanceState assets instrs) where
+        assets
+        (BalanceConfig assets sis)
+        (BalanceState assets sis) where
 
     initState = do
-        IConfig config <- input @(IConfig (BalanceConfig assets instrs))
+        IConfig config <- input @(IConfig (BalanceConfig assets sis))
         prices <- input @(Prices assets)
         states <- multiplexConfig (configs config)
             $ initState @assets @(SomeInstrumentConfig assets)
@@ -93,22 +99,23 @@ instance (Labels assets, Labels instrs)
         return BalanceState
             { states = states
             , allocations = allocations
+            , portfolios = pure $ Portfolio $ pure zero
             , lastUpdateTime = UTCTime (ModifiedJulianDay 0) 0
             }
 
     initAllocation = do
-        IConfig config <- input @(IConfig (BalanceConfig assets instrs))
+        IConfig config <- input @(IConfig (BalanceConfig assets sis))
         allocations <- multiplexConfig (configs config)
             $ initAllocation @assets @(SomeInstrumentConfig assets)
         return $ redistribute (target config) allocations
 
     execute
         :: forall r
-        .  Members
+         . Members
             ( InstrumentEffects
                 assets
-                (BalanceConfig assets instrs)
-                (BalanceState assets instrs)
+                (BalanceConfig assets sis)
+                (BalanceState assets sis)
             ) r
         => Sem r ()
     execute = do
@@ -117,7 +124,7 @@ instance (Labels assets, Labels instrs)
         prices <- input @(Prices assets)
         portfolio <- input @(Portfolio assets)
         time <- now
-        IConfig config <- input @(IConfig (BalanceConfig assets instrs))
+        IConfig config <- input @(IConfig (BalanceConfig assets sis))
         IState state <- State.get
         when (shouldUpdate prices portfolio time config state) do
             -- 1. Compute the ideal per-instrument portfolios according to the
@@ -148,7 +155,7 @@ instance (Labels assets, Labels instrs)
                 states' = snd <$> portfoliosAndInstruments'
                 allocations'
                     = valueAllocOr prices <$> portfolios' <*> allocations state
-            -- 3. Make the balancing trades between the old and new global
+            -- 3. Make balancing trades between the old and new global
             -- portfolios.
             let portfolio' = foldl (+) zero portfolios'
                 allocation' = valueAlloc prices portfolio'
@@ -157,6 +164,7 @@ instance (Labels assets, Labels instrs)
             put $ IState $ BalanceState
                 { states = states'
                 , allocations = allocations'
+                , portfolios = portfolios'
                 , lastUpdateTime = time
                 }
             where
@@ -176,12 +184,25 @@ instance (Labels assets, Labels instrs)
                 valueAllocOr prices portfolio allocation
                     = fromMaybe allocation $ valueAllocation prices portfolio
 
+    visit
+        :: forall self agg
+         . BalanceConfig assets sis
+        -> BalanceState assets sis
+        -> Portfolio assets
+        -> Visitor assets self agg
+    visit config state portfolio visitAgg visitSelf
+        = visitAgg (visitSelf config state portfolio)
+        $ visit' @assets visitAgg visitSelf
+            <$> configs config
+            <*> states state
+            <*> portfolios state
+
 allocationToTrades
     :: (Labels assets, Member (Market assets) r)
     => Scalar -> Prices assets -> Portfolio assets -> Distribution assets
     -> Sem r ()
-allocationToTrades tolerance prices portfolio targetAlloc =
-    when (value > zero) $ sequence_ $ transferToTrade value <$> transfers
+allocationToTrades tolerance prices portfolio targetAlloc
+    = when (value > zero) $ sequence_ $ transferToTrade value <$> transfers
     where
         value = totalValue prices portfolio
         transferToTrade value (ShareTransfer from to (Share shr))

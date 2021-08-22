@@ -16,6 +16,7 @@ import Market
 import Market.Instruments
 import Market.Ops
 import Market.Simulation
+import Market.Time
 import Market.Types
 import Market.Types.Test
 import Numeric.Algebra hiding ((>))
@@ -106,7 +107,8 @@ test_runMarketSimulation =
 
         runTrade time prices portfolio from to orderAmount
             = fmap fst $ run $ runError $ runInputConst prices
-            $ runMarketSimulation time portfolio
+            $ runTimeConst time
+            $ runMarketSimulation portfolio
             $ trade from to orderAmount
 
 {- |
@@ -168,8 +170,8 @@ test_backtest =
 
         runBacktest priceSeries initPortfolio config
             = fromRight undefined $ run $ runError $ fmap fst $ runOutputList
-            $ backtest outputPortfolio priceSeries initPortfolio config where
-                outputPortfolio = Output.output =<< input @Port
+            $ backtest priceSeries initPortfolio config
+            $ Output.output =<< input @Port
 
 tests :: TestTree
 tests = $(testGroupGenerator)

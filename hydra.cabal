@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 167d56008d756d67d8157c543b3249391af134699dc559db89cdad29f51539d2
+-- hash: c0fbe923af789c2e517524eb5579f27af10337dd2790822da22ab464a6a1ef4b
 
 name:           hydra
 version:        0.1.0.0
@@ -31,6 +31,7 @@ library
       Data.Record.Hom
       Market
       Market.Deriving
+      Market.Evaluation
       Market.Feed
       Market.Feed.MongoDB
       Market.Feed.PancakeSwap
@@ -39,6 +40,7 @@ library
       Market.Feed.Types
       Market.Instruments
       Market.Internal.IO
+      Market.Notebook
       Market.Ops
       Market.Simulation
       Market.Time
@@ -63,8 +65,11 @@ library
     , QuickCheck
     , aeson
     , algebra
+    , approx
     , base >=4.7 && <5
+    , bson
     , bytestring
+    , composition
     , constraints
     , hashable
     , hashmap
@@ -105,8 +110,11 @@ executable hydra-exe
     , QuickCheck
     , aeson
     , algebra
+    , approx
     , base >=4.7 && <5
+    , bson
     , bytestring
+    , composition
     , constraints
     , hashable
     , hashmap
@@ -133,12 +141,14 @@ test-suite hydra-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Data.Approx.Test
       Data.Record.Hom.Test
       Market.Instruments.Test
       Market.Types.Test
       Numeric.Algebra.Test
       Numeric.Test
       Spec.Data.Record.Hom
+      Spec.Market.Evaluation
       Spec.Market.Instruments
       Spec.Market.Ops
       Spec.Market.Simulation
@@ -160,8 +170,11 @@ test-suite hydra-test
     , QuickCheck
     , aeson
     , algebra
+    , approx
     , base >=4.7 && <5
+    , bson
     , bytestring
+    , composition
     , constraints
     , hashable
     , hashmap

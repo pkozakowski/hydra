@@ -14,6 +14,7 @@ import Control.Logging
 import Control.Monad
 import Data.Aeson.Types
 import Data.AesonBson
+import Data.Bson
 import Data.List.NonEmpty (NonEmpty(..), nonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Maybe
@@ -29,7 +30,7 @@ import Market.Feed.Types
 import Market.Internal.IO
 import Market.Types
 import Polysemy
-import Polysemy.Error
+import Polysemy.Error hiding (throw, catch)
 import qualified System.IO.Lazy as LazyIO
 
 db :: Text
@@ -37,6 +38,12 @@ db = "hydra"
 
 priceVolumeCollection :: Text
 priceVolumeCollection = "price_volume"
+
+priceVolumeQuery :: Select s => String -> Int -> s
+priceVolumeQuery token hourstamp = select
+    [ "token" =: token
+    , "hourstamp" =: hourstamp
+    ] priceVolumeCollection
 
 data PriceVolumeHourly = PriceVolumeHourly
     { token :: String
@@ -63,6 +70,10 @@ type PriceVolumeInterpreter
     -> Sem (Feed PriceVolume : r) a
     -> Sem r a
 
+getCachedHourBSON :: String -> String -> Int -> IO (Maybe Document)
+getCachedHourBSON hostName token
+    = mongo hostName . findOne . priceVolumeQuery token
+
 cachedFetchHourPriceVolumes
     :: String
     -> String
@@ -70,7 +81,7 @@ cachedFetchHourPriceVolumes
     -> Int
     -> IO (Maybe (TimeSeries PriceVolume))
 cachedFetchHourPriceVolumes hostName token interpreter hourstamp = do
-    maybeHourlyBSON <- mongo hostName $ findOne query
+    maybeHourlyBSON <- getCachedHourBSON hostName token hourstamp
     case maybeHourlyBSON of
         Just hourlyBSON -> do
             debug $ hourText <> " found in MongoDB cache"
@@ -93,21 +104,24 @@ cachedFetchHourPriceVolumes hostName token interpreter hourstamp = do
                         $ valueToObject
                         $ toJSON
                         $ packPriceVolumes hourPriceVolumes
-                void $ mongo hostName $ insert priceVolumeCollection bson
+                (void $ mongo hostName $ insert priceVolumeCollection bson)
+                    `catch` \(e :: Failure) -> do
+                        warn
+                            $ "error while inserting document:\n"
+                           <> pack (show bson)
+                        throw e
             return hourPriceVolumes
     where
-        query = select 
-            [ "token" =: token
-            , "hourstamp" =: hourstamp
-            ] priceVolumeCollection
         hourText
              = "token "
             <> pack token
             <> ": hour starting at "
             <> pack (show beginTime)
+
         valueToObject (Object o) = o
         beginTime = hourstampToTime hourstamp
         endTime = hourstampToTime $ hourstamp + 1
+
         packPriceVolumes maybeSeries
             = PriceVolumeHourly
                 { token = token
@@ -131,6 +145,7 @@ cachedFetchHourPriceVolumes hostName token interpreter hourstamp = do
                             timeSteps
                                 = maybe [] NonEmpty.toList
                                 $ unTimeSeries <$> maybeSeries
+
         unpackPriceVolumes hourly
             = fmap TimeSeries
             $ nonEmpty
@@ -153,12 +168,9 @@ runPriceVolumeFeedWithMongoCache
     -> Sem r a
 runPriceVolumeFeedWithMongoCache hostName interpreter token = interpret \case
     Between' from to
-        -- Prefetch the first datapoint to know where to begin in case of broad
-        -- queries. This takes advantage of lazy IO, so we don't fetch the
-        -- entire interval at once.
-        -> interpreter token (between' @PriceVolume from to) >>= \case
+        -> getBeginTime from to >>= \case
             Nothing -> return Nothing
-            Just (TimeSeries ((beginTime, _) :| _))
+            Just beginTime
                 -> ioToSem $ withStderrLogging do
                     let from' = max from beginTime
                     -- Fetch the data hour-by-hour going through the cache.
@@ -177,3 +189,21 @@ runPriceVolumeFeedWithMongoCache hostName interpreter token = interpret \case
                         concatSeries
                             = fmap (TimeSeries . join . fmap unTimeSeries)
                             . nonEmpty
+        where
+            getBeginTime from to = do
+                hasHour
+                   <- fmap isJust
+                    $ ioToSem
+                    $ getCachedHourBSON hostName token
+                    $ timeToHourstamp from
+                if hasHour then
+                    return $ Just from
+                else
+                    -- Prefetch the first datapoint to know where to begin in
+                    -- case of broad queries. This takes advantage of lazy IO,
+                    -- so we don't fetch the entire interval at once.
+                    interpreter token (between' @PriceVolume from to) >>= \case
+                        Nothing
+                            -> return Nothing
+                        Just (TimeSeries ((beginTime, _) :| _))
+                            -> return $ Just beginTime
