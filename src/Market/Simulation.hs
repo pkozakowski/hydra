@@ -1,6 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE PolyKinds #-}
 
 module Market.Simulation where
 
@@ -35,7 +34,7 @@ runMarketSimulation initPortfolio monad
     = runState initPortfolio
     $ marketInputToState monad
 
-type BacktestEffects assets c s (r :: EffectRow) =
+type BacktestEffects assets c s r =
     ( Market assets
     : Input (Portfolio assets)
     : Input (Prices assets)

@@ -86,6 +86,7 @@ default-extensions:
 - BlockArguments
 - DataKinds
 - FlexibleContexts
+- GADTs
 - LambdaCase
 - RankNTypes
 - ScopedTypeVariables

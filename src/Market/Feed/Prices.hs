@@ -1,5 +1,3 @@
-{-# LANGUAGE GADTs #-}
-
 module Market.Feed.Prices where
 
 import Control.Monad

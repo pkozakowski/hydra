@@ -1,5 +1,4 @@
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE PolyKinds #-}
 
 module Market.Ops where
 
@@ -16,21 +15,21 @@ import Numeric.Kappa
 import Numeric.Normalizable
 import Prelude hiding ((+), (-), negate, pi)
 
-data ShareTransfer (assets :: [Symbol])
+data ShareTransfer assets
     = ShareTransfer
         { from :: LabelIn assets
         , to :: LabelIn assets
         , share :: Share
         } deriving Show
 
-data BalancingState (assets :: [Symbol])
+data BalancingState assets
     = BalancingState
         { diff :: DistributionDelta assets
         , transfers :: [ShareTransfer assets]
         } deriving Show
 
 balancingTransfers
-    :: forall (assets :: [Symbol])
+    :: forall assets
      . Labels assets
     => Scalar
     -> Distribution assets
