@@ -1,4 +1,4 @@
-module Market.Feed.Prices where
+module Market.Feed.Price where
 
 import Control.Monad
 import Data.List.NonEmpty (NonEmpty(..), nonEmpty)
@@ -13,17 +13,17 @@ import Numeric.Precision
 import Polysemy
 import Polysemy.Error
 
-runPricesFeed
+runPriceFeed
     :: forall assets r b
      . (Labels assets, Member Precision r)
     => (forall a. String -> Sem (Feed PriceVolume : r) a -> Sem r a)
     -> Sem (Feed (Prices assets) : r) b
     -> Sem r b
-runPricesFeed interpreter = interpret \case
+runPriceFeed interpreter = interpret \case
     Between' from to -> do
         assetMaybeSeries :: HomRec assets (Maybe (TimeSeries Price))
             <- fromList Nothing <$> forM (labels @assets) \label -> do
-                prices <- runPriceFeed interpreter (show label)
+                prices <- runPriceFeedForOneToken interpreter (show label)
                         $ between' @Price @(Feed Price : r) from to
                 return (label, prices)
         return
@@ -63,13 +63,13 @@ sweep assetSeries =
                     | t == time -> rest
                     | otherwise -> series
 
-runPriceFeed
+runPriceFeedForOneToken
     :: Member Precision r
     => (forall a. String -> Sem (Feed PriceVolume : r) a -> Sem r a)
     -> String
     -> Sem (Feed Price : r) b
     -> Sem r b
-runPriceFeed interpreter token = interpret \case
+runPriceFeedForOneToken interpreter token = interpret \case
     Between' from to
         -> interpreter token (between' @PriceVolume from to) >>= \case
             Nothing

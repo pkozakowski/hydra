@@ -1,7 +1,7 @@
 module Market.Notebook
     ( module Evaluation
     , evaluate
-    , runPricesFeed
+    , runPriceFeed
     ) where
 
 import Data.Composition
@@ -18,29 +18,26 @@ import Market.Feed.PancakeSwap
 import Market.Internal.IO
 import Market.Time
 import Market.Types
-import qualified Market.Feed.Prices as Prices
+import qualified Market.Feed.Price as PriceFeed
 import Numeric.Precision
 import Polysemy
 
-runPricesFeed
+runPriceFeed
     :: forall assets res
      . (Labels assets, HasResolution res)
     => res
     -> UTCTime
     -> UTCTime
     -> IO (Maybe (TimeSeries (Prices assets)))
-runPricesFeed res from to
-    = fmap (fmap forceSeries)
-    $ semToIO
+runPriceFeed res from to
+    = semToIO
     $ runPrecision res
     $ runTimeIO
-    $ Prices.runPricesFeed @assets runPriceVolumeFeed
+    $ PriceFeed.runPriceFeed @assets runPriceVolumeFeed
     $ between from to where
         runPriceVolumeFeed
             = runPriceVolumeFeedWithMongoCache "127.0.0.1"
             $ runPriceVolumeFeedPancakeSwap
-        forceSeries series
-            = NonEmpty.length (unTimeSeries series) `seq` series
 
 evaluate
     :: forall assets c s res r

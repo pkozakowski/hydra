@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f59d59b3cd18e3386ace1685823b6dbb38e08e0645d090f934339e406378360d
+-- hash: 8fedc150b2826034dea616c7df1e49c906dfdd7c704f8a93b724d20caa5e1cf4
 
 name:           hydra
 version:        0.1.0.0
@@ -35,7 +35,7 @@ library
       Market.Feed
       Market.Feed.MongoDB
       Market.Feed.PancakeSwap
-      Market.Feed.Prices
+      Market.Feed.Price
       Market.Feed.TH
       Market.Feed.Types
       Market.Instruments
