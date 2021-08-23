@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -37,7 +38,9 @@ trade
     => LabelIn assets -> LabelIn assets -> OrderAmount -> Sem r ()
 
 newtype IConfig c = IConfig c
+
 newtype IState c = IState c
+    deriving (Truncatable)
 
 type InitEffects assets c =
     [ Input (Prices assets)

@@ -20,6 +20,7 @@ import Market.Types
 import Market.Types.Test
 import Numeric.Algebra hiding ((>))
 import Numeric.Delta
+import Numeric.Precision
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -168,7 +169,12 @@ test_backtest =
                     }
 
         runBacktest priceSeries initPortfolio config
-            = fromRight undefined $ run $ runError $ fmap fst $ runOutputList
+            = fromRight undefined
+            $ run
+            $ runError
+            $ fmap fst
+            $ runOutputList
+            $ runPrecisionExact
             $ backtest priceSeries initPortfolio config
             $ Output.output =<< input @Port
 

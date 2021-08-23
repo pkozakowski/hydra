@@ -43,13 +43,15 @@ runPricesFeed res from to
             = NonEmpty.length (unTimeSeries series) `seq` series
 
 evaluate
-    :: forall assets c s r
+    :: forall assets c s res r
      .  ( Labels assets
         , Instrument assets c s
+        , HasResolution res
         )
-    => TimeSeries (Prices assets)
+    => res
+    -> TimeSeries (Prices assets)
     -> Portfolio assets
     -> c
     -> [Metric]
     -> IO Evaluation
-evaluate = semToIO .:: Evaluation.evaluate
+evaluate res = semToIO . runPrecision res .:: Evaluation.evaluate

@@ -15,6 +15,7 @@ import Market.Time
 import Market.Types
 import Market.Types.Test
 import Numeric.Algebra hiding ((>))
+import Numeric.Precision
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -193,8 +194,12 @@ testInstrumentPropertyContinuous arbitraryConfig name monad
         prop config priceSeries initPortfolio
             = (totalValue initPrices initPortfolio > zero ==>)
             $ conjoin
-            $ fromRight undefined $ run $ runError
-            $ fmap fst $ runOutputList
+            $ fromRight undefined
+            $ run
+            $ runError
+            $ fmap fst
+            $ runOutputList
+            $ runPrecisionExact
             $ backtest' priceSeries initPortfolio config \exec -> do
                 instantProp <- snd <$> runExecuteM monad
                 Output.output instantProp

@@ -1,11 +1,13 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
 
 module Market.Simulation where
 
+import Control.Monad
 import Data.List.NonEmpty
 import Data.Maybe
-import Data.Record.Hom as HR
+import qualified Data.Record.Hom as HR
 import Data.Time
 import Data.Traversable
 import Market as Market
@@ -14,12 +16,14 @@ import Market.Types
 import Numeric.Algebra
 import Numeric.Delta
 import Numeric.Kappa
+import Numeric.Precision
+import Numeric.Truncatable
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal
 import Polysemy.State as State
-import Prelude hiding (negate, pi)
+import Prelude hiding (negate, pi, truncate)
 
 runMarketSimulation
     :: forall assets r a
@@ -49,7 +53,10 @@ type OnStep assets c s r = Sem (BacktestEffects assets c s r) ()
 -- timestep.
 backtest
     :: forall assets c s r
-     . (Instrument assets c s, Member (Error String) r)
+     .  ( HR.Labels assets
+        , Instrument assets c s
+        , Members [Precision, Error String] r
+        )
     => TimeSeries (Prices assets)
     -> Portfolio assets
     -> c
@@ -66,7 +73,10 @@ type OnStep' assets c s r
 -- at each timestep and run arbitrary effects.
 backtest'
     :: forall assets c s r
-     . (Instrument assets c s, Member (Error String) r)
+     .  ( HR.Labels assets
+        , Instrument assets c s
+        , Members [Precision, Error String] r
+        )
     => TimeSeries (Prices assets)
     -> Portfolio assets
     -> c
@@ -79,12 +89,25 @@ backtest' priceSeries initPortfolio config onStep'
     $ forM restOfPrices \(time, prices)
        -> runTimeConst time
         $ runInputConst prices
+        $ (*> truncateState @(Portfolio assets))
+        $ (*> truncateState @(IState s))
         $ subsume @(State (Portfolio assets))
         $ marketInputToState
         $ onStep'
         $ execute @assets @c @s
     where
         TimeSeries ((_, initPrices) :| restOfPrices) = priceSeries
+
+        truncateState
+            :: forall s r
+             .  ( Truncatable s
+                , Members [State s, Precision] r
+                )
+            => Sem r ()
+        truncateState = do
+            state <- get @s
+            state' <- truncate state
+            put state'
 
 marketInputToState
     :: forall assets r a
@@ -126,7 +149,7 @@ marketToState = interpret \case
                     $ fromDelta `pi` fromPrice `kappa'` toPrice
                 toAfter   = fromJust
                     $ HR.getIn to portfolio `sigma` toDelta
-            put $ setIn from fromAfter $ setIn to toAfter portfolio
+            put $ HR.setIn from fromAfter $ HR.setIn to toAfter portfolio
 
 inputToState
     :: forall s r a

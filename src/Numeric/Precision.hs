@@ -13,7 +13,19 @@ data Precision m a where
     Truncate :: Truncatable a => a -> Precision m a
     TruncateReal :: Real a => a -> Precision m (Fraction Integer)
 
-makeSem ''Precision
+makeSem_ ''Precision
+
+truncate
+    :: forall a r
+     . (Truncatable a, Member Precision r)
+    => a
+    -> Sem r a
+
+truncateReal
+    :: forall a r
+     . (Real a, Member Precision r)
+    => a
+    -> Sem r (Fraction Integer)
 
 runPrecision :: HasResolution res => res -> Sem (Precision : r) a -> Sem r a
 runPrecision res = interpret \case

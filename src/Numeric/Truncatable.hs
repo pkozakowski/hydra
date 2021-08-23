@@ -1,9 +1,11 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE PolyKinds #-}
 
 module Numeric.Truncatable where
 
 import Data.Fixed
+import Data.Proxy
 import qualified Data.Ratio as Ratio
 import Numeric.Field.Fraction
 
@@ -30,3 +32,7 @@ realToFraction = ratioToFraction . toRational
 
 ratioToFraction :: Ratio.Ratio Integer -> Fraction Integer
 ratioToFraction = (%) <$> Ratio.numerator <*> Ratio.denominator
+
+instance HasResolution r => HasResolution (Proxy r) where
+    resolution :: p (Proxy r) -> Integer
+    resolution _ = resolution $ Proxy @r

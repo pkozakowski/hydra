@@ -17,6 +17,7 @@ import Market.Simulation
 import Market.Types
 import Market.Types.Test
 import Numeric.Algebra hiding ((>), (+), (-), (/))
+import Numeric.Precision
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -81,8 +82,12 @@ test_Balance_Hold =
                     | rest == [] = beginTime
                     | otherwise  = fst $ last rest
                 portfolios
-                    = either error id $ run $ runError
-                    $ fmap fst $ runOutputList
+                    = either error id
+                    $ run
+                    $ runError
+                    $ fmap fst
+                    $ runOutputList
+                    $ runPrecisionExact
                     $ backtest priceSeries initPortfolio config do
                         portfolio <- input @(Portfolio ThreeLabels)
                         Output.output portfolio

@@ -22,11 +22,14 @@ import Market.Simulation
 import Market.Time
 import Market.Types
 import Numeric.Field.Fraction
+import Numeric.Precision
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Output
 import Polysemy.State
+
+import Debug.Trace
 
 newtype MetricName = MetricName String
     deriving (Hashable, Eq, Ord, Semigroup)
@@ -127,7 +130,7 @@ evaluate
     :: forall assets c s r
      .  ( HomRec.Labels assets
         , Instrument assets c s
-        , Member (Error String) r
+        , Members [Precision, Error String] r
         )
     => TimeSeries (Prices assets)
     -> Portfolio assets
@@ -182,8 +185,9 @@ evaluate priceSeries initPortfolio config metrics = do
         calculateMetrics valueSeries = Map.fromList $ kv <$> metrics where
             kv metric =
                 ( name metric
-                , calculate metric $ toDouble <$> valueSeries
+                , calculate metric $ toDouble <$> traceSize valueSeries
                 ) where
                     toDouble (Value x)
                         = fromRational $ numerator x Ratio.% denominator x
                     unValue (Value x) = x
+                    traceSize series = trace ("maximum size: " ++ show (maximum (denominator . unValue <$> series))) series
