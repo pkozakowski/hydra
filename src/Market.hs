@@ -29,21 +29,23 @@ data Market assets m a where
     Trade :: LabelIn assets -> LabelIn assets -> OrderAmount
           -> Market assets m ()
 
+makeSem_ ''Market
+
 trade
     :: forall assets r
     .  (Member (Market assets) r)
     => LabelIn assets -> LabelIn assets -> OrderAmount -> Sem r ()
-trade from to amount
-    = send (Trade from to amount :: Market assets (Sem r) ()) where
 
 newtype IConfig c = IConfig c
 newtype IState c = IState c
 
-type InstrumentInitEffects assets c
-    = '[Input (Prices assets), Input (IConfig c)]
+type InitEffects assets c =
+    [ Input (Prices assets)
+    , Input (IConfig c)
+    ]
 
-type InstrumentEffects assets c s =
-   '[ Market assets
+type ExecuteEffects assets c s =
+    [ Market assets
     , Time
     , Input (Prices assets)
     , Input (Portfolio assets)
@@ -53,12 +55,15 @@ type InstrumentEffects assets c s =
     ]
 
 type AggregateVisitor self agg
-    = forall sis. self -> HomRec sis agg -> agg
+    = forall sis
+    . self -> HomRec sis agg -> agg
 
 type SelfVisitor assets self
      = forall c' s'
      . Instrument assets c' s'
-    => c' -> s' -> Portfolio assets -> self
+    => Prices assets
+    -> Portfolio assets
+    -> c' -> s' -> self
 
 type Visitor assets self agg
      = AggregateVisitor self agg
@@ -67,29 +72,35 @@ type Visitor assets self agg
 
 class Truncatable s => Instrument assets c s | s -> c, c -> s where
 
-    initState :: Members (InstrumentInitEffects assets c) r => Sem r s
+    initState :: Members (InitEffects assets c) r => Sem r s
 
     initAllocation
-        :: Members (InstrumentInitEffects assets c) r
+        :: Members (InitEffects assets c) r
         => Sem r (Distribution assets)
 
     execute
-        :: Members (InstrumentEffects assets c s) r
+        :: Members (ExecuteEffects assets c s) r
         => Sem r ()
 
-    visit :: c -> s -> Portfolio assets -> Visitor assets self agg
+    visit
+        :: Prices assets
+        -> Portfolio assets
+        -> c
+        -> s
+        -> Visitor assets self agg
 
 visit'
     :: forall assets self agg c s
      . Instrument assets c s
     => AggregateVisitor self agg
     -> SelfVisitor assets self
+    -> Prices assets
+    -> Portfolio assets
     -> c
     -> s
-    -> Portfolio assets
     -> agg
-visit' visitAgg visitSelf config state portfolio
-    = visit @assets config state portfolio visitAgg visitSelf
+visit' visitAgg visitSelf prices portfolio config state
+    = visit @assets prices portfolio config state visitAgg visitSelf
 
 runInstrument
     :: forall assets c s r a
@@ -118,13 +129,17 @@ data SomeInstrumentState assets = SomeInstrumentState
     { someExecute
         :: forall r
         .  Members
-            ( InstrumentEffects
+            ( ExecuteEffects
                 assets
                 (SomeInstrumentConfig assets)
                 (SomeInstrumentState assets)
             ) r
         => Sem r ()
-    , someVisit :: forall self agg. Portfolio assets -> Visitor assets self agg
+    , someVisit
+        :: forall self agg
+         . Prices assets
+        -> Portfolio assets
+        -> Visitor assets self agg
     , someTruncateTo
         :: forall res
          . HasResolution res
@@ -156,7 +171,7 @@ instance
         IState state <- State.get @(IState (SomeInstrumentState assets))
         someExecute state
 
-    visit _ = someVisit
+    visit prices portfolio _ state = someVisit state prices portfolio
 
 instance Show (SomeInstrumentConfig assets) where
     show = someShow
@@ -183,7 +198,7 @@ someInstrumentState config state = SomeInstrumentState exec vis trunc where
     exec
         :: forall r
         .  Members
-            ( InstrumentEffects
+            ( ExecuteEffects
                 assets
                 (SomeInstrumentConfig assets)
                 (SomeInstrumentState assets)
@@ -197,8 +212,8 @@ someInstrumentState config state = SomeInstrumentState exec vis trunc where
         put @(IState (SomeInstrumentState assets))
             $ IState $ someInstrumentState config state'
 
-    vis :: Portfolio assets -> Visitor assets self agg
-    vis = visit config state
+    vis :: Prices assets -> Portfolio assets -> Visitor assets self agg
+    vis prices portfolio = visit prices portfolio config state
 
     trunc :: forall res. HasResolution res => res -> SomeInstrumentState assets
     trunc res = someInstrumentState config $ truncateTo res state

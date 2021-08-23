@@ -57,7 +57,7 @@ idempotence
     :: forall assets c s r
      . ( Labels assets
        , Instrument assets c s
-       , Members (InstrumentEffects assets c s) r
+       , Members (ExecuteEffects assets c s) r
        )
     => Sem r Property
 idempotence = whenNotBroke do
@@ -85,7 +85,7 @@ efficiency
     :: forall assets c s r
      . ( Labels assets
        , Instrument assets c s
-       , Members (InstrumentEffects assets c s) r
+       , Members (ExecuteEffects assets c s) r
        )
     => Sem r Property
 efficiency = whenNotBroke $ runEfficiencyTestM execute where
@@ -137,7 +137,7 @@ allocationAgreement
     :: forall assets c s r
      . ( Labels assets
        , Instrument assets c s
-       , Members (InstrumentEffects assets c s) r
+       , Members (ExecuteEffects assets c s) r
        )
     => Sem r Property
 allocationAgreement = whenNotBroke do
@@ -149,7 +149,7 @@ allocationAgreement = whenNotBroke do
 
 whenNotBroke
     :: forall assets c s r
-     . (Labels assets, Members (InstrumentEffects assets c s) r)
+     . (Labels assets, Members (ExecuteEffects assets c s) r)
     => Sem r Property
     -> Sem r Property
 whenNotBroke monad = do
@@ -162,7 +162,7 @@ whenNotBroke monad = do
 
 runInit
     :: Instrument assets c s
-    => Prices assets -> c -> Sem (InstrumentInitEffects assets c) a -> a
+    => Prices assets -> c -> Sem (InitEffects assets c) a -> a
 runInit prices config
     = run . runInputConst (IConfig config) . runInputConst prices
 
@@ -228,7 +228,7 @@ runExecute config state time prices portfolio
 
 runExecuteM
     :: forall assets c s a r
-     . (Instrument assets c s, Members (InstrumentEffects assets c s) r)
+     . (Instrument assets c s, Members (ExecuteEffects assets c s) r)
     => Sem (RunExecuteEffects assets c s) a
     -> Sem r (Portfolio assets, a)
 runExecuteM monad = do

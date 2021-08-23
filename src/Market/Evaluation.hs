@@ -145,8 +145,8 @@ evaluate priceSeries initPortfolio config metrics = do
             IState state <- get @(IState s)
             time <- now
             modify @(InstrumentTree [TimeStep Value])
-                $ visit config state portfolio visitAgg
-                $ visitSelf time prices 
+                $ visit prices portfolio config state visitAgg
+                $ visitSelf time
 
     case maybeValueTree of
         Just valueTree
@@ -175,9 +175,8 @@ evaluate priceSeries initPortfolio config metrics = do
 
         visitSelf
             :: UTCTime
-            -> Prices assets
             -> SelfVisitor assets (TimeStep Value)
-        visitSelf time prices _ _ portfolio
+        visitSelf time prices portfolio _ _
             = (time, totalValue prices portfolio)
 
         calculateMetrics valueSeries = Map.fromList $ kv <$> metrics where

@@ -49,8 +49,8 @@ instance (Has held assets, KnownSymbol held, Labels assets)
         portfolio <- input @(Portfolio assets)
         allocationToTrades zero prices portfolio $ onePoint $ labelIn @held
 
-    visit config state portfolio visitAgg visitSelf
-        = visitAgg (visitSelf config state portfolio) Empty
+    visit prices portfolio config state visitAgg visitSelf
+        = visitAgg (visitSelf prices portfolio config state) Empty
 
 data BalanceConfig assets sis = BalanceConfig
     { configs :: HomRec sis (SomeInstrumentConfig assets)
@@ -62,7 +62,6 @@ data BalanceConfig assets sis = BalanceConfig
 data BalanceState assets sis = BalanceState
     { states :: HomRec sis (SomeInstrumentState assets)
     , allocations :: HomRec sis (Distribution assets)
-    , portfolios :: HomRec sis (Portfolio assets)
     , lastUpdateTime :: UTCTime
     }
 
@@ -92,7 +91,6 @@ instance (Labels assets, Labels sis)
         = BalanceState
             <$> truncateTo res . states
             <*> truncateTo res . allocations
-            <*> truncateTo res . portfolios
             <*> lastUpdateTime
 
 instance (Labels assets, Labels sis)
@@ -111,7 +109,6 @@ instance (Labels assets, Labels sis)
         return BalanceState
             { states = states
             , allocations = allocations
-            , portfolios = pure $ Portfolio $ pure zero
             , lastUpdateTime = UTCTime (ModifiedJulianDay 0) 0
             }
 
@@ -124,7 +121,7 @@ instance (Labels assets, Labels sis)
     execute
         :: forall r
          . Members
-            ( InstrumentEffects
+            ( ExecuteEffects
                 assets
                 (BalanceConfig assets sis)
                 (BalanceState assets sis)
@@ -141,13 +138,7 @@ instance (Labels assets, Labels sis)
         when (shouldUpdate prices portfolio time config state) do
             -- 1. Compute the ideal per-instrument portfolios according to the
             -- value allocations.
-            let Distribution targetShares = target config
-                Values targetValues
-                    = totalValue prices portfolio `unnormalize` target config
-                portfolios
-                    = idealPortfolio prices
-                        <$> targetValues
-                        <*> allocations state
+            let portfolios = distributePortfolio config state prices portfolio
             -- 2. Execute the per-instrument trades in simulated markets to get
             -- new portfolios.
             let exec = execute
@@ -176,7 +167,6 @@ instance (Labels assets, Labels sis)
             put $ IState $ BalanceState
                 { states = states'
                 , allocations = allocations'
-                , portfolios = portfolios'
                 , lastUpdateTime = time
                 }
             where
@@ -184,9 +174,6 @@ instance (Labels assets, Labels sis)
                     =   totalValue prices portfolio > zero
                     &&  diff > updateEvery config where
                         diff = time `diffUTCTime` lastUpdateTime state
-
-                idealPortfolio prices value allocation
-                    = fromJust $ value `unnormalize` allocation `kappa'` prices
 
                 valueAlloc
                     :: HasCallStack
@@ -198,16 +185,32 @@ instance (Labels assets, Labels sis)
 
     visit
         :: forall self agg
-         . BalanceConfig assets sis
-        -> BalanceState assets sis
+         . Prices assets
         -> Portfolio assets
+        -> BalanceConfig assets sis
+        -> BalanceState assets sis
         -> Visitor assets self agg
-    visit config state portfolio visitAgg visitSelf
-        = visitAgg (visitSelf config state portfolio)
-        $ visit' @assets visitAgg visitSelf
-            <$> configs config
+    visit prices portfolio config state visitAgg visitSelf
+        = visitAgg (visitSelf prices portfolio config state)
+        $ visit' @assets visitAgg visitSelf prices
+            <$> distributePortfolio config state prices portfolio
+            <*> configs config
             <*> states state
-            <*> portfolios state
+
+distributePortfolio
+    :: (Labels assets, Labels sis)
+    => BalanceConfig assets sis
+    -> BalanceState assets sis
+    -> Prices assets
+    -> Portfolio assets
+    -> HomRec sis (Portfolio assets)
+distributePortfolio config state prices portfolio
+    = idealPortfolio prices <$> targetValues <*> allocations state where
+        idealPortfolio prices value allocation
+            = fromJust $ value `unnormalize` allocation `kappa'` prices
+        Distribution targetShares = target config
+        Values targetValues
+            = totalValue prices portfolio `unnormalize` target config
 
 allocationToTrades
     :: (Labels assets, Member (Market assets) r)
