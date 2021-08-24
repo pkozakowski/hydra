@@ -8,9 +8,13 @@ import Numeric.Field.Fraction
 import Numeric.Truncatable
 import Polysemy
 
+data Truncator = Truncator
+    { runTruncator :: forall a. Truncatable a => a -> a
+    , runTruncatorReal :: forall a. Real a => a -> Fraction Integer
+    }
+
 data Precision m a where
-    Truncate :: Truncatable a => a -> Precision m a
-    TruncateReal :: Real a => a -> Precision m (Fraction Integer)
+    GetTruncator  :: Precision m Truncator
 
 makeSem_ ''Precision
 
@@ -19,19 +23,31 @@ truncate
      . (Truncatable a, Member Precision r)
     => a
     -> Sem r a
+truncate x = do
+    truncator <- getTruncator
+    return $ runTruncator truncator x
 
 truncateReal
     :: forall a r
      . (Real a, Member Precision r)
     => a
     -> Sem r (Fraction Integer)
+truncateReal x = do
+    truncator <- getTruncator
+    return $ runTruncatorReal truncator x
+
+getTruncator :: Member Precision r => Sem r Truncator
 
 runPrecision :: HasResolution res => res -> Sem (Precision : r) a -> Sem r a
 runPrecision res = interpret \case
-    Truncate x -> return $ truncateTo res x
-    TruncateReal x -> return $ truncateTo res $ realToFraction x
+    GetTruncator -> return Truncator
+        { runTruncator = truncateTo res
+        , runTruncatorReal = truncateTo res . realToFraction
+        }
 
 runPrecisionExact :: Sem (Precision : r) a -> Sem r a
 runPrecisionExact = interpret \case
-    Truncate x -> return x
-    TruncateReal x -> return $ realToFraction x
+    GetTruncator -> return Truncator
+        { runTruncator = id
+        , runTruncatorReal = realToFraction
+        }

@@ -48,6 +48,7 @@ dependencies:
 - bson
 - composition
 - approx
+- retry
 
 library:
   source-dirs: src

@@ -10,6 +10,7 @@ import Market.Feed
 import Market.Feed.Types
 import Numeric.Field.Fraction
 import Numeric.Precision
+import Numeric.Truncatable
 import Polysemy
 import Polysemy.Error
 
@@ -72,7 +73,11 @@ runPriceFeedForOneToken
 runPriceFeedForOneToken interpreter token = interpret \case
     Between' from to
         -> interpreter token (between' @PriceVolume from to) >>= \case
-            Nothing
-                -> return Nothing
-            Just series
-                -> Just <$> mapM (fmap Price . truncateReal . price) series
+            Nothing -> return Nothing
+            Just series -> do
+                -- Truncate non-monadically to preserve laziness in IO contexts.
+                trunc <- getTruncator
+                return
+                    $ Just
+                    $ fmap (Price . runTruncatorReal trunc . price)
+                    $ series

@@ -14,8 +14,10 @@ module Market.Feed.PancakeSwap where
 import Control.Exception
 import Control.Logging
 import Control.Monad
-import Data.Aeson.Types as AesonTypes
+import Control.Retry
+import Data.Aeson.Types as AesonTypes hiding ((.:))
 import Data.ByteString.Lazy (ByteString)
+import Data.Composition
 import Data.Either
 import Data.Function
 import Data.Hashable
@@ -306,9 +308,18 @@ cachedFetchBeginTime
     $ \(_, pairID) -> "begin time for pair " <> pack (show pairID)
 
 resolver :: Url a -> ByteString -> IO ByteString
-resolver url body = runReq defaultHttpConfig do
-    let headers = header "Content-Type" "application/json"
-    responseBody <$> req POST url (ReqBodyLbs body) lbsResponse headers
+resolver url body
+    = recovering retryPolicy [retryHandler]
+    $ const
+    $ runReq defaultHttpConfig do
+        let headers = header "Content-Type" "application/json"
+        responseBody <$> req POST url (ReqBodyLbs body) lbsResponse headers
+    where
+        -- Retry with exponential backoff starting from 100ms.
+        retryPolicy = exponentialBackoff 100000
+        retryHandler
+            = logRetries (\(e :: HttpException) -> return True)
+            $ warn . pack .:. defaultLogMsg
 
 runPriceVolumeFeedPancakeSwap
     :: Members [Error String, Embed IO] r

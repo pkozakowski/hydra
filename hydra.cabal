@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8fedc150b2826034dea616c7df1e49c906dfdd7c704f8a93b724d20caa5e1cf4
+-- hash: 66517fef9071134397ad8a437d2c244abb911cce7017bbd6f6840222ce9a60ff
 
 name:           hydra
 version:        0.1.0.0
@@ -87,6 +87,7 @@ library
     , quickcheck-classes
     , quickcheck-instances
     , req
+    , retry
     , tasty
     , tasty-quickcheck
     , tasty-th
@@ -136,6 +137,7 @@ executable hydra-exe
     , quickcheck-classes
     , quickcheck-instances
     , req
+    , retry
     , tasty
     , tasty-quickcheck
     , tasty-th
@@ -199,6 +201,7 @@ test-suite hydra-test
     , quickcheck-classes
     , quickcheck-instances
     , req
+    , retry
     , tasty
     , tasty-quickcheck
     , tasty-th
