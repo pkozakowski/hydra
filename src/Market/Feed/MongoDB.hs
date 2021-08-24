@@ -203,3 +203,34 @@ runPriceVolumeFeedWithMongoCache hostName interpreter token = interpret \case
                             -> return Nothing
                         Just (TimeSeries ((beginTime, _) :| _))
                             -> return $ Just beginTime
+
+cacheCoverage
+    :: Members [Error String, Embed IO] r
+    => String
+    -> String
+    -> Sem r (Maybe (UTCTime, UTCTime))
+cacheCoverage hostName token = ioToSem $ withStderrLogging do
+    maybeFirstHour <- mongo hostName $ findOne query
+    case maybeFirstHour of
+        Nothing -> return Nothing
+        Just firstHour -> do
+            hourstamps <- getHourstampsSince $ hourstamp firstHour
+            return
+                $ Just
+                ( hourstampToTime $ hourstamp firstHour
+                , hourstampToTime $ last hourstamps + 1
+                )
+    where
+        selection = select [ "token" =: token ] priceVolumeCollection
+        query = selection
+            { sort = [ "hourstamp" =: (1 :: Int) ]
+            , project = [ "hourstamp" =: (1 :: Int) ]
+            }
+        getHourstampsSince hourstamp = do
+            getCachedHourBSON hostName token hourstamp >>= \case
+                Nothing -> return []
+                Just _ -> do
+                    rest <- getHourstampsSince $ hourstamp + 1
+                    return $ hourstamp : rest
+        hourstamp = fromInt32 . valueAt "hourstamp"
+        fromInt32 (Int32 x) = fromIntegral x
