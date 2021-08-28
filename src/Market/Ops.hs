@@ -1,19 +1,27 @@
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE TupleSections #-}
 
 module Market.Ops where
 
+import Control.Exception
+import Control.Monad
+import Data.Composition hiding ((.*))
 import Data.Constraint
 import Data.Function
+import Data.List.NonEmpty (nonEmpty)
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.Maybe
 import Data.Proxy
 import Data.Record.Hom
+import Data.Time.Clock
 import GHC.TypeLits
 import Market.Types
-import Numeric.Algebra hiding ((<))
+import Numeric.Algebra hiding ((<), (>))
 import Numeric.Delta
 import Numeric.Kappa
 import Numeric.Normalizable
 import Prelude hiding ((+), (-), negate, pi)
+import qualified Prelude
 
 data ShareTransfer assets
     = ShareTransfer
@@ -114,3 +122,56 @@ valueAllocation
     :: Labels assets
     => Prices assets -> Portfolio assets -> Maybe (Distribution assets)
 valueAllocation prices portfolio = normalize $ portfolio `pi` prices
+
+windows
+    :: NominalDiffTime
+    -> NominalDiffTime
+    -> TimeSeries a
+    -> TimeSeries (Maybe (TimeSeries a))
+windows length stride (TimeSeries txs)
+    = assert (stride > 1)
+    $ fmap (fmap TimeSeries)
+    $ TimeSeries
+    $ NonEmpty.unfoldr nextWindow (begin, txs) where
+        begin = fst $ NonEmpty.head txs
+        end   = fst $ NonEmpty.last txs
+        nextWindow (from, txs')
+            = ((to, maybeWindow), (from',) <$> maybeRest) where
+                to = length `addUTCTime` from
+                from' = stride `addUTCTime` from
+                maybeWindow = nonEmpty $ NonEmpty.takeWhile (within length) txs'
+                maybeRest = do
+                    rest <- nonEmpty $ NonEmpty.dropWhile (within stride) txs'
+                    let reachedTheEnd = maybe False id do
+                            window <- maybeWindow
+                            return $ fst (NonEmpty.last window) == end
+                    guard $ not reachedTheEnd
+                    return rest
+                within interval (time, _) = time `diffUTCTime` from < interval
+
+windowsE
+    :: NominalDiffTime
+    -> NominalDiffTime
+    -> TimeSeries a
+    -> Either String (TimeSeries (TimeSeries a))
+windowsE length = sequence . mapWithTime throwOnNothing .: windows length where
+    mapWithTime f = TimeSeries . fmap f . unTimeSeries
+    throwOnNothing (time, maybeWindow)
+        = (time, maybe (Left error) Right maybeWindow) where
+            error
+                = "empty window "
+               ++ show (Prelude.negate length `addUTCTime` time)
+               ++ " .. "
+               ++ show time
+
+intervals
+    :: NominalDiffTime
+    -> TimeSeries a
+    -> TimeSeries (Maybe (TimeSeries a))
+intervals length = windows length length
+
+intervalsE
+    :: NominalDiffTime
+    -> TimeSeries a
+    -> Either String (TimeSeries (TimeSeries a))
+intervalsE length = windowsE length length

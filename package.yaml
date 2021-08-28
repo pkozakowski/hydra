@@ -49,6 +49,7 @@ dependencies:
 - composition
 - approx
 - retry
+- pretty-simple
 
 library:
   source-dirs: src
@@ -76,7 +77,6 @@ tests:
     - -fplugin=Polysemy.Plugin
     - -flate-specialise
     - -fspecialise-aggressively
-    - -fno-ignore-asserts
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N

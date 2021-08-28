@@ -28,7 +28,7 @@ runPriceFeed
     => res
     -> UTCTime
     -> UTCTime
-    -> IO (Maybe (TimeSeries (Prices assets)))
+    -> IO (TimeSeries (Prices assets))
 runPriceFeed res from to
     = semToIO
     $ runPrecision res
@@ -46,9 +46,9 @@ evaluate
         , HasResolution res
         )
     => res
+    -> [Metric]
     -> TimeSeries (Prices assets)
     -> Portfolio assets
     -> c
-    -> [Metric]
     -> IO Evaluation
 evaluate res = semToIO . runPrecision res .:: Evaluation.evaluate

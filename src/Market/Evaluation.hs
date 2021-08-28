@@ -28,8 +28,6 @@ import Polysemy.Input
 import Polysemy.Output
 import Polysemy.State
 
-import Debug.Trace
-
 newtype MetricName = MetricName String
     deriving (Hashable, Eq, Ord, Semigroup)
 
@@ -98,16 +96,7 @@ integrateByPeriod
     -> TimeSeries Double
     -> Maybe (TimeSeries Double)
 integrateByPeriod periodLength
-    = seriesFromList
-    . fmap integrateGroup
-    . NonEmpty.groupWith (periodIndex . fst)
-    . unTimeSeries where
-        integrateGroup txs = (beginTime, integrate $ TimeSeries txs) where
-            beginTime
-                = posixSecondsToUTCTime
-                $ fromInteger (periodIndex headTime) * periodLength where
-                    headTime = fst $ NonEmpty.head txs
-        periodIndex t = floor $ utcTimeToPOSIXSeconds t / periodLength
+    = sequence . fmap (fmap integrate) . intervals periodLength
 
 periodically :: MetricName -> NominalDiffTime -> Metric -> Metric
 periodically prefix periodLength (Metric name calculate)
@@ -131,12 +120,12 @@ evaluate
         , Instrument assets c s
         , Members [Precision, Error String] r
         )
-    => TimeSeries (Prices assets)
+    => [Metric]
+    -> TimeSeries (Prices assets)
     -> Portfolio assets
     -> c
-    -> [Metric]
     -> Sem r Evaluation
-evaluate priceSeries initPortfolio config metrics = do
+evaluate metrics priceSeries initPortfolio config = do
     maybeValueTree
        <- fmap sequence
         $ fmap (fmap $ seriesFromList . reverse)
@@ -184,9 +173,7 @@ evaluate priceSeries initPortfolio config metrics = do
         calculateMetrics valueSeries = Map.fromList $ kv <$> metrics where
             kv metric =
                 ( name metric
-                , calculate metric $ toDouble <$> traceSize valueSeries
+                , calculate metric $ toDouble <$> valueSeries
                 ) where
                     toDouble (Value x)
                         = fromRational $ numerator x Ratio.% denominator x
-                    unValue (Value x) = x
-                    traceSize series = trace ("maximum size: " ++ show (maximum (denominator . unValue <$> series))) series

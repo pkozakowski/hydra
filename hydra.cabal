@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 66517fef9071134397ad8a437d2c244abb911cce7017bbd6f6840222ce9a60ff
+-- hash: b01e93ccc71bb30c5c42b9050224217e121c97b235acfc1ace377e3fe9481a71
 
 name:           hydra
 version:        0.1.0.0
@@ -84,6 +84,7 @@ library
     , morpheus-graphql-client
     , polysemy
     , polysemy-plugin
+    , pretty-simple
     , quickcheck-classes
     , quickcheck-instances
     , req
@@ -134,6 +135,7 @@ executable hydra-exe
     , morpheus-graphql-client
     , polysemy
     , polysemy-plugin
+    , pretty-simple
     , quickcheck-classes
     , quickcheck-instances
     , req
@@ -163,6 +165,7 @@ test-suite hydra-test
       Spec.Market.Ops
       Spec.Market.Simulation
       Spec.Market.Types
+      Test.QuickCheck.Pretty
       Test.Tasty.QuickCheck.Laws
       Paths_hydra
   hs-source-dirs:
@@ -177,7 +180,7 @@ test-suite hydra-test
       ScopedTypeVariables
       TypeApplications
       TypeOperators
-  ghc-options: -fplugin=Polysemy.Plugin -flate-specialise -fspecialise-aggressively -fno-ignore-asserts -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -fplugin=Polysemy.Plugin -flate-specialise -fspecialise-aggressively -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       AesonBson
     , QuickCheck
@@ -198,6 +201,7 @@ test-suite hydra-test
     , morpheus-graphql-client
     , polysemy
     , polysemy-plugin
+    , pretty-simple
     , quickcheck-classes
     , quickcheck-instances
     , req
