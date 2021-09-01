@@ -50,6 +50,7 @@ dependencies:
 - approx
 - retry
 - pretty-simple
+- containers
 
 library:
   source-dirs: src

@@ -153,8 +153,8 @@ windowsE
     :: NominalDiffTime
     -> NominalDiffTime
     -> TimeSeries a
-    -> Either String (TimeSeries (TimeSeries a))
-windowsE length = sequence . mapWithTime throwOnNothing .: windows length where
+    -> TimeSeries (Either String (TimeSeries a))
+windowsE length = mapWithTime throwOnNothing .: windows length where
     mapWithTime f = TimeSeries . fmap f . unTimeSeries
     throwOnNothing (time, maybeWindow)
         = (time, maybe (Left error) Right maybeWindow) where
@@ -173,5 +173,5 @@ intervals length = windows length length
 intervalsE
     :: NominalDiffTime
     -> TimeSeries a
-    -> Either String (TimeSeries (TimeSeries a))
+    -> TimeSeries (Either String (TimeSeries a))
 intervalsE length = windowsE length length

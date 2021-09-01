@@ -12,7 +12,7 @@ module Market.Types where
 
 import Control.Exception
 import Data.Coerce
-import Data.List.NonEmpty
+import Data.List.NonEmpty as NonEmpty
 import Data.Proxy
 import Data.Record.Hom (HomRec(..), Labels, (:=) (..))
 import qualified Data.Record.Hom as HR
@@ -155,3 +155,6 @@ newtype TimeSeries a = TimeSeries { unTimeSeries :: NonEmpty (TimeStep a) }
 
 seriesFromList :: [TimeStep a] -> Maybe (TimeSeries a)
 seriesFromList = fmap TimeSeries . nonEmpty
+
+seriesToList :: TimeSeries a -> [TimeStep a]
+seriesToList = NonEmpty.toList . unTimeSeries

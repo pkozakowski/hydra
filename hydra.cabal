@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b01e93ccc71bb30c5c42b9050224217e121c97b235acfc1ace377e3fe9481a71
+-- hash: 52b237563432335970d94f2d7cb97f41157c0db26983146132134973c9469450
 
 name:           hydra
 version:        0.1.0.0
@@ -76,6 +76,7 @@ library
     , bytestring
     , composition
     , constraints
+    , containers
     , hashable
     , hashmap
     , lazyio
@@ -126,6 +127,7 @@ executable hydra-exe
     , bytestring
     , composition
     , constraints
+    , containers
     , hashable
     , hashmap
     , hydra
@@ -192,6 +194,7 @@ test-suite hydra-test
     , bytestring
     , composition
     , constraints
+    , containers
     , hashable
     , hashmap
     , hydra
