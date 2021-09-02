@@ -129,7 +129,8 @@ windows
     -> TimeSeries a
     -> TimeSeries (Maybe (TimeSeries a))
 windows length stride (TimeSeries txs)
-    = assert (stride > 1)
+    = assert (stride > 0)
+    $ assert (length >= stride)
     $ fmap (fmap TimeSeries)
     $ TimeSeries
     $ NonEmpty.unfoldr nextWindow (begin, txs) where

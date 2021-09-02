@@ -50,11 +50,12 @@ evaluate
         )
     => res
     -> [Metric]
+    -> NominalDiffTime
     -> TimeSeries (Prices assets)
     -> Portfolio assets
     -> c
     -> IO Evaluation
-evaluate res = semToIO . runPrecision res .:: Evaluation.evaluate
+evaluate res = semToIO . runPrecision res .::. Evaluation.evaluate
 
 evaluateOnWindows
     :: forall assets c s res r
@@ -66,9 +67,10 @@ evaluateOnWindows
     -> [Metric]
     -> NominalDiffTime
     -> NominalDiffTime
+    -> NominalDiffTime
     -> TimeSeries (Prices assets)
     -> Portfolio assets
     -> c
     -> IO EvaluationOnWindows
 evaluateOnWindows res
-    = semToIO . runPrecision res .::: Evaluation.evaluateOnWindows
+    = semToIO . runPrecision res .:::. Evaluation.evaluateOnWindows

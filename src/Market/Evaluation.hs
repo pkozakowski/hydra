@@ -52,7 +52,7 @@ calculateMetric
     -> TimeSeries (PricesPortfolio assets)
     -> Maybe Double
 calculateMetric metric series = do
-    downsampled <- downsample (period metric) series
+    let downsampled = downsample (period metric) series
     valuePoints <- convolve step downsampled
     calculate metric valuePoints
     where
@@ -130,9 +130,15 @@ integrateByPeriod periodLength
 downsample
     :: NominalDiffTime
     -> TimeSeries a
-    -> Maybe (TimeSeries a)
+    -> TimeSeries a
 downsample periodLength
-    = sequence . fmap (fmap lastInSeries) . intervals periodLength where
+    = fromJust
+    . catMaybes'
+    . fmap (fmap lastInSeries)
+    . intervals periodLength where
+        catMaybes'
+            = seriesFromList . catMaybes . fmap engulf . seriesToList where
+                engulf (t, mx) = (t,) <$> mx
         lastInSeries (TimeSeries txs) = snd $ NonEmpty.last txs
 
 periodically
@@ -160,16 +166,19 @@ evaluate
         , Members [Precision, Error String] r
         )
     => [Metric]
+    -> NominalDiffTime
     -> TimeSeries (Prices assets)
     -> Portfolio assets
     -> c
     -> Sem r Evaluation
-evaluate metrics priceSeries initPortfolio config = do
+evaluate metrics samplePeriod priceSeries initPortfolio config = do
+    let priceSeries' = downsample samplePeriod priceSeries
+
     maybeTree :: Maybe (InstrumentTree (TimeSeries (PricesPortfolio assets)))
        <- fmap sequence
         $ fmap (fmap $ seriesFromList . reverse)
         $ execState emptyTree
-        $ backtest priceSeries initPortfolio config do
+        $ backtest priceSeries' initPortfolio config do
             prices <- input @(Prices assets)
             portfolio <- get @(Portfolio assets)
             IState state <- get @(IState s)
@@ -224,44 +233,48 @@ evaluateOnWindows
     => [Metric]
     -> NominalDiffTime
     -> NominalDiffTime
+    -> NominalDiffTime
     -> TimeSeries (Prices assets)
     -> Portfolio assets
     -> c
     -> Sem r EvaluationOnWindows
-evaluateOnWindows metrics windowLen stride series initPortfolio config = do
-    let wnds = windowsE windowLen stride series
-    evals <- mapM (evaluateOnWindow <=< fromEither) wnds
-    return $ sequenceEvals evals
-    where
-        evaluateOnWindow window = evaluate metrics window initPortfolio config
+evaluateOnWindows
+    metrics samplePeriod windowLen stride series initPortfolio config = do
+        let wnds = windowsE windowLen stride series
+        evals <- mapM (evaluateOnWindow <=< fromEither) wnds
+        return $ sequenceEvals evals
+        where
+            evaluateOnWindow window
+                = evaluate metrics samplePeriod window initPortfolio config
 
-        sequenceEvals :: TimeSeries Evaluation -> EvaluationOnWindows
-        sequenceEvals = InstrumentTree
-            <$> sequenceSelf . fmap self
-            <*> sequenceSubinstruments . fmap subinstruments
-            where
-                sequenceSelf
-                    :: TimeSeries (Map MetricName (Maybe Double))
-                    -> Map MetricName (TimeSeries Double)
-                sequenceSelf
-                    = fmap (fromJust . seriesFromList)
-                    . foldr (Map.unionWith (++)) Map.empty
-                    . fmap mapMaybeToTimeStepList
-                    . seriesToList where
-                        mapMaybeToTimeStepList
-                            :: TimeStep (Map a (Maybe b))
-                            -> Map a [TimeStep b]
-                        mapMaybeToTimeStepList (time, map)
-                            = fmap (fmap (time,) . maybeToList) map
+            sequenceEvals :: TimeSeries Evaluation -> EvaluationOnWindows
+            sequenceEvals = InstrumentTree
+                <$> sequenceSelf . fmap self
+                <*> sequenceSubinstruments . fmap subinstruments
+                where
+                    sequenceSelf
+                        :: TimeSeries (Map MetricName (Maybe Double))
+                        -> Map MetricName (TimeSeries Double)
+                    sequenceSelf
+                        = fmap (fromJust . seriesFromList)
+                        . foldr (Map.unionWith (++)) Map.empty
+                        . fmap mapMaybeToTimeStepList
+                        . seriesToList where
+                            mapMaybeToTimeStepList
+                                :: TimeStep (Map a (Maybe b))
+                                -> Map a [TimeStep b]
+                            mapMaybeToTimeStepList (time, map)
+                                = fmap (fmap (time,) . maybeToList) map
 
-                sequenceSubinstruments
-                    :: TimeSeries (Map InstrumentName Evaluation)
-                    -> Map InstrumentName EvaluationOnWindows
-                sequenceSubinstruments (TimeSeries ((time, map) :| tms))
-                    = Map.mapWithKey buildSubtree map where
-                        buildSubtree instrName eval
-                            = sequenceEvals
-                            $ TimeSeries
-                            $ (time, eval) :| tes where
-                                tes = fmap (onSnd (Map.! instrName)) tms where
-                                    onSnd f (x, y) = (x, f y)
+                    sequenceSubinstruments
+                        :: TimeSeries (Map InstrumentName Evaluation)
+                        -> Map InstrumentName EvaluationOnWindows
+                    sequenceSubinstruments (TimeSeries ((time, map) :| tms))
+                        = Map.mapWithKey buildSubtree map where
+                            buildSubtree instrName eval
+                                = sequenceEvals
+                                $ TimeSeries
+                                $ (time, eval) :| tes where
+                                    tes = fmap (onSnd (Map.! instrName)) tms
+                                        where
+                                            onSnd f (x, y) = (x, f y)
