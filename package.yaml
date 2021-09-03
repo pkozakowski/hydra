@@ -51,6 +51,8 @@ dependencies:
 - retry
 - pretty-simple
 - containers
+- hvega
+- ihaskell-hvega
 
 library:
   source-dirs: src

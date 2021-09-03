@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 52b237563432335970d94f2d7cb97f41157c0db26983146132134973c9469450
+-- hash: 9dfb8a159e5da709c0bcf28a8ff82ecc5357216dffdf2a026da1c83b44464790
 
 name:           hydra
 version:        0.1.0.0
@@ -79,6 +79,8 @@ library
     , containers
     , hashable
     , hashmap
+    , hvega
+    , ihaskell-hvega
     , lazyio
     , logging
     , mongoDB
@@ -130,7 +132,9 @@ executable hydra-exe
     , containers
     , hashable
     , hashmap
+    , hvega
     , hydra
+    , ihaskell-hvega
     , lazyio
     , logging
     , mongoDB
@@ -197,7 +201,9 @@ test-suite hydra-test
     , containers
     , hashable
     , hashmap
+    , hvega
     , hydra
+    , ihaskell-hvega
     , lazyio
     , logging
     , mongoDB

@@ -44,6 +44,7 @@ extra-deps:
 - approx-0.1.0.1@sha256:fe0c176d0b07d8d282732d66a92517a5552a3b755b8d41cd2aef3bb41dc6494e,2094
 - unordered-containers-0.2.13.0@sha256:6310c636f92ed4908fdd0de582b6be31c2851c7b5f2ec14e9f416eb94df7a078,4978
 - vector-0.12.2.0@sha256:6e81683c2c19b4aea58f1f453547cb03851b3cfd4031b8eb82abfa4643a13494,7953
+- ihaskell-hvega-0.3.2.0@sha256:57b749f3c14b224af6f9484b2cd531299dd740477aa6e6f300f19a8c291b5fac,1182
 
 # - acme-missiles-0.3
 # - git: https://github.com/commercialhaskell/stack.git

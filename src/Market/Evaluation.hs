@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TupleSections #-}
 
@@ -12,6 +13,7 @@ import qualified Data.List.NonEmpty as NonEmpty
 import Data.Maybe
 import qualified Data.Ratio as Ratio
 import qualified Data.Record.Hom as HomRec
+import Data.String
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Control.Monad
@@ -28,8 +30,8 @@ import Polysemy.Input
 import Polysemy.Output
 import Polysemy.State
 
-newtype MetricName = MetricName String
-    deriving (Eq, Ord, Semigroup)
+newtype MetricName = MetricName { unMetricName :: String }
+    deriving (Eq, Ord, Semigroup, IsString)
 
 deriving newtype instance Show MetricName
 
@@ -64,8 +66,8 @@ calculateMetric metric series = do
                     toDouble (Value x)
                         = fromRational $ numerator x Ratio.% denominator x
 
-newtype InstrumentName = InstrumentName String
-    deriving (Eq, Ord)
+newtype InstrumentName = InstrumentName { unInstrumentName :: String }
+    deriving (Eq, Ord, Semigroup, IsString)
 
 deriving newtype instance Show InstrumentName
 
@@ -76,6 +78,17 @@ data InstrumentTree a = InstrumentTree
 
 type Evaluation = InstrumentTree (Map MetricName (Maybe Double))
 type EvaluationOnWindows = InstrumentTree (Map MetricName (TimeSeries Double))
+
+flattenTree :: InstrumentTree a -> [(InstrumentName, a)]
+flattenTree = flattenWithPrefix $ "" where
+    flattenWithPrefix prefix tree
+        = [(prefix, self tree)] ++ subinstrs where
+            subinstrs
+                = uncurry flattenWithPrefix . extendPrefix
+              =<< Map.toList (subinstruments tree)
+            extendPrefix (instrName, tree')
+                | prefix == "" = (instrName, tree')
+                | otherwise = (prefix <> "." <> instrName, tree')
 
 convolve
     :: (TimeStep a -> TimeStep a -> b)
@@ -110,7 +123,7 @@ calcAvgReturn = fmap integrate . convolve step where
         = (retroactive point' - current point) / current point
 
 avgReturn :: NominalDiffTime -> Metric
-avgReturn = Metric (MetricName "avgReturn") calcAvgReturn
+avgReturn = Metric "avgReturn" calcAvgReturn
 
 calcAvgLogReturn :: TimeSeries ValuePoint -> Maybe Double
 calcAvgLogReturn = fmap integrate . convolve step where
@@ -118,7 +131,7 @@ calcAvgLogReturn = fmap integrate . convolve step where
         = log $ retroactive point' / current point
 
 avgLogReturn :: NominalDiffTime -> Metric
-avgLogReturn = Metric (MetricName "avgLogReturn") calcAvgLogReturn
+avgLogReturn = Metric "avgLogReturn" calcAvgLogReturn
 
 integrateByPeriod
     :: NominalDiffTime
@@ -147,17 +160,17 @@ periodically
     -> (NominalDiffTime -> Metric)
     -> Metric
 periodically prefix period metricBuilder
-    = metric { name = prefix <> MetricName " " <> name metric } where
+    = metric { name = prefix <> " " <> name metric } where
         metric = metricBuilder period
 
 hourly :: (NominalDiffTime -> Metric) -> Metric
-hourly = periodically (MetricName "hourly") 3600
+hourly = periodically "hourly" 3600
 
 daily :: (NominalDiffTime -> Metric) -> Metric
-daily = periodically (MetricName "daily") $ 3600 * 24
+daily = periodically "daily" $ 3600 * 24
 
 monthly :: (NominalDiffTime -> Metric) -> Metric
-monthly = periodically (MetricName "monthly") $ 3600 * 24 * 30.44
+monthly = periodically "monthly" $ 3600 * 24 * 30.44
 
 evaluate
     :: forall assets c s r
