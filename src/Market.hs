@@ -38,7 +38,7 @@ trade
 
 newtype IConfig c = IConfig c
 
-newtype IState c = IState c
+newtype IState s = IState s
     deriving (Truncatable)
 
 type InitEffects assets c =

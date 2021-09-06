@@ -135,17 +135,14 @@ windows length stride (TimeSeries txs)
     $ TimeSeries
     $ NonEmpty.unfoldr nextWindow (begin, txs) where
         begin = fst $ NonEmpty.head txs
-        end   = fst $ NonEmpty.last txs
         nextWindow (from, txs')
             = ((to, maybeWindow), (from',) <$> maybeRest) where
                 to = length `addUTCTime` from
                 from' = stride `addUTCTime` from
                 maybeWindow = nonEmpty $ NonEmpty.takeWhile (within length) txs'
+                reachedTheEnd = null $ NonEmpty.dropWhile (within length) txs'
                 maybeRest = do
                     rest <- nonEmpty $ NonEmpty.dropWhile (within stride) txs'
-                    let reachedTheEnd = maybe False id do
-                            window <- maybeWindow
-                            return $ fst (NonEmpty.last window) == end
                     guard $ not reachedTheEnd
                     return rest
                 within interval (time, _) = time `diffUTCTime` from < interval

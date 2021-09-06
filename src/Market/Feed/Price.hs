@@ -48,15 +48,17 @@ newtype Event assets a = Event { changes :: NonEmpty (LabelIn assets, a) }
 
 sweep :: Labels assets => HomRec assets [TimeStep a] -> [TimeStep (Event assets a)]
 sweep assetSeries =
-    if all null assetSeries then []
+    if null notNullSeries then []
     else (time, Event changes) : sweep assetSeries' where
-        time = minimum $ headTime <$> notNullSeries
-        changes
-            = fromJust $ nonEmpty
-            $ labelAndHeadValue <$> filter ((== time) . headTime) notNullSeries
-        headTime = fst . head . snd
-        labelAndHeadValue (label, series) = (label, snd $ head series)
         notNullSeries = filter (not . null . snd) $ toList assetSeries
+        ~time = minimum $ headTime <$> notNullSeries
+        ~changes
+            = fromJust
+            $ nonEmpty
+            $ fmap labelAndHeadValue
+            $ filter ((== time) . headTime) notNullSeries where
+                labelAndHeadValue (label, series) = (label, snd $ head series)
+        headTime = fst . head . snd
         assetSeries' = advance <$> assetSeries where
             advance series = case series of
                 [] -> []

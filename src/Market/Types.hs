@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -6,16 +7,20 @@
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Market.Types where
 
+import Control.DeepSeq
 import Control.Exception
 import Data.Coerce
 import Data.List.NonEmpty as NonEmpty
 import Data.Proxy
 import Data.Record.Hom (HomRec(..), Labels, (:=) (..))
 import qualified Data.Record.Hom as HR
+import Data.Semigroup.Foldable
+import Data.Semigroup.Traversable
 import Data.Time
 import GHC.TypeLits
 import Market.Deriving
@@ -37,10 +42,17 @@ instance (Semiring a, Additive a) => RightModule a a where
 
 instance (Semiring a, Additive a) => Module a a
 
+instance NFData a => NFData (Fraction a) where
+    rnf frac
+            = rnf (numerator frac)
+        `seq` rnf (denominator frac)
+        `seq` frac
+        `seq` ()
+
 -- | Underlying scalar type.
 type Scalar = Fraction Integer
 
--- | Amount of a given Asset.
+-- | Amount of an Asset.
 newtype Amount = Amount Scalar
 newtype AmountDelta = AmountDelta Scalar
 
@@ -51,7 +63,7 @@ newtype PortfolioDelta assets = PortfolioDelta (HomRec assets AmountDelta)
 deriveQuantityInstances
     ''Scalar ''Amount ''AmountDelta ''Portfolio ''PortfolioDelta
 
--- | Price of a given Asset, measured in units of the baseline asset (e.g. USD).
+-- | Price of an Asset, measured in units of some baseline asset (e.g. USD).
 newtype Price = Price Scalar
 newtype PriceDelta = PriceDelta Scalar
 
@@ -61,7 +73,7 @@ newtype PriceDeltas assets = PriceDeltas (HomRec assets PriceDelta)
 
 deriveQuantityInstances ''Scalar ''Price ''PriceDelta ''Prices ''PriceDeltas
 
--- | Possessed Value, measured in units of the baseline asset (e.g. USD).
+-- | Possessed Value, measured in units of some baseline asset (e.g. USD).
 newtype Value = Value Scalar
 newtype ValueDelta = ValueDelta Scalar
 
@@ -151,7 +163,14 @@ absoluteAmount totalAmount = \case
 type TimeStep a = (UTCTime, a)
 
 newtype TimeSeries a = TimeSeries { unTimeSeries :: NonEmpty (TimeStep a) }
-    deriving (Show, Functor, Foldable, Traversable, Semigroup)
+    deriving (Functor, Foldable, Show, Traversable)
+    deriving newtype (Semigroup)
+
+deriving anyclass instance Foldable1 TimeSeries
+
+instance Traversable1 TimeSeries where
+    sequence1 = fmap TimeSeries . sequence1 . fmap engulf . unTimeSeries where
+        engulf (t, ax) = (t,) <$> ax
 
 seriesFromList :: [TimeStep a] -> Maybe (TimeSeries a)
 seriesFromList = fmap TimeSeries . nonEmpty

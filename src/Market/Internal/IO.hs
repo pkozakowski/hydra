@@ -11,4 +11,7 @@ ioToSem monad = do
     either (Polysemy.Error.throw . show) pure resultOrError
 
 semToIO :: Sem [Error String, Embed IO] a -> IO a
-semToIO = runM . runError >=> either fail return
+semToIO = either fail return <=< runM . runError
+
+semToIOPure :: Sem '[Error String] a -> IO a
+semToIOPure = either fail return . run . runError

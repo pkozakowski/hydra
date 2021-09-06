@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9dfb8a159e5da709c0bcf28a8ff82ecc5357216dffdf2a026da1c83b44464790
+-- hash: 23a3b04b45e73db33db477c8553422f8ac88d3312a37453c099df67b50bfffea
 
 name:           hydra
 version:        0.1.0.0
@@ -77,6 +77,7 @@ library
     , composition
     , constraints
     , containers
+    , deepseq
     , hashable
     , hashmap
     , hvega
@@ -92,6 +93,7 @@ library
     , quickcheck-instances
     , req
     , retry
+    , semigroupoids
     , tasty
     , tasty-quickcheck
     , tasty-th
@@ -130,6 +132,7 @@ executable hydra-exe
     , composition
     , constraints
     , containers
+    , deepseq
     , hashable
     , hashmap
     , hvega
@@ -146,6 +149,7 @@ executable hydra-exe
     , quickcheck-instances
     , req
     , retry
+    , semigroupoids
     , tasty
     , tasty-quickcheck
     , tasty-th
@@ -199,6 +203,7 @@ test-suite hydra-test
     , composition
     , constraints
     , containers
+    , deepseq
     , hashable
     , hashmap
     , hvega
@@ -215,6 +220,7 @@ test-suite hydra-test
     , quickcheck-instances
     , req
     , retry
+    , semigroupoids
     , tasty
     , tasty-quickcheck
     , tasty-th

@@ -1,3 +1,6 @@
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -7,16 +10,26 @@
 
 module Market.Evaluation where
 
-import Data.Map as Map hiding (foldl, foldr)
+import Control.DeepSeq
+import Control.Monad
+import Data.Composition
+import Data.Foldable
+import Data.Functor.Apply
+import Data.Functor.Compose
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Data.Monoid
+import Data.List hiding (uncons)
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Maybe
 import qualified Data.Ratio as Ratio
 import qualified Data.Record.Hom as HomRec
+import Data.Semigroup.Traversable
 import Data.String
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
-import Control.Monad
+import GHC.Generics
 import Market
 import Market.Ops
 import Market.Simulation
@@ -31,9 +44,7 @@ import Polysemy.Output
 import Polysemy.State
 
 newtype MetricName = MetricName { unMetricName :: String }
-    deriving (Eq, Ord, Semigroup, IsString)
-
-deriving newtype instance Show MetricName
+    deriving newtype (Eq, NFData, IsString, Ord, Semigroup, Show)
 
 data ValuePoint = ValuePoint
     { current :: Double     -- Current prices, current portfolio.
@@ -67,16 +78,23 @@ calculateMetric metric series = do
                         = fromRational $ numerator x Ratio.% denominator x
 
 newtype InstrumentName = InstrumentName { unInstrumentName :: String }
-    deriving (Eq, Ord, Semigroup, IsString)
-
-deriving newtype instance Show InstrumentName
+    deriving newtype (Eq, NFData, IsString, Ord, Semigroup, Show)
 
 data InstrumentTree a = InstrumentTree
     { self :: a
-    , subinstruments :: Map InstrumentName (InstrumentTree a)
-    } deriving (Show, Functor, Foldable, Traversable)
+    , subinstruments :: (Map InstrumentName (InstrumentTree a))
+    } deriving (Functor, Foldable, Generic, NFData, Show, Traversable)
 
-type Evaluation = InstrumentTree (Map MetricName (Maybe Double))
+instance Apply InstrumentTree where
+
+    fs <.> xs = InstrumentTree
+        { self = self fs $ self xs
+        , subinstruments
+            = getCompose
+            $ Compose (subinstruments fs) <.> Compose (subinstruments xs)
+        }
+
+type Evaluation = InstrumentTree (Map MetricName Double)
 type EvaluationOnWindows = InstrumentTree (Map MetricName (TimeSeries Double))
 
 flattenTree :: InstrumentTree a -> [(InstrumentName, a)]
@@ -104,17 +122,16 @@ convolve f series
 
 -- | Integration using the trapezoidal rule.
 integrate :: TimeSeries Double -> Double
-integrate series = case maybeXdts of
-    Nothing -> snd $ NonEmpty.head txs
-    Just xdts -> sum xdts / deltaTime
+integrate series = case convolve xdt series of
+    Nothing -> startX
+    Just (TimeSeries txdts)
+        -> finish $ foldMap' ((,) <$> Last . Just . fst <*> Sum . snd) txdts
     where
-        maybeXdts = convolve xdt series where
-            xdt (t, x) (t', x')
-                = (x + x') * 0.5 * timeDiffToDouble (t' `diffUTCTime` t)
-        txs = unTimeSeries series
-        deltaTime
-            = timeDiffToDouble
-            $ fst (NonEmpty.last txs) `diffUTCTime` fst (NonEmpty.head txs)
+        xdt (t, x) (t', x')
+            = (x + x') * 0.5 * timeDiffToDouble (t' `diffUTCTime` t)
+        (startTime, startX) = NonEmpty.head $ unTimeSeries series
+        finish (Last (Just endTime), Sum sxdt) = sxdt / deltaTime where
+            deltaTime = timeDiffToDouble $ endTime `diffUTCTime` startTime
         timeDiffToDouble = fromRational . toRational
 
 calcAvgReturn :: TimeSeries ValuePoint -> Maybe Double
@@ -188,54 +205,44 @@ evaluate metrics samplePeriod priceSeries initPortfolio config = do
     let priceSeries' = downsample samplePeriod priceSeries
 
     maybeTree :: Maybe (InstrumentTree (TimeSeries (PricesPortfolio assets)))
-       <- fmap sequence
-        $ fmap (fmap $ seriesFromList . reverse)
-        $ execState emptyTree
+       <- fmap (fmap sequence1 . seriesFromList . fst)
+        $ runOutputList
         $ backtest priceSeries' initPortfolio config do
             prices <- input @(Prices assets)
             portfolio <- get @(Portfolio assets)
             IState state <- get @(IState s)
             time <- now
-            modify @(InstrumentTree [TimeStep (PricesPortfolio assets)])
+            output @(TimeStep (InstrumentTree (PricesPortfolio assets)))
+                $ (time,)
                 $ visit prices portfolio config state visitAgg
-                $ visitSelf time
+                $ visitSelf
 
     case maybeTree of
         Just tree
             -> return $ calculateMetrics <$> tree
         Nothing
-            -> throw "no trades performed (the price series is too short)"
+            -> throw @String "no trades performed (the price series is too short)"
 
     where
-        emptyTree :: InstrumentTree [TimeStep (PricesPortfolio assets)]
-        emptyTree = InstrumentTree [] Map.empty
-
         visitAgg
-            :: AggregateVisitor (TimeStep (PricesPortfolio assets))
-                ( InstrumentTree [TimeStep (PricesPortfolio assets)]
-               -> InstrumentTree [TimeStep (PricesPortfolio assets)]
-                )
-        visitAgg timeStep subinstrs tree
-            = InstrumentTree (timeStep : self tree)
-            $ ($ subinstruments tree)
-            $ foldl (.) id
-            $ fmap alterFromRec
+            :: AggregateVisitor (PricesPortfolio assets)
+                (InstrumentTree (PricesPortfolio assets))
+        visitAgg pricesPortfolio subinstrs
+            = InstrumentTree pricesPortfolio
+            $ Map.fromList
+            $ fmap (onFst $ InstrumentName . show)
             $ HomRec.toList subinstrs where
-                alterFromRec (label, adjustment) 
-                    = alter alteration $ InstrumentName $ show label where
-                        alteration = Just . adjustment . maybe emptyTree id
+                onFst f (x, y) = (f x, y)
 
-        visitSelf
-            :: UTCTime
-            -> SelfVisitor assets (TimeStep (PricesPortfolio assets))
-        visitSelf time prices portfolio _ _
-            = (time, (prices, portfolio))
+        visitSelf :: SelfVisitor assets (PricesPortfolio assets)
+        visitSelf prices portfolio _ _
+            = (prices, portfolio)
 
-        calculateMetrics pricePortfolioSeries = Map.fromList $ kv <$> metrics where
-            kv metric =
-                ( name metric
-                , calculateMetric metric pricePortfolioSeries
-                )
+        calculateMetrics pricePortfolioSeries
+            = Map.fromList $ catMaybes $ kv <$> metrics where
+                kv metric = (,)
+                    <$> Just (name metric)
+                    <*> calculateMetric metric pricePortfolioSeries
 
 evaluateOnWindows
     :: forall assets c s r
@@ -254,40 +261,20 @@ evaluateOnWindows
 evaluateOnWindows
     metrics samplePeriod windowLen stride series initPortfolio config = do
         let wnds = windowsE windowLen stride series
-        evals <- mapM (evaluateOnWindow <=< fromEither) wnds
+        -- mapM' and force are crucial; without them, the intermediate results
+        -- of evals on all windows are put in the memory all at once, causing
+        -- a huge leak.
+        evals <- mapM' (fmap force . evaluateOnWindow <=< fromEither) wnds
         return $ sequenceEvals evals
         where
             evaluateOnWindow window
                 = evaluate metrics samplePeriod window initPortfolio config
-
-            sequenceEvals :: TimeSeries Evaluation -> EvaluationOnWindows
-            sequenceEvals = InstrumentTree
-                <$> sequenceSelf . fmap self
-                <*> sequenceSubinstruments . fmap subinstruments
-                where
-                    sequenceSelf
-                        :: TimeSeries (Map MetricName (Maybe Double))
-                        -> Map MetricName (TimeSeries Double)
-                    sequenceSelf
-                        = fmap (fromJust . seriesFromList)
-                        . foldr (Map.unionWith (++)) Map.empty
-                        . fmap mapMaybeToTimeStepList
-                        . seriesToList where
-                            mapMaybeToTimeStepList
-                                :: TimeStep (Map a (Maybe b))
-                                -> Map a [TimeStep b]
-                            mapMaybeToTimeStepList (time, map)
-                                = fmap (fmap (time,) . maybeToList) map
-
-                    sequenceSubinstruments
-                        :: TimeSeries (Map InstrumentName Evaluation)
-                        -> Map InstrumentName EvaluationOnWindows
-                    sequenceSubinstruments (TimeSeries ((time, map) :| tms))
-                        = Map.mapWithKey buildSubtree map where
-                            buildSubtree instrName eval
-                                = sequenceEvals
-                                $ TimeSeries
-                                $ (time, eval) :| tes where
-                                    tes = fmap (onSnd (Map.! instrName)) tms
-                                        where
-                                            onSnd f (x, y) = (x, f y)
+            sequenceEvals = getCompose . sequence1 . fmap Compose
+            mapM' action (TimeSeries (tx :| txs))
+                = fromJust . seriesFromList <$> go (tx : txs) where
+                    go = \case
+                        (t, x) : txs -> do
+                            !y <- action x
+                            tys <- go txs
+                            return $ (t, y) : tys
+                        [] -> return []

@@ -1,10 +1,13 @@
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Market.Deriving where
 
+import Control.DeepSeq
 import Data.Deriving
-import Data.Typeable
 import qualified Data.Record.Hom as HR
+import Data.Typeable
 import Language.Haskell.TH
 import Numeric.Algebra
 import Numeric.Algebra.Deriving
@@ -20,7 +23,7 @@ import Prelude hiding ((+), (*), (/))
 deriveQuantityInstances :: Name -> Name -> Name -> Name -> Name -> Q [Dec]
 deriveQuantityInstances scr q qd qr qdr = fmap concat $ sequence $
     -- Scalar instances:
-    [ deriveUnary t [''Eq, ''Ord, ''Show, ''Typeable, ''Truncatable]
+    [ deriveUnary t [''Eq, ''Ord, ''NFData, ''Show, ''Typeable, ''Truncatable]
     | t <- [q, qd]
     ] ++ [
         deriveSemimodule scr q,
@@ -28,7 +31,7 @@ deriveQuantityInstances scr q qd qr qdr = fmap concat $ sequence $
         deriveDeltaOrd q qd
     ] ++
     -- Record instances:
-    [ HR.deriveUnary tr [''Eq, ''Show, ''Typeable, ''Truncatable]
+    [ HR.deriveUnary tr [''Eq, ''NFData, ''Show, ''Typeable, ''Truncatable]
     | tr <- [qr, qdr]
     ] ++ [
         HR.deriveSemimodule scr qr,
@@ -37,21 +40,24 @@ deriveQuantityInstances scr q qd qr qdr = fmap concat $ sequence $
         HR.deriveHomRecord q qr,
         HR.deriveHomRecord qd qdr
     ]
-
+    
 -- | Same as above, but without:
--- * a Semimodule instance, as it doesn't make sense to e.g. add two
+-- * Semimodule, as it doesn't make sense to e.g. add two
 --   Distributions,
--- * a HomRecord instance, because setting values arbitrarily can break the
---   constraint that the elements should sum to either 1 or 0.
+-- * HomRecord, because setting values arbitrarily can break the
+--   constraint that the elements should sum to either 1 or 0,
+-- * Truncatable, for a similar reason.
 deriveDistributionInstances :: Name -> Name -> Name -> Name -> Name -> Q [Dec]
 deriveDistributionInstances scr q qd qr qdr = fmap concat $ sequence $
     -- Scalar instances:
-    [deriveUnary t [''Eq, ''Ord, ''Show] | t <- [q, qd]] ++ [
+    [deriveUnary t [''Eq, ''Ord, ''NFData, ''Show, ''Typeable]
+    | t <- [q, qd]] ++ [
         deriveModule scr qd,
         deriveDeltaOrd q qd
     ] ++
     -- Record instances:
-    [HR.deriveUnary tr [''Eq, ''Show] | tr <- [qr, qdr]] ++ [
+    [HR.deriveUnary tr [''Eq, ''NFData, ''Show, ''Typeable]
+    | tr <- [qr, qdr]] ++ [
         HR.deriveModule scr qdr,
         HR.deriveDelta qr qdr
     ]

@@ -1,5 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -34,6 +35,7 @@ module Data.Record.Hom
     , deriveKappa
     ) where
 
+import Control.DeepSeq
 import Data.Coerce
 import Data.Constraint
 import qualified Data.Deriving as Deriving
@@ -114,7 +116,7 @@ labelIn :: forall l ls. (KnownSymbol l, Has l ls) => LabelIn ls
 labelIn = LabelIn (Dict :: Dict (Has l ls))
 
 labels :: Labels ls => [LabelIn ls]
-labels = fst <$> toList (fill undefined)
+labels = fmap fst $ toList $ fill ()
 
 class HomRecord ls t r | r -> ls, r -> t where
 
@@ -191,6 +193,14 @@ instance (Labels ls, Show t) => Show (HomRec ls t) where
 instance (Labels ls, Eq t) => Eq (HomRec ls t) where
     r1 == r2 = all id $ (==) <$> r1 <*> r2
 
+instance Labels ls => NFData1 (HomRec ls) where
+    liftRnf red = \case
+        Empty -> ()
+        (lbl := fld :& rec) -> rnf lbl `seq` red fld `seq` liftRnf red rec
+
+instance (Labels ls, NFData a) => NFData (HomRec ls a) where
+    rnf = rnf1
+
 instance (Labels ls, Additive t) => Additive (HomRec ls t) where
     r1 + r2 = (+) <$> r1 <*> r2
 
@@ -215,7 +225,7 @@ instance (Labels ls, Truncatable a) => Truncatable (HomRec ls a) where
 
 deriveHomRecord :: Name -> Name -> Q [Dec]
 deriveHomRecord t r
-    = [d| deriving instance HomRecord ls ($(conT t)) (($(conT r)) ls) |]
+    = [d| deriving newtype instance HomRecord ls ($(conT t)) (($(conT r)) ls) |]
 
 deriveUnary :: Name -> [Name] -> Q [Dec]
 deriveUnary t cs = do

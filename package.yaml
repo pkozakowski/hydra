@@ -53,6 +53,8 @@ dependencies:
 - containers
 - hvega
 - ihaskell-hvega
+- deepseq
+- semigroupoids
 
 library:
   source-dirs: src

@@ -60,7 +60,7 @@ evaluate
     -> Portfolio assets
     -> c
     -> IO Evaluation
-evaluate res = semToIO . runPrecision res .::. Evaluation.evaluate
+evaluate res = semToIOPure . runPrecision res .::. Evaluation.evaluate
 
 evaluateOnWindows
     :: forall assets c s res r
@@ -78,7 +78,7 @@ evaluateOnWindows
     -> c
     -> IO EvaluationOnWindows
 evaluateOnWindows res
-    = semToIO . runPrecision res .:::. Evaluation.evaluateOnWindows
+    = semToIOPure . runPrecision res .:::. Evaluation.evaluateOnWindows
 
 defaultBackground :: PropertySpec
 defaultBackground = background "rgba(0, 0, 0, 0.03)"
