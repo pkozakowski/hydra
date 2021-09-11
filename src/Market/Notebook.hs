@@ -41,11 +41,11 @@ runPriceFeed res from to
     = semToIO
     $ runPrecision res
     $ runTimeIO
-    $ PriceFeed.runPriceFeed @assets runPriceVolumeFeed
+    $ PriceFeed.runPriceFeed @assets runPriceFeed
     $ between from to where
-        runPriceVolumeFeed
-            = runPriceVolumeFeedWithMongoCache "127.0.0.1"
-            $ runPriceVolumeFeedPancakeSwap
+        runPriceFeed
+            = runPriceFeedWithMongoCache "127.0.0.1"
+            $ runPriceFeedPancakeSwap
 
 evaluate
     :: forall assets c s res r

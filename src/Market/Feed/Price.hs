@@ -7,7 +7,6 @@ import Data.Maybe
 import Data.Record.Hom
 import Market.Types
 import Market.Feed
-import Market.Feed.Types
 import Numeric.Field.Fraction
 import Numeric.Precision
 import Numeric.Truncatable
@@ -17,7 +16,7 @@ import Polysemy.Error
 runPriceFeed
     :: forall assets r b
      . (Labels assets, Member Precision r)
-    => (forall a. String -> Sem (Feed PriceVolume : r) a -> Sem r a)
+    => (forall a. String -> Sem (Feed Double : r) a -> Sem r a)
     -> Sem (Feed (Prices assets) : r) b
     -> Sem r b
 runPriceFeed interpreter = interpret \case
@@ -68,18 +67,18 @@ sweep assetSeries =
 
 runPriceFeedForOneToken
     :: Member Precision r
-    => (forall a. String -> Sem (Feed PriceVolume : r) a -> Sem r a)
+    => (forall a. String -> Sem (Feed Double : r) a -> Sem r a)
     -> String
     -> Sem (Feed Price : r) b
     -> Sem r b
 runPriceFeedForOneToken interpreter token = interpret \case
     Between' from to
-        -> interpreter token (between' @PriceVolume from to) >>= \case
+        -> interpreter token (between' @Double from to) >>= \case
             Nothing -> return Nothing
             Just series -> do
                 -- Truncate non-monadically to preserve laziness in IO contexts.
                 trunc <- getTruncator
                 return
                     $ Just
-                    $ fmap (Price . runTruncatorReal trunc . price)
+                    $ fmap (Price . runTruncatorReal trunc)
                     $ series

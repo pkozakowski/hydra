@@ -22,7 +22,6 @@ import Data.Time.Clock.POSIX
 import Database.MongoDB
 import GHC.Generics
 import Market.Feed
-import Market.Feed.Types
 import Market.Internal.IO
 import Market.Types
 import Polysemy
@@ -32,21 +31,20 @@ import qualified System.IO.Lazy as LazyIO
 db :: Text
 db = "hydra"
 
-priceVolumeCollection :: Text
-priceVolumeCollection = "price_volume"
+priceCollection :: Text
+priceCollection = "price"
 
-priceVolumeQuery :: Select s => String -> Int -> s
-priceVolumeQuery token hourstamp = select
+priceQuery :: Select s => String -> Int -> s
+priceQuery token hourstamp = select
     [ "token" =: token
     , "hourstamp" =: hourstamp
-    ] priceVolumeCollection
+    ] priceCollection
 
-data PriceVolumeHourly = PriceVolumeHourly
+data PriceHourly = PriceHourly
     { token :: String
     , hourstamp :: Int
     , seconds :: Vector Int
     , prices :: Vector Double
-    , volumes :: Vector Double
     } deriving (Show, Generic, FromJSON, ToJSON)
 
 timeToHourstamp :: UTCTime -> Int
@@ -59,36 +57,36 @@ mongo :: String -> Action IO a -> IO a
 mongo hostName action = bracket (connect $ host hostName) close
     \pipe -> access pipe master db action
 
-type PriceVolumeInterpreter
+type TokenFeedInterpreter
      = forall r a
      . Members [Error String, Embed IO] r
     => String
-    -> Sem (Feed PriceVolume : r) a
+    -> Sem (Feed Double : r) a
     -> Sem r a
 
 getCachedHourBSON :: String -> String -> Int -> IO (Maybe Document)
 getCachedHourBSON hostName token
-    = mongo hostName . findOne . priceVolumeQuery token
+    = mongo hostName . findOne . priceQuery token
 
-cachedFetchHourPriceVolumes
+cachedFetchHourPrices
     :: String
     -> String
-    -> PriceVolumeInterpreter
+    -> TokenFeedInterpreter
     -> Int
-    -> IO (Maybe (TimeSeries PriceVolume))
-cachedFetchHourPriceVolumes hostName token interpreter hourstamp = do
+    -> IO (Maybe (TimeSeries Double))
+cachedFetchHourPrices hostName token interpreter hourstamp = do
     maybeHourlyBSON <- getCachedHourBSON hostName token hourstamp
     case maybeHourlyBSON of
         Just hourlyBSON -> do
             debug $ hourText <> " found in MongoDB cache"
-            fmap unpackPriceVolumes
+            fmap unpackPrices
                 $ either fail return
                 $ parseEither parseJSON
                 $ Object
                 $ aesonify hourlyBSON
         Nothing -> do
             debug $ hourText <> " not found in MongoDB cache; fetching"
-            hourPriceVolumes
+            hourPrices
                <- semToIO
                 $ interpreter token
                 $ between' beginTime endTime
@@ -99,14 +97,14 @@ cachedFetchHourPriceVolumes hostName token interpreter hourstamp = do
                         = bsonifyBound
                         $ valueToObject
                         $ toJSON
-                        $ packPriceVolumes hourPriceVolumes
-                (void $ mongo hostName $ insert priceVolumeCollection bson)
+                        $ packPrices hourPrices
+                (void $ mongo hostName $ insert priceCollection bson)
                     `catch` \(e :: Failure) -> do
                         warn
                             $ "error while inserting document:\n"
                            <> pack (show bson)
                         throw e
-            return hourPriceVolumes
+            return hourPrices
     where
         hourText
              = "token "
@@ -118,23 +116,22 @@ cachedFetchHourPriceVolumes hostName token interpreter hourstamp = do
         beginTime = hourstampToTime hourstamp
         endTime = hourstampToTime $ hourstamp + 1
 
-        packPriceVolumes maybeSeries
-            = PriceVolumeHourly
+        packPrices maybeSeries
+            = PriceHourly
                 { token = token
                 , hourstamp = hourstamp
                 , seconds = seconds
                 , prices = prices
-                , volumes = volumes
                 } where
-                    (seconds, prices, volumes)
-                        = Vector.unzip3
+                    (seconds, prices)
+                        = Vector.unzip
                         $ fmap fromTimeStep
                         $ Vector.filter (isBetween . fst)
                         $ Vector.fromList
                         $ timeSteps
                         where
-                            fromTimeStep (time, pv)
-                                = (second, price pv, volume pv) where
+                            fromTimeStep (time, price)
+                                = (second, price) where
                                     second = floor posix `mod` 3600 where
                                         posix = utcTimeToPOSIXSeconds time
                             isBetween time = beginTime <= time && time < endTime
@@ -142,27 +139,24 @@ cachedFetchHourPriceVolumes hostName token interpreter hourstamp = do
                                 = maybe [] NonEmpty.toList
                                 $ unTimeSeries <$> maybeSeries
 
-        unpackPriceVolumes hourly
+        unpackPrices hourly
             = fmap TimeSeries
             $ nonEmpty
             $ fmap toTimeStep
             $ Vector.toList
-            $ Vector.zip3 <$> seconds <*> prices <*> volumes
+            $ Vector.zip <$> seconds <*> prices
             $ hourly where
-                toTimeStep (second, price, volume) =
-                    ( time
-                    , PriceVolume {price = price, volume = volume}
-                    ) where
-                        time = fromIntegral second `addUTCTime` beginTime
+                toTimeStep (second, price) = (time, price) where
+                    time = fromIntegral second `addUTCTime` beginTime
 
-runPriceVolumeFeedWithMongoCache
+runPriceFeedWithMongoCache
     :: Members [Error String, Embed IO] r
     => String
-    -> PriceVolumeInterpreter
+    -> TokenFeedInterpreter
     -> String
-    -> Sem (Feed PriceVolume : r) a
+    -> Sem (Feed Double : r) a
     -> Sem r a
-runPriceVolumeFeedWithMongoCache hostName interpreter token = interpret \case
+runPriceFeedWithMongoCache hostName interpreter token = interpret \case
     Between' from to
         -> getBeginTime from to >>= \case
             Nothing -> return Nothing
@@ -174,7 +168,7 @@ runPriceVolumeFeedWithMongoCache hostName interpreter token = interpret \case
                         $ LazyIO.run
                         $ forM [timeToHourstamp from' .. timeToHourstamp to]
                         $ LazyIO.interleave
-                        . cachedFetchHourPriceVolumes hostName token interpreter
+                        . cachedFetchHourPrices hostName token interpreter
                     where
                         filterBetween
                             = fmap TimeSeries
@@ -198,7 +192,7 @@ runPriceVolumeFeedWithMongoCache hostName interpreter token = interpret \case
                     -- Prefetch the first datapoint to know where to begin in
                     -- case of broad queries. This takes advantage of lazy IO,
                     -- so we don't fetch the entire interval at once.
-                    interpreter token (between' @PriceVolume from to) >>= \case
+                    interpreter token (between' @Double from to) >>= \case
                         Nothing
                             -> return Nothing
                         Just (TimeSeries ((beginTime, _) :| _))
@@ -221,7 +215,7 @@ cacheCoverage hostName token = ioToSem $ withStderrLogging do
                 , hourstampToTime $ last hourstamps + 1
                 )
     where
-        selection = select [ "token" =: token ] priceVolumeCollection
+        selection = select [ "token" =: token ] priceCollection
         query = selection
             { sort = [ "hourstamp" =: (1 :: Int) ]
             , project = [ "hourstamp" =: (1 :: Int) ]

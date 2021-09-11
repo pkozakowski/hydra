@@ -36,7 +36,6 @@ import Market.Internal.IO
 import Market.Types
 import Market.Feed
 import Market.Feed.TH
-import Market.Feed.Types
 import Network.HTTP.Req
 import Polysemy
 import Polysemy.Error
@@ -212,6 +211,9 @@ cachedFetchStrongestPair
     = cachedFetchIORef pairCache fetchStrongestPair
     $ \tokenName -> "strongest pair for token " <> pack tokenName
 
+data PriceVolume = PriceVolume { price :: Double, volume :: Double }
+    deriving Show
+
 fetchPriceVolumes
     :: UTCTime -> UTCTime -> TokenInPair
     -> IO (Maybe (TimeSeries PriceVolume))
@@ -321,18 +323,19 @@ resolver url body
             = logRetries (\(e :: HttpException) -> return True)
             $ warn . pack .:. defaultLogMsg
 
-runPriceVolumeFeedPancakeSwap
+runPriceFeedPancakeSwap
     :: Members [Error String, Embed IO] r
     => String
-    -> Sem (Feed PriceVolume : r) a
+    -> Sem (Feed Double : r) a
     -> Sem r a
-runPriceVolumeFeedPancakeSwap tokenName = interpret \case
+runPriceFeedPancakeSwap tokenName = interpret \case
     Between' from to -> ioToSem $ withStderrLogging do
         tokenInPair <- cachedFetchStrongestPair tokenName
         cachedFetchBeginTime tokenInPair >>= \case
             Just beginTime -> do
                 let from' = max from beginTime
-                fetchPriceVolumes from' to tokenInPair
+                fmap (fmap $ fmap price)
+                    $ fetchPriceVolumes from' to tokenInPair
             Nothing -> return Nothing
     where
         mapFst f (x, y) = (f x, y)
