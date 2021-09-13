@@ -7,6 +7,7 @@ import Data.Fixed
 import Data.Proxy
 import Data.Record.Hom
 import Data.Time.Clock
+import Market.Feed.MongoDB
 import Market.Instruments
 import Market.Notebook
 import Market.Types
@@ -46,10 +47,10 @@ main = do
     let t1 = Prelude.negate (35 Prelude.* nominalDay) `addUTCTime` now
         t2 = Prelude.negate (20 Prelude.* nominalDay) `addUTCTime` now
 
-    eval <- runEval =<< runPriceFeed @Assets prec t1 t2
+    eval <- runEval =<< runPriceFeed @Assets @Minute prec t1 t2
 
     pPrint eval
     where
         runEval ps = evaluateOnWindows @Assets prec metrics
-            60 (7 Prelude.* nominalDay) (3.5 Prelude.* nominalDay) ps
+            (7 Prelude.* nominalDay) (3.5 Prelude.* nominalDay) ps
             initPortfolio config

@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Market.Notebook
@@ -7,6 +8,7 @@ module Market.Notebook
     , plotSeries
     , plotTree
     , runPriceFeed
+    , runPriceFeedEver
     ) where
 
 import Data.Composition
@@ -29,10 +31,16 @@ import Market.Types
 import qualified Market.Feed.Price as PriceFeed
 import Numeric.Precision
 import Polysemy
+import Polysemy.Error
+
+data PriceFeed
+
+instance FeedType PriceFeed where
+    feedName = "price"
 
 runPriceFeed
-    :: forall assets res
-     . (Labels assets, HasResolution res)
+    :: forall assets atp res
+     . (Labels assets, BatchablePeriod atp, HasResolution res)
     => res
     -> UTCTime
     -> UTCTime
@@ -44,8 +52,21 @@ runPriceFeed res from to
     $ PriceFeed.runPriceFeed @assets runPriceFeed
     $ between from to where
         runPriceFeed
-            = runPriceFeedWithMongoCache "127.0.0.1"
+            :: String
+            -> Sem [Feed Double, Time, Precision, Error String, Embed IO] a
+            -> Sem [Time, Precision, Error String, Embed IO] a
+        runPriceFeed
+            = runFeedWithMongoCache @PriceFeed @atp "127.0.0.1"
             $ runPriceFeedPancakeSwap
+
+runPriceFeedEver
+    :: forall assets atp res
+     . (Labels assets, BatchablePeriod atp, HasResolution res)
+    => res -> IO (TimeSeries (Prices assets))
+runPriceFeedEver res = do
+    let from = posixSecondsToUTCTime 0
+    to <- getCurrentTime
+    runPriceFeed @assets @atp res from to
 
 evaluate
     :: forall assets c s res r
@@ -55,12 +76,11 @@ evaluate
         )
     => res
     -> [Metric]
-    -> NominalDiffTime
     -> TimeSeries (Prices assets)
     -> Portfolio assets
     -> c
     -> IO Evaluation
-evaluate res = semToIOPure . runPrecision res .::. Evaluation.evaluate
+evaluate res = semToIOPure . runPrecision res .:: Evaluation.evaluate
 
 evaluateOnWindows
     :: forall assets c s res r
@@ -72,13 +92,12 @@ evaluateOnWindows
     -> [Metric]
     -> NominalDiffTime
     -> NominalDiffTime
-    -> NominalDiffTime
     -> TimeSeries (Prices assets)
     -> Portfolio assets
     -> c
     -> IO EvaluationOnWindows
 evaluateOnWindows res
-    = semToIOPure . runPrecision res .:::. Evaluation.evaluateOnWindows
+    = semToIOPure . runPrecision res .::: Evaluation.evaluateOnWindows
 
 defaultBackground :: PropertySpec
 defaultBackground = background "rgba(0, 0, 0, 0.03)"

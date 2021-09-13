@@ -173,3 +173,17 @@ intervalsE
     -> TimeSeries a
     -> TimeSeries (Either String (TimeSeries a))
 intervalsE length = windowsE length length
+
+downsample
+    :: NominalDiffTime
+    -> TimeSeries a
+    -> TimeSeries a
+downsample periodLength
+    = fromJust
+    . catMaybes'
+    . fmap (fmap lastInSeries)
+    . intervals periodLength where
+        catMaybes'
+            = seriesFromList . catMaybes . fmap engulf . seriesToList where
+                engulf (t, mx) = (t,) <$> mx
+        lastInSeries (TimeSeries txs) = snd $ NonEmpty.last txs

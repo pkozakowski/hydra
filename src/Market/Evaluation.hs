@@ -157,20 +157,6 @@ integrateByPeriod
 integrateByPeriod periodLength
     = sequence . fmap (fmap integrate) . intervals periodLength
 
-downsample
-    :: NominalDiffTime
-    -> TimeSeries a
-    -> TimeSeries a
-downsample periodLength
-    = fromJust
-    . catMaybes'
-    . fmap (fmap lastInSeries)
-    . intervals periodLength where
-        catMaybes'
-            = seriesFromList . catMaybes . fmap engulf . seriesToList where
-                engulf (t, mx) = (t,) <$> mx
-        lastInSeries (TimeSeries txs) = snd $ NonEmpty.last txs
-
 periodically
     :: MetricName
     -> NominalDiffTime
@@ -196,18 +182,15 @@ evaluate
         , Members [Precision, Error String] r
         )
     => [Metric]
-    -> NominalDiffTime
     -> TimeSeries (Prices assets)
     -> Portfolio assets
     -> c
     -> Sem r Evaluation
-evaluate metrics samplePeriod priceSeries initPortfolio config = do
-    let priceSeries' = downsample samplePeriod priceSeries
-
+evaluate metrics priceSeries initPortfolio config = do
     maybeTree :: Maybe (InstrumentTree (TimeSeries (PricesPortfolio assets)))
        <- fmap (fmap sequence1 . seriesFromList . fst)
         $ runOutputList
-        $ backtest priceSeries' initPortfolio config do
+        $ backtest priceSeries initPortfolio config do
             prices <- input @(Prices assets)
             portfolio <- get @(Portfolio assets)
             IState state <- get @(IState s)
@@ -253,28 +236,26 @@ evaluateOnWindows
     => [Metric]
     -> NominalDiffTime
     -> NominalDiffTime
-    -> NominalDiffTime
     -> TimeSeries (Prices assets)
     -> Portfolio assets
     -> c
     -> Sem r EvaluationOnWindows
-evaluateOnWindows
-    metrics samplePeriod windowLen stride series initPortfolio config = do
-        let wnds = windowsE windowLen stride series
-        -- mapM' and force are crucial; without them, the intermediate results
-        -- of evals on all windows are put in the memory all at once, causing
-        -- a huge leak.
-        evals <- mapM' (fmap force . evaluateOnWindow <=< fromEither) wnds
-        return $ sequenceEvals evals
-        where
-            evaluateOnWindow window
-                = evaluate metrics samplePeriod window initPortfolio config
-            sequenceEvals = getCompose . sequence1 . fmap Compose
-            mapM' action (TimeSeries (tx :| txs))
-                = fromJust . seriesFromList <$> go (tx : txs) where
-                    go = \case
-                        (t, x) : txs -> do
-                            !y <- action x
-                            tys <- go txs
-                            return $ (t, y) : tys
-                        [] -> return []
+evaluateOnWindows metrics windowLen stride series initPortfolio config = do
+    let wnds = windowsE windowLen stride series
+    -- mapM' and force are crucial; without them, the intermediate results
+    -- of evals on all windows are put in the memory all at once, causing
+    -- a huge leak.
+    evals <- mapM' (fmap force . evaluateOnWindow <=< fromEither) wnds
+    return $ sequenceEvals evals
+    where
+        evaluateOnWindow window
+            = evaluate metrics window initPortfolio config
+        sequenceEvals = getCompose . sequence1 . fmap Compose
+        mapM' action (TimeSeries (tx :| txs))
+            = fromJust . seriesFromList <$> go (tx : txs) where
+                go = \case
+                    (t, x) : txs -> do
+                        !y <- action x
+                        tys <- go txs
+                        return $ (t, y) : tys
+                    [] -> return []
