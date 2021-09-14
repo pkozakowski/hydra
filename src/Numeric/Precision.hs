@@ -51,3 +51,7 @@ runPrecisionExact = interpret \case
         { runTruncator = id
         , runTruncatorReal = realToFraction
         }
+
+runPrecisionFromTruncator :: Truncator -> Sem (Precision : r) a -> Sem r a
+runPrecisionFromTruncator truncator = interpret \case
+    GetTruncator -> return truncator

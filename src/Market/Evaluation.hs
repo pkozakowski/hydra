@@ -10,8 +10,8 @@
 
 module Market.Evaluation where
 
-import Control.DeepSeq
 import Control.Monad
+import Control.Parallel.Strategies
 import Data.Composition
 import Data.Foldable
 import Data.Functor.Apply
@@ -31,6 +31,7 @@ import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import GHC.Generics
 import Market
+import Market.Internal.Sem
 import Market.Ops
 import Market.Simulation
 import Market.Time
@@ -279,19 +280,12 @@ evaluateOnWindows
     -> Sem r EvaluationOnWindows
 evaluateOnWindows metrics windowLen stride series initPortfolio config = do
     let wnds = windowsE windowLen stride series
-    -- mapM' and force are crucial; without them, the intermediate results
-    -- of evals on all windows are put in the memory all at once, causing
-    -- a huge leak.
-    evals <- mapM' (fmap force . evaluateOnWindow <=< fromEither) wnds
+    truncator <- getTruncator
+    let interpreter = runError . runPrecisionFromTruncator truncator
+        deinterpreter = either (throw @String) return
+    evals <- pforSem interpreter deinterpreter wnds
+        $ evaluateOnWindow <=< fromEither
     return $ sequence1 evals
     where
         evaluateOnWindow window
             = evaluate metrics window initPortfolio config
-        mapM' action (TimeSeries (tx :| txs))
-            = fromJust . seriesFromList <$> go (tx : txs) where
-                go = \case
-                    (t, x) : txs -> do
-                        !y <- action x
-                        tys <- go txs
-                        return $ (t, y) : tys
-                    [] -> return []

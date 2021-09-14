@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d2219c8724ba3efa8eae1d796c8dbd6b0b36028a299d7efb6b87a6008f2cf7cc
+-- hash: dc7b5f08a71a349cc319dd8c0f7e6d3c050cb569c3da74fc8d17ca3aa4102dcb
 
 name:           hydra
 version:        0.1.0.0
@@ -39,6 +39,7 @@ library
       Market.Feed.TH
       Market.Instruments
       Market.Internal.IO
+      Market.Internal.Sem
       Market.Notebook
       Market.Ops
       Market.Simulation
@@ -85,6 +86,7 @@ library
     , logging
     , mongoDB
     , morpheus-graphql-client
+    , parallel
     , polysemy
     , polysemy-plugin
     , pretty-simple
@@ -141,6 +143,7 @@ executable hydra-exe
     , logging
     , mongoDB
     , morpheus-graphql-client
+    , parallel
     , polysemy
     , polysemy-plugin
     , pretty-simple
@@ -212,6 +215,7 @@ test-suite hydra-test
     , logging
     , mongoDB
     , morpheus-graphql-client
+    , parallel
     , polysemy
     , polysemy-plugin
     , pretty-simple

@@ -55,6 +55,7 @@ dependencies:
 - ihaskell-hvega
 - deepseq
 - semigroupoids
+- parallel
 
 library:
   source-dirs: src

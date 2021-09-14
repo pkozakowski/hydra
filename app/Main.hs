@@ -44,8 +44,8 @@ initPortfolio = Portfolio
 
 main = do
     now <- getCurrentTime
-    let t1 = Prelude.negate (35 Prelude.* nominalDay) `addUTCTime` now
-        t2 = Prelude.negate (20 Prelude.* nominalDay) `addUTCTime` now
+    let t1 = Prelude.negate (100 Prelude.* nominalDay) `addUTCTime` now
+        t2 = Prelude.negate (10 Prelude.* nominalDay) `addUTCTime` now
 
     ps <- runPriceFeed @Assets @Minute prec t1 t2
     eval <- evaluateOnWindows @Assets prec metrics
