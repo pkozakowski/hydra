@@ -47,10 +47,9 @@ main = do
     let t1 = Prelude.negate (35 Prelude.* nominalDay) `addUTCTime` now
         t2 = Prelude.negate (20 Prelude.* nominalDay) `addUTCTime` now
 
-    eval <- runEval =<< runPriceFeed @Assets @Minute prec t1 t2
+    ps <- runPriceFeed @Assets @Minute prec t1 t2
+    eval <- evaluateOnWindows @Assets prec metrics
+        (7 Prelude.* nominalDay) (3.5 Prelude.* nominalDay) ps
+        initPortfolio config
 
     pPrint eval
-    where
-        runEval ps = evaluateOnWindows @Assets prec metrics
-            (7 Prelude.* nominalDay) (3.5 Prelude.* nominalDay) ps
-            initPortfolio config

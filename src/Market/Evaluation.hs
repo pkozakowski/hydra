@@ -24,7 +24,7 @@ import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Maybe
 import qualified Data.Ratio as Ratio
-import qualified Data.Record.Hom as HomRec
+import qualified Data.Record.Hom as HR
 import Data.Semigroup.Traversable
 import Data.String
 import Data.Time.Clock
@@ -46,36 +46,61 @@ import Polysemy.State
 newtype MetricName = MetricName { unMetricName :: String }
     deriving newtype (Eq, NFData, IsString, Ord, Semigroup, Show)
 
-data ValuePoint = ValuePoint
-    { current :: Double     -- Current prices, current portfolio.
-    , retroactive :: Double -- Current prices, previous portfolio.
-    }
-
-data Metric = Metric
-    { name :: MetricName
-    , calculate :: TimeSeries ValuePoint -> Maybe Double
-    , period :: NominalDiffTime
+data ValueChange = ValueChange
+    { previous :: Double
+    , current  :: Double
     }
 
 type PricesPortfolio assets = (Prices assets, Portfolio assets)
 
+type ValueChangeCalculator assets
+   = PricesPortfolio assets
+  -> PricesPortfolio assets
+  -> ValueChange
+
+-- | Active value calculation takes into account changes in the portfolio.
+-- This is the most honest evaluation mode (modulo the future leak, but it's
+-- negligible here), but doesn't make sense for nested Instruments - their
+-- portfolios are "virtual" - calculated on-the-fly based on the current
+-- prices.
+activeVC :: HR.Labels assets => ValueChangeCalculator assets
+activeVC (prices, portfolio) (prices', portfolio') = ValueChange
+    { previous = toDouble $ totalValue prices portfolio
+    , current = toDouble $ totalValue prices' portfolio'
+    }
+
+-- | Passive value calculation doesn't take into account changes in the
+-- portfolio, so it measures only the robustness of the current portfolio
+-- to the future price changes. Makes sense for nested Instruments, because
+-- the "virtual" nested portfolios are not recalculated based on the new prices.
+passiveVC :: HR.Labels assets => ValueChangeCalculator assets
+passiveVC (prices, _) (prices', portfolio') = ValueChange
+    { previous = toDouble $ totalValue prices portfolio'
+    , current = toDouble $ totalValue prices' portfolio'
+    }
+
+toDouble :: Value -> Double
+toDouble (Value x)
+    = fromRational $ numerator x Ratio.% denominator x
+
+data Metric = Metric
+    { name :: MetricName
+    , calculate :: TimeSeries ValueChange -> Double
+    , period :: NominalDiffTime
+    }
+
 calculateMetric
-    :: HomRec.Labels assets
-    => Metric
+    :: HR.Labels assets
+    => ValueChangeCalculator assets
+    -> Metric
     -> TimeSeries (PricesPortfolio assets)
     -> Maybe Double
-calculateMetric metric series = do
+calculateMetric vcc metric series = do
     let downsampled = downsample (period metric) series
-    valuePoints <- convolve step downsampled
-    calculate metric valuePoints
+    valueChanges <- convolve step downsampled
+    return $ calculate metric valueChanges
     where
-        step (_, (_, portfolio)) (_, (prices', portfolio'))
-            = ValuePoint
-                { current = toDouble $ totalValue prices' portfolio'
-                , retroactive = toDouble $ totalValue prices' portfolio
-                } where
-                    toDouble (Value x)
-                        = fromRational $ numerator x Ratio.% denominator x
+        step (_, pp) (_, pp') = vcc pp pp'
 
 newtype InstrumentName = InstrumentName { unInstrumentName :: String }
     deriving newtype (Eq, NFData, IsString, Ord, Semigroup, Show)
@@ -94,8 +119,20 @@ instance Apply InstrumentTree where
             $ Compose (subinstruments fs) <.> Compose (subinstruments xs)
         }
 
-type Evaluation = InstrumentTree (Map MetricName Double)
-type EvaluationOnWindows = InstrumentTree (Map MetricName (TimeSeries Double))
+data Evaluation' res = Evaluation
+    { active :: Map MetricName res
+    , passive :: InstrumentTree (Map MetricName res)
+    } deriving (Functor, Generic, NFData, Show)
+
+instance Apply Evaluation' where
+
+    fs <.> xs = Evaluation
+        { active = active fs <.> active xs
+        , passive = getCompose $ Compose (passive fs) <.> Compose (passive xs)
+        }
+
+type Evaluation = Evaluation' Double
+type EvaluationOnWindows = Evaluation' (TimeSeries Double)
 
 flattenTree :: InstrumentTree a -> [(InstrumentName, a)]
 flattenTree = flattenWithPrefix $ "" where
@@ -134,18 +171,16 @@ integrate series = case convolve xdt series of
             deltaTime = timeDiffToDouble $ endTime `diffUTCTime` startTime
         timeDiffToDouble = fromRational . toRational
 
-calcAvgReturn :: TimeSeries ValuePoint -> Maybe Double
-calcAvgReturn = fmap integrate . convolve step where
-    step (_, point) (_, point')
-        = (retroactive point' - current point) / current point
+calcAvgReturn :: TimeSeries ValueChange -> Double
+calcAvgReturn = integrate . fmap step where
+    step change = (current change - previous change) / current change
 
 avgReturn :: NominalDiffTime -> Metric
 avgReturn = Metric "avgReturn" calcAvgReturn
 
-calcAvgLogReturn :: TimeSeries ValuePoint -> Maybe Double
-calcAvgLogReturn = fmap integrate . convolve step where
-    step (_, point) (_, point')
-        = log $ retroactive point' / current point
+calcAvgLogReturn :: TimeSeries ValueChange -> Double
+calcAvgLogReturn = integrate . fmap step where
+    step change = log $ current change / previous change
 
 avgLogReturn :: NominalDiffTime -> Metric
 avgLogReturn = Metric "avgLogReturn" calcAvgLogReturn
@@ -177,7 +212,7 @@ monthly = periodically "monthly" $ 3600 * 24 * 30.44
 
 evaluate
     :: forall assets c s r
-     .  ( HomRec.Labels assets
+     .  ( HR.Labels assets
         , Instrument assets c s
         , Members [Precision, Error String] r
         )
@@ -201,8 +236,10 @@ evaluate metrics priceSeries initPortfolio config = do
                 $ visitSelf
 
     case maybeTree of
-        Just tree
-            -> return $ calculateMetrics <$> tree
+        Just tree -> return $ Evaluation
+            { active  = calculateMetrics activeVC (self tree)
+            , passive = calculateMetrics passiveVC <$> tree
+            }
         Nothing
             -> throw @String "no trades performed (the price series is too short)"
 
@@ -214,22 +251,22 @@ evaluate metrics priceSeries initPortfolio config = do
             = InstrumentTree pricesPortfolio
             $ Map.fromList
             $ fmap (onFst $ InstrumentName . show)
-            $ HomRec.toList subinstrs where
+            $ HR.toList subinstrs where
                 onFst f (x, y) = (f x, y)
 
         visitSelf :: SelfVisitor assets (PricesPortfolio assets)
         visitSelf prices portfolio _ _
             = (prices, portfolio)
 
-        calculateMetrics pricePortfolioSeries
+        calculateMetrics vcc pricePortfolioSeries
             = Map.fromList $ catMaybes $ kv <$> metrics where
                 kv metric = (,)
                     <$> Just (name metric)
-                    <*> calculateMetric metric pricePortfolioSeries
+                    <*> calculateMetric vcc metric pricePortfolioSeries
 
 evaluateOnWindows
     :: forall assets c s r
-     .  ( HomRec.Labels assets
+     .  ( HR.Labels assets
         , Instrument assets c s
         , Members [Precision, Error String] r
         )
@@ -246,11 +283,10 @@ evaluateOnWindows metrics windowLen stride series initPortfolio config = do
     -- of evals on all windows are put in the memory all at once, causing
     -- a huge leak.
     evals <- mapM' (fmap force . evaluateOnWindow <=< fromEither) wnds
-    return $ sequenceEvals evals
+    return $ sequence1 evals
     where
         evaluateOnWindow window
             = evaluate metrics window initPortfolio config
-        sequenceEvals = getCompose . sequence1 . fmap Compose
         mapM' action (TimeSeries (tx :| txs))
             = fromJust . seriesFromList <$> go (tx : txs) where
                 go = \case
