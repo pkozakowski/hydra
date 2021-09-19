@@ -10,8 +10,8 @@ ioToSem monad = do
     resultOrError <- embed $ Control.Exception.try @IOException monad
     either (Polysemy.Error.throw . show) pure resultOrError
 
-semToIO :: Sem [Error String, Embed IO] a -> IO a
-semToIO = either fail return <=< runM . runError
+semToIO :: Show e => Sem [Error e, Embed IO] a -> IO a
+semToIO = either (fail . show) return <=< runM . runError
 
-semToIOPure :: Sem '[Error String] a -> IO a
-semToIOPure = either fail return . run . runError
+semToIOPure :: Show e => Sem '[Error e] a -> IO a
+semToIOPure = either (fail . show) return . run . runError

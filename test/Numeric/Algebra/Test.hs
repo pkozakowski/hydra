@@ -4,10 +4,11 @@
 module Numeric.Algebra.Test where
 
 import Data.Constraint
+import Data.Maybe
 import Numeric.Algebra
 import Numeric.Domain.GCD
 import Numeric.Field.Fraction
-import Prelude hiding ((+), (-), (*), negate, subtract)
+import Prelude hiding ((<), (>), (+), (-), (*), negate, subtract)
 import Test.QuickCheck
 import Test.QuickCheck.Classes
 import Test.Tasty
@@ -335,3 +336,60 @@ testAllModuleLaws ::
     proxy r -> proxy m -> [TestTree]
 testAllModuleLaws rp mp
     = testAllSemimoduleLaws rp mp ++ [testGroupLaws mp]
+
+testOrderLaws
+    :: (Order o, Arbitrary o, Eq o, Show o) => proxy o -> TestTree
+testOrderLaws p = testLaws $ Laws "Order"
+    [ ("Reflexivity", orderReflexivity p)
+    , ("Transitivity", orderTransitivity p)
+    , ("Antisymmetry", orderAntisymmetry p)
+    , ("Order Agreement", orderOrderAgreement p)
+    , ("Comparable Agreement", orderComparableAgreement p)
+    ]
+
+orderReflexivity
+    :: forall o proxy
+     . (Order o, Arbitrary o, Eq o, Show o)
+    => proxy o -> Property
+orderReflexivity _ = property
+    $ \(x :: o)
+    -> x ~~ x
+
+orderTransitivity
+    :: forall o proxy
+     . (Order o, Arbitrary o, Eq o, Show o)
+    => proxy o -> Property
+orderTransitivity _ = property
+    $ \(x :: o) (y :: o) (z :: o)
+   -> collect (x `order` y, y `order` z)
+    $ not (x <~ y && y <~ z) || x <~ z
+
+orderAntisymmetry
+    :: forall o proxy
+     . (Order o, Arbitrary o, Eq o, Show o)
+    => proxy o -> Property
+orderAntisymmetry _ = property
+    $ \(x :: o) (y :: o)
+   -> collect (x `order` y)
+    $ not (x <~ y && y <~ x) || x == y
+
+orderOrderAgreement
+    :: forall o proxy
+     . (Order o, Arbitrary o, Eq o, Show o)
+    => proxy o -> Property
+orderOrderAgreement _ = property
+    $ \(x :: o) (y :: o)
+   -> collect (x `order` y)
+    $ case x `order` y of
+        Just LT -> x <~ y && x < y && x /~ y && not (x >~ y || x > y || x ~~ y)
+        Just EQ -> x <~ y && x >~ y && x ~~ y && not (x < y || x > y || x /~ y)
+        Just GT -> x >~ y && x > y && x /~ y && not (x <~ y || x < y || x ~~ y)
+        Nothing -> x /~ y && not (x <~ y || x < y || x >~ y || x > y || x ~~ y)
+
+orderComparableAgreement
+    :: forall o proxy
+     . (Order o, Arbitrary o, Eq o, Show o)
+    => proxy o -> Property
+orderComparableAgreement _ = property
+    $ \(x :: o) (y :: o)
+    -> x `comparable` y == isJust (x `order` y)

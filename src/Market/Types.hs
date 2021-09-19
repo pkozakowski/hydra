@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -22,6 +23,7 @@ import qualified Data.Record.Hom as HR
 import Data.Semigroup.Foldable
 import Data.Semigroup.Traversable
 import Data.Time
+import GHC.Generics
 import GHC.TypeLits
 import Market.Deriving
 import Numeric.Algebra
@@ -30,7 +32,7 @@ import Numeric.Field.Fraction
 import Numeric.Kappa
 import Numeric.Normalizable
 import Numeric.Truncatable
-import Prelude hiding ((+), (-), (*), (/), pi, sum)
+import Prelude hiding ((+), (-), (*), (/), negate, pi, sum)
 
 type Asset (asset :: Symbol) = Proxy asset
 
@@ -146,6 +148,27 @@ distributionDeltaValid (DistributionDelta shareDeltas)
     = foldl (+) zero shareDeltas' == zero where
         shareDeltas' = unShareDelta <$> shareDeltas where
             unShareDelta (ShareDelta scalar) = scalar
+
+type SomeAmount assets = (HR.LabelIn assets, Amount)
+
+transfer :: Labels assets => SomeAmount assets -> PortfolioDelta assets
+transfer (assetIn, amount) = HR.fromList zero [(assetIn, amount `delta` zero)]
+
+data Fees assets = Fees
+    { fixed :: Maybe (SomeAmount assets)
+    , variable :: Scalar
+    } deriving (Eq, Generic, NFData, Show)
+
+instance Order (Fees assets) where
+
+    fs <~ fs' = leqFixed && variable fs <= variable fs' where
+        leqFixed = case (fixed fs, fixed fs') of
+            (Just (asset, amount), Just (asset', amount'))
+                -> asset == asset' && amount <= amount'
+            (Nothing, _)
+                -> True
+            (Just (_, amount), Nothing)
+                -> False
 
 data OrderAmount
     = Absolute Amount

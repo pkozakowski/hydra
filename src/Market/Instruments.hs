@@ -213,7 +213,8 @@ distributePortfolio config state prices portfolio
             = totalValue prices portfolio `unnormalize` target config
 
 allocationToTrades
-    :: (Labels assets, Member (Market assets) r)
+    :: forall assets r
+     . (Labels assets, Members [Market assets, Error (MarketError assets)] r)
     => Scalar -> Prices assets -> Portfolio assets -> Distribution assets
     -> Sem r ()
 allocationToTrades tolerance prices portfolio targetAlloc
@@ -221,7 +222,16 @@ allocationToTrades tolerance prices portfolio targetAlloc
     where
         value = totalValue prices portfolio
         transferToTrade value (ShareTransfer from to (Share shr))
-            = trade from to $ Absolute $ shr .* amount where
+            = catch @(MarketError assets)
+                (trade from to $ Absolute $ shr .* amount)
+                \case
+                    -- Can't afford the fees => skip this trade - instruments
+                    -- aren't supposed check that.
+                    InsufficientBalanceToCoverFees _ -> return ()
+                    -- Don't have enough money for the transfer => throw -
+                    -- instruments shouldn't exceed the balance.
+                    e -> throw e
+            where
                 amount = fromJust $ value `kappa'` getIn from prices
         transfers = balancingTransfers tolerance currentAlloc targetAlloc where
             currentAlloc = fromJust $ valueAllocation prices portfolio

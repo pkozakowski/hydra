@@ -13,6 +13,7 @@ module Market.Evaluation where
 import Control.Monad
 import Control.Parallel.Strategies
 import Data.Composition
+import Data.Bifunctor
 import Data.Foldable
 import Data.Functor.Apply
 import Data.Functor.Compose
@@ -215,18 +216,19 @@ evaluate
     :: forall assets c s r
      .  ( HR.Labels assets
         , Instrument assets c s
-        , Members [Precision, Error String] r
+        , Members [Precision, Error (MarketError assets)] r
         )
     => [Metric]
+    -> Fees assets
     -> TimeSeries (Prices assets)
     -> Portfolio assets
     -> c
     -> Sem r Evaluation
-evaluate metrics priceSeries initPortfolio config = do
+evaluate metrics fees priceSeries initPortfolio config = do
     maybeTree :: Maybe (InstrumentTree (TimeSeries (PricesPortfolio assets)))
        <- fmap (fmap sequence1 . seriesFromList . fst)
         $ runOutputList
-        $ backtest priceSeries initPortfolio config do
+        $ backtest fees priceSeries initPortfolio config do
             prices <- input @(Prices assets)
             portfolio <- get @(Portfolio assets)
             IState state <- get @(IState s)
@@ -241,8 +243,8 @@ evaluate metrics priceSeries initPortfolio config = do
             { active  = calculateMetrics activeVC (self tree)
             , passive = calculateMetrics passiveVC <$> tree
             }
-        Nothing
-            -> throw @String "no trades performed (the price series is too short)"
+        Nothing -> throw @(MarketError assets)
+            $ OtherError "no trades performed (the price series is too short)"
 
     where
         visitAgg
@@ -269,23 +271,25 @@ evaluateOnWindows
     :: forall assets c s r
      .  ( HR.Labels assets
         , Instrument assets c s
-        , Members [Precision, Error String] r
+        , Members [Precision, Error (MarketError assets)] r
         )
     => [Metric]
+    -> Fees assets
     -> NominalDiffTime
     -> NominalDiffTime
     -> TimeSeries (Prices assets)
     -> Portfolio assets
     -> c
     -> Sem r EvaluationOnWindows
-evaluateOnWindows metrics windowLen stride series initPortfolio config = do
+evaluateOnWindows metrics fees windowLen stride series initPortfolio config = do
     let wnds = windowsE windowLen stride series
     truncator <- getTruncator
     let interpreter = runError . runPrecisionFromTruncator truncator
-        deinterpreter = either (throw @String) return
+        deinterpreter = either (throw @(MarketError assets)) return
     evals <- pforSem interpreter deinterpreter wnds
-        $ evaluateOnWindow <=< fromEither
+        $ evaluateOnWindow
+     <=< fromEither @(MarketError assets) . first OtherError
     return $ sequence1 evals
     where
         evaluateOnWindow window
-            = evaluate metrics window initPortfolio config
+            = evaluate metrics fees window initPortfolio config

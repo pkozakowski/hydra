@@ -26,6 +26,12 @@ import Test.QuickCheck.Property
 import Test.Tasty
 import Test.Tasty.QuickCheck
 
+zeroFees :: Fees assets
+zeroFees = Fees
+    { fixed = Nothing
+    , variable = zero
+    }
+
 testInstrumentLaws
     :: forall assets c s. (Labels assets, Show c, Instrument assets c s)
     => Gen c -> Gen c -> TestTree
@@ -78,7 +84,8 @@ type RunExecuteEffects assets c s =
     , Market assets
     , Input (Portfolio assets)
     , Input (Prices assets)
-    , Error String
+    , Input (Fees assets)
+    , Error (MarketError assets)
     ]
 
 efficiency
@@ -96,7 +103,6 @@ efficiency = whenNotBroke $ runEfficiencyTestM execute where
         IConfig config <- input
         IState state <- State.get
         time <- now
-        prices <- input @(Prices assets)
         portfolio <- input @(Portfolio assets)
         subsume_
             $ fmap eitherToProperty
@@ -169,7 +175,8 @@ runInit prices config
 testInstrumentPropertyInstant
     :: forall assets c s
      . (Labels assets, Show c, Instrument assets c s)
-    => Gen c -> String
+    => Gen c
+    -> String
     -> Sem (RunExecuteEffects assets c s) Property
     -> TestTree
 testInstrumentPropertyInstant arbitraryConfig name monad
@@ -177,12 +184,14 @@ testInstrumentPropertyInstant arbitraryConfig name monad
         prop :: c -> UTCTime -> Prices assets -> Portfolio assets -> Property
         prop config time prices portfolio
             = snd $ fromRight undefined
-            $ runInitExecute config time prices portfolio monad
+            $ runInitExecute config time fees prices portfolio monad where
+                fees = zeroFees @assets
 
 testInstrumentPropertyContinuous
     :: forall assets c s
      . (Labels assets, Show c, Instrument assets c s)
-    => Gen c -> String
+    => Gen c
+    -> String
     -> Sem (RunExecuteEffects assets c s) Property
     -> TestTree
 testInstrumentPropertyContinuous arbitraryConfig name monad
@@ -199,7 +208,7 @@ testInstrumentPropertyContinuous arbitraryConfig name monad
             $ fmap fst
             $ runOutputList
             $ runPrecisionExact
-            $ backtest' priceSeries initPortfolio config \exec -> do
+            $ backtest' zeroFees priceSeries initPortfolio config \exec -> do
                 instantProp <- snd <$> runExecuteM monad
                 Output.output instantProp
                 exec
@@ -208,22 +217,23 @@ testInstrumentPropertyContinuous arbitraryConfig name monad
 
 runInitExecute
     :: forall assets c s a
-     . Instrument assets c s
-    => c -> UTCTime -> Prices assets -> Portfolio assets
+     . (Labels assets, Instrument assets c s)
+    => c -> UTCTime -> Fees assets -> Prices assets -> Portfolio assets
     -> Sem (RunExecuteEffects assets c s) a
-    -> Either String (Portfolio assets, a)
-runInitExecute config time prices
-    = runExecute config state time prices where
+    -> Either (MarketError assets) (Portfolio assets, a)
+runInitExecute config time fees prices
+    = runExecute config state time fees prices where
         state = runInit prices config initState
 
 runExecute
     :: forall assets c s a
-     . Instrument assets c s
-    => c -> s -> UTCTime -> Prices assets -> Portfolio assets
+     . (Labels assets, Instrument assets c s)
+    => c -> s -> UTCTime -> Fees assets -> Prices assets -> Portfolio assets
     -> Sem (RunExecuteEffects assets c s) a
-    -> Either String (Portfolio assets, a)
-runExecute config state time prices portfolio
+    -> Either (MarketError assets) (Portfolio assets, a)
+runExecute config state time fees prices portfolio
     = run . runError
+    . runInputConst fees
     . runInputConst prices
     . runMarketSimulation portfolio
     . runTimeConst time
@@ -232,13 +242,17 @@ runExecute config state time prices portfolio
 
 runExecuteM
     :: forall assets c s a r
-     . (Instrument assets c s, Members (ExecuteEffects assets c s) r)
+     .  ( Labels assets
+        , Instrument assets c s
+        , Members (ExecuteEffects assets c s) r
+        )
     => Sem (RunExecuteEffects assets c s) a
     -> Sem r (Portfolio assets, a)
 runExecuteM monad = do
     IConfig config <- input
     IState state <- State.get
     time <- now
+    fees <- input
     prices <- input
     portfolio <- input
-    fromEither $ runExecute config state time prices portfolio monad
+    fromEither $ runExecute config state time fees prices portfolio monad

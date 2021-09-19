@@ -123,6 +123,28 @@ valueAllocation
     => Prices assets -> Portfolio assets -> Maybe (Distribution assets)
 valueAllocation prices portfolio = normalize $ portfolio `pi` prices
 
+applyFees
+    :: Labels assets
+    => Fees assets
+    -> SomeAmount assets
+    -> Maybe (PortfolioDelta assets, Amount)
+applyFees fees (asset, amount) = do
+    amount' <- amount `sigma` (zero `delta` fixedIfSameAsFrom)
+    let amountAfterFees = (one - variable fees) .* amount'
+    return (portfolioDelta amount', amountAfterFees)
+    where
+        fixedIfSameAsFrom = case fixed fees of
+            Just (feeAsset, feeAmount)
+                -> if feeAsset == asset then feeAmount else zero
+            Nothing
+                -> zero
+        portfolioDelta amount'
+            = negate
+            $ fixedFee + transfer (asset, variable fees .* amount') where
+                fixedFee = case fixed fees of
+                    Just someFee -> transfer someFee
+                    Nothing -> zero
+
 windows
     :: NominalDiffTime
     -> NominalDiffTime

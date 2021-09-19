@@ -21,6 +21,11 @@ prec = Proxy @E6
 
 metrics = [hourly avgReturn]
 
+fees = Fees
+    { fixed = Nothing
+    , variable = zero
+    }
+
 config = BalanceConfig
     { configs
         = Proxy @"BTCB" := Hold (Proxy @"BTCB")
@@ -48,7 +53,7 @@ main = do
         t2 = Prelude.negate (10 Prelude.* nominalDay) `addUTCTime` now
 
     ps <- runPriceFeed @Assets @Minute prec t1 t2
-    eval <- evaluateOnWindows @Assets prec metrics
+    eval <- evaluateOnWindows @Assets prec metrics fees
         (7 Prelude.* nominalDay) (3.5 Prelude.* nominalDay) ps
         initPortfolio config
 

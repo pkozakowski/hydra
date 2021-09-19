@@ -112,6 +112,9 @@ instance Show (LabelIn ls) where
 instance Eq (LabelIn ls) where
     li1 == li2 = show li1 == show li2
 
+instance NFData (LabelIn ls) where
+    rnf (LabelIn dict) = rnf dict
+
 labelIn :: forall l ls. (KnownSymbol l, Has l ls) => LabelIn ls
 labelIn = LabelIn (Dict :: Dict (Has l ls))
 

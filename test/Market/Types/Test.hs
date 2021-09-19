@@ -120,3 +120,19 @@ instance Arbitrary a => Arbitrary (TimeSeries a) where
     shrink (TimeSeries srs)
         = TimeSeries <$> NonEmpty.zip times <$> shrink values where
             (times, values) = NonEmpty.unzip srs
+
+instance Labels assets => Arbitrary (Fees assets) where
+
+    arbitrary = Fees
+        <$> arbitrary `suchThat` positiveIfJust
+        <*> arbitrary `suchThat` isShare
+
+    shrink fees = Fees
+        <$> positiveIfJust `filter` shrink (fixed fees)
+        <*> isShare `filter` (shrink $ variable fees)
+
+positiveIfJust :: Maybe (SomeAmount assets) -> Bool
+positiveIfJust = maybe True $ (> zero) . snd
+
+isShare :: Scalar -> Bool
+isShare x = x >= zero && x <= one

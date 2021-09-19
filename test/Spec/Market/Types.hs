@@ -186,6 +186,11 @@ test_Normalizable_Distribution_Value_Values =
         @(Distribution ThreeLabels) @Value @(Values ThreeLabels) @Scalar p p p p
     ]
 
+test_Fees :: [TestTree]
+test_Fees =
+    [ testOrderLaws @(Fees ThreeLabels) p
+    ]
+
 p :: Proxy a
 p = Proxy
 

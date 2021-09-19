@@ -1,4 +1,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -12,9 +15,11 @@ module Market
     , module Market.Types
     ) where
 
+import Control.DeepSeq
 import Data.Fixed
 import Data.Proxy
 import Data.Record.Hom
+import GHC.Generics
 import Market.Time
 import Market.Types
 import Numeric.Truncatable
@@ -39,7 +44,22 @@ trade
 newtype IConfig c = IConfig c
 
 newtype IState s = IState s
-    deriving (Truncatable)
+    deriving newtype (Truncatable)
+
+data MarketError assets
+    = InsufficientBalanceForTransfer (SomeAmount assets)
+    | InsufficientBalanceToCoverFees (Fees assets)
+    | OtherError String
+    deriving (Generic, NFData)
+
+instance Show (MarketError assets) where
+
+    show = \case
+        InsufficientBalanceForTransfer someAmount
+            -> "insufficient balance for transfer: " ++ show someAmount
+        InsufficientBalanceToCoverFees fees
+            -> "insufficient balance to cover fees: " ++ show fees
+        OtherError s -> s
 
 type InitEffects assets c =
     [ Input (Prices assets)
@@ -49,11 +69,12 @@ type InitEffects assets c =
 type ExecuteEffects assets c s =
     [ Market assets
     , Time
+    , Input (Fees assets)
     , Input (Prices assets)
     , Input (Portfolio assets)
     , Input (IConfig c)
     , State (IState s)
-    , Error String
+    , Error (MarketError assets)
     ]
 
 type AggregateVisitor self agg

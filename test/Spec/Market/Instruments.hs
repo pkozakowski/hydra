@@ -65,8 +65,8 @@ test_Balance_Hold =
         rebalancesAreRare
             :: BalCfg -> TimeSeries Prcs -> Port -> Property
         rebalancesAreRare config priceSeries initPortfolio
-            =   totalValue initPrices initPortfolio > zero
-            &&  updateEvery config > 0
+              = totalValue initPrices initPortfolio > zero
+             && updateEvery config > 0
             ==> prop where
                 prop = numRebalances <= limit where
                     limit = fromEnum (diff / updateEvery config) + 1 where
@@ -82,13 +82,13 @@ test_Balance_Hold =
                     | rest == [] = beginTime
                     | otherwise  = fst $ last rest
                 portfolios
-                    = either error id
+                    = either (error . show) id
                     $ run
                     $ runError
                     $ fmap fst
                     $ runOutputList
                     $ runPrecisionExact
-                    $ backtest priceSeries initPortfolio config do
+                    $ backtest zeroFees priceSeries initPortfolio config do
                         portfolio <- input @(Portfolio ThreeLabels)
                         Output.output portfolio
 

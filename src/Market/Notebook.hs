@@ -76,11 +76,15 @@ evaluate
         )
     => res
     -> [Metric]
+    -> Fees assets
     -> TimeSeries (Prices assets)
     -> Portfolio assets
     -> c
     -> IO Evaluation
-evaluate res = semToIOPure . runPrecision res .:: Evaluation.evaluate
+evaluate res
+    = semToIOPure @(MarketError assets)
+    . runPrecision res
+ .::. Evaluation.evaluate
 
 evaluateOnWindows
     :: forall assets c s res r
@@ -90,6 +94,7 @@ evaluateOnWindows
         )
     => res
     -> [Metric]
+    -> Fees assets
     -> NominalDiffTime
     -> NominalDiffTime
     -> TimeSeries (Prices assets)
@@ -97,7 +102,9 @@ evaluateOnWindows
     -> c
     -> IO EvaluationOnWindows
 evaluateOnWindows res
-    = semToIOPure . runPrecision res .::: Evaluation.evaluateOnWindows
+        = semToIOPure @(MarketError assets)
+        . runPrecision res
+    .:::. Evaluation.evaluateOnWindows
 
 defaultBackground :: PropertySpec
 defaultBackground = background "rgba(0, 0, 0, 0.03)"
