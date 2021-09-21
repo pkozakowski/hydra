@@ -29,7 +29,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Output as Output
 import Polysemy.State as State
-import Prelude hiding ((/))
+import Prelude hiding ((+), (/))
 import Test.QuickCheck hiding (tolerance)
 import Test.QuickCheck.Instances.Time
 import Test.Tasty
@@ -118,10 +118,17 @@ test_runMarketSimulation =
                 result = runTrade time fees prices portfolio from to orderAmount
                 amount = getIn from portfolio
                 absAmount = absoluteAmount amount orderAmount
+                subtractAmount
+                    = absAmount
+                    + case fixed fees of
+                        Just (feeAsset, feeAmount)
+                            | feeAsset == from -> feeAmount
+                            | otherwise -> zero
+                        Nothing -> zero
                 portfolio' = fromRight undefined result
                 amount' = getIn from portfolio'
                 expectedAmount'
-                    = fromJust $ amount `sigma` (zero `delta` absAmount)
+                    = fromJust $ amount `sigma` (zero `delta` subtractAmount)
 
         tradeConservesTotalValueAtZeroFees
             :: UTCTime -> Prcs -> Port -> AssetIn -> AssetIn -> OrderAmount
@@ -161,8 +168,9 @@ test_runMarketSimulation =
         enoughForFees fees asset amount portfolio = case fixed fees of
             Just (feeAsset, feeAmount)
                 -> getIn feeAsset portfolio >= feeAmount
-                && (feeAsset /= asset || absAmount >= feeAmount) where
-                    absAmount = absoluteAmount (getIn asset portfolio) amount
+                && (feeAsset /= asset || balance >= absAmount + feeAmount) where
+                    balance = getIn asset portfolio
+                    absAmount = absoluteAmount balance amount
             Nothing -> True
 
         runTrade time fees prices portfolio from to orderAmount

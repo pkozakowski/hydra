@@ -129,18 +129,12 @@ applyFees
     -> SomeAmount assets
     -> Maybe (PortfolioDelta assets, Amount)
 applyFees fees (asset, amount) = do
-    amount' <- amount `sigma` (zero `delta` fixedIfSameAsFrom)
-    let amountAfterFees = (one - variable fees) .* amount'
-    return (portfolioDelta amount', amountAfterFees)
+    let amountAfterFees = (one - variable fees) .* amount
+    return (portfolioDelta, amountAfterFees)
     where
-        fixedIfSameAsFrom = case fixed fees of
-            Just (feeAsset, feeAmount)
-                -> if feeAsset == asset then feeAmount else zero
-            Nothing
-                -> zero
-        portfolioDelta amount'
+        portfolioDelta
             = negate
-            $ fixedFee + transfer (asset, variable fees .* amount') where
+            $ fixedFee + transfer (asset, variable fees .* amount) where
                 fixedFee = case fixed fees of
                     Just someFee -> transfer someFee
                     Nothing -> zero

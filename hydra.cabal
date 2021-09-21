@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: dc7b5f08a71a349cc319dd8c0f7e6d3c050cb569c3da74fc8d17ca3aa4102dcb
+-- hash: 2d06da0c36f3b3c8434f651b431dd7190c5ed09a097018eb2553a41f20142842
 
 name:           hydra
 version:        0.1.0.0
@@ -44,6 +44,7 @@ library
       Market.Ops
       Market.Simulation
       Market.Time
+      Market.Tuning
       Market.Types
       Numeric.Algebra.Deriving
       Numeric.Delta
@@ -78,6 +79,7 @@ library
     , constraints
     , containers
     , deepseq
+    , free
     , hashable
     , hashmap
     , hvega
@@ -92,6 +94,7 @@ library
     , pretty-simple
     , quickcheck-classes
     , quickcheck-instances
+    , random
     , req
     , retry
     , semigroupoids
@@ -134,6 +137,7 @@ executable hydra-exe
     , constraints
     , containers
     , deepseq
+    , free
     , hashable
     , hashmap
     , hvega
@@ -149,6 +153,7 @@ executable hydra-exe
     , pretty-simple
     , quickcheck-classes
     , quickcheck-instances
+    , random
     , req
     , retry
     , semigroupoids
@@ -206,6 +211,7 @@ test-suite hydra-test
     , constraints
     , containers
     , deepseq
+    , free
     , hashable
     , hashmap
     , hvega
@@ -221,6 +227,7 @@ test-suite hydra-test
     , pretty-simple
     , quickcheck-classes
     , quickcheck-instances
+    , random
     , req
     , retry
     , semigroupoids

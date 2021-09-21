@@ -3,19 +3,23 @@
 
 module Market.Notebook
     ( module Evaluation
+    , module Tuning
     , evaluate
     , evaluateOnWindows
     , plotSeries
     , plotTree
     , runPriceFeed
     , runPriceFeedEver
+    , tune
     ) where
 
+import Control.Logging
 import Data.Composition
 import Data.Fixed
 import Data.List.NonEmpty as NonEmpty
 import Data.Record.Hom
 import Data.Text
+import qualified Data.Text.Lazy as L
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Graphics.Vega.VegaLite
@@ -27,11 +31,16 @@ import Market.Feed.MongoDB
 import Market.Feed.PancakeSwap
 import Market.Internal.IO
 import Market.Time
+import Market.Tuning hiding (tune)
+import qualified Market.Tuning as Tuning
 import Market.Types
 import qualified Market.Feed.Price as PriceFeed
 import Numeric.Precision
 import Polysemy
 import Polysemy.Error
+import Polysemy.Output
+import Prelude hiding (log)
+import Text.Pretty.Simple
 
 data PriceFeed
 
@@ -105,6 +114,32 @@ evaluateOnWindows res
         = semToIOPure @(MarketError assets)
         . runPrecision res
     .:::. Evaluation.evaluateOnWindows
+
+tune
+    :: forall c res e
+     . (Show c, HasResolution res, Show e)
+    => res
+    -> StopWhen
+    -> ( c -> Sem
+            [ Output (c, Double)
+            , Precision
+            , Time
+            , Error e
+            , Embed IO
+            ] Double
+       )
+    -> (Grid c -> NonEmpty c)
+    -> Grid c
+    -> IO (c, Double)
+tune res
+    = semToIO
+    . runTimeIO
+    . runPrecision res
+    . runOutputLog
+  .:: Tuning.tune where
+        runOutputLog = runOutputSem \(config, ftn) -> embed $ log
+            $ "new best config [fitness = " <> pack (show ftn) <> "]:\n"
+           <> L.toStrict (pShow config)
 
 defaultBackground :: PropertySpec
 defaultBackground = background "rgba(0, 0, 0, 0.03)"

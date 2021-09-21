@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
@@ -150,6 +151,12 @@ distributionDeltaValid (DistributionDelta shareDeltas)
             unShareDelta (ShareDelta scalar) = scalar
 
 type SomeAmount assets = (HR.LabelIn assets, Amount)
+
+gwei
+    :: forall asset assets
+     . (KnownSymbol asset, HR.Has asset assets)
+    => Integer -> SomeAmount assets
+gwei n = (HR.labelIn @asset, Amount $ n % 1000000000)
 
 transfer :: Labels assets => SomeAmount assets -> PortfolioDelta assets
 transfer (assetIn, amount) = HR.fromList zero [(assetIn, amount `delta` zero)]
