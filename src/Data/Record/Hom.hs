@@ -112,6 +112,9 @@ instance Show (LabelIn ls) where
 instance Eq (LabelIn ls) where
     li1 == li2 = show li1 == show li2
 
+instance Ord (LabelIn ls) where
+    li1 `compare` li2 = show li1 `compare` show li2
+
 instance NFData (LabelIn ls) where
     rnf (LabelIn dict) = rnf dict
 

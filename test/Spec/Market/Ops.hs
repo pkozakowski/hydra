@@ -3,9 +3,13 @@
 module Spec.Market.Ops where
 
 import Data.Coerce
+import Data.Foldable
+import Data.List
 import qualified Data.List.NonEmpty as NonEmpty
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Maybe
-import Data.Record.Hom
+import Data.Record.Hom hiding (toList)
 import Data.Time.Clock
 import Market.Ops
 import Market.Types
@@ -201,6 +205,25 @@ test_windows = fmap (uncurry testProperty)
             $ (windowLen >= stride && stride > 0 && n < 1000 ==>)
             $ prop windowLen stride series where
                 n = numStridesFrac windowLen stride series
+
+test_sweep :: [TestTree]
+test_sweep = fmap (uncurry testProperty)
+    [ ("completeness", completeness)
+    , ("order", order)
+    ] where
+        completeness :: Map Int (TimeSeries Int) -> Property
+        completeness mapOfSeries = sort flatMap === sort flatEvents where
+            flatMap = flattenEntry =<< Map.toList mapOfLists where
+                flattenEntry (k, tvs)
+                    = (\(t, v) -> (t, k, v)) <$> tvs
+            flatEvents = flattenEvent =<< sweep mapOfLists where
+                flattenEvent (t, ev)
+                    = (\(k, v) -> (t, k, v)) <$> toList (changes ev)
+            mapOfLists = seriesToList <$> mapOfSeries
+
+        order :: Map Int (TimeSeries Int) -> Property
+        order mapOfSeries = events === sort events where
+            events = sweep $ seriesToList <$> mapOfSeries
 
 bucketScalar :: String -> Scalar -> String
 bucketScalar label scalar = label ++ " " ++

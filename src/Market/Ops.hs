@@ -8,8 +8,10 @@ import Control.Monad
 import Data.Composition hiding ((.*))
 import Data.Constraint
 import Data.Function
-import Data.List.NonEmpty (nonEmpty)
+import Data.List.NonEmpty (NonEmpty(..), nonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Maybe
 import Data.Proxy
 import Data.Record.Hom
@@ -203,3 +205,26 @@ downsample periodLength
             = seriesFromList . catMaybes . fmap engulf . seriesToList where
                 engulf (t, mx) = (t,) <$> mx
         lastInSeries (TimeSeries txs) = snd $ NonEmpty.last txs
+
+newtype Event k v = Event { changes :: NonEmpty (k, v) }
+    deriving (Eq, Ord, Show)
+
+sweep :: Map k [TimeStep v] -> [TimeStep (Event k v)]
+sweep mapOfSeries =
+    if null notNullSeries then []
+    else (time, Event changes) : sweep mapOfSeries' where
+        notNullSeries = filter (not . null . snd) $ Map.toList mapOfSeries
+        time = minimum $ headTime <$> notNullSeries
+        changes
+            = fromJust
+            $ nonEmpty
+            $ fmap labelAndHeadValue
+            $ filter ((== time) . headTime) notNullSeries where
+                labelAndHeadValue (label, series) = (label, snd $ head series)
+        headTime = fst . head . snd
+        mapOfSeries' = advance <$> mapOfSeries where
+            advance series = case series of
+                [] -> []
+                (t, _) : rest
+                    | t == time -> rest
+                    | otherwise -> series
