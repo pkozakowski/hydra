@@ -226,7 +226,7 @@ allocationToTrades tolerance prices portfolio targetAlloc
                 (trade from to $ Absolute $ shr .* amount)
                 \case
                     -- Can't afford the fees => skip this trade - instruments
-                    -- aren't supposed check that.
+                    -- aren't supposed to check that.
                     InsufficientBalanceToCoverFees _ -> return ()
                     -- Don't have enough money for the transfer => throw -
                     -- instruments shouldn't exceed the balance.
