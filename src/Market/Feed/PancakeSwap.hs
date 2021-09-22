@@ -337,5 +337,3 @@ runPriceFeedPancakeSwap tokenName = interpret \case
                 fmap (fmap $ fmap price)
                     $ fetchPriceVolumes from' to tokenInPair
             Nothing -> return Nothing
-    where
-        mapFst f (x, y) = (f x, y)

@@ -253,9 +253,8 @@ evaluate metrics fees priceSeries initPortfolio config = do
         visitAgg pricesPortfolio subinstrs
             = InstrumentTree pricesPortfolio
             $ Map.fromList
-            $ fmap (onFst $ InstrumentName . show)
+            $ fmap (first $ InstrumentName . show)
             $ HR.toList subinstrs where
-                onFst f (x, y) = (f x, y)
 
         visitSelf :: SelfVisitor assets (PricesPortfolio assets)
         visitSelf prices portfolio _ _
