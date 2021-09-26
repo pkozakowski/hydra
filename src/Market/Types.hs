@@ -16,8 +16,11 @@ module Market.Types where
 
 import Control.DeepSeq
 import Control.Exception
+import Data.Bifunctor
 import Data.Coerce
+import Data.Functor.Apply
 import Data.List.NonEmpty as NonEmpty
+import Data.Maybe
 import Data.Proxy
 import Data.Record.Hom (HomRec(..), Labels, (:=) (..))
 import qualified Data.Record.Hom as HR
@@ -27,7 +30,7 @@ import Data.Time
 import GHC.Generics
 import GHC.TypeLits
 import Market.Deriving
-import Numeric.Algebra
+import Numeric.Algebra hiding ((<), (>))
 import Numeric.Delta
 import Numeric.Field.Fraction
 import Numeric.Kappa
@@ -202,8 +205,36 @@ instance Traversable1 TimeSeries where
     sequence1 = fmap TimeSeries . sequence1 . fmap engulf . unTimeSeries where
         engulf (t, ax) = (t,) <$> ax
 
+instance Apply TimeSeries where
+    fs <.> xs = uncurry ($) <$> zipSeries fs xs
+
 seriesFromList :: [TimeStep a] -> Maybe (TimeSeries a)
 seriesFromList = fmap TimeSeries . nonEmpty
 
 seriesToList :: TimeSeries a -> [TimeStep a]
 seriesToList = NonEmpty.toList . unTimeSeries
+
+zipSeries :: TimeSeries a -> TimeSeries b -> TimeSeries (a, b)
+zipSeries s1 s2
+    = fromJust
+    $ seriesFromList
+    $ go Nothing Nothing (seriesToList s1, seriesToList s2) where
+        go prev1 prev2 = \case
+            ((t1, x1) : txs1, (t2, x2) : txs2)
+                | t1 > t2 -> case prev1 of
+                    Just x1' -> (t2, (x1', x2)) : advance1
+                    Nothing -> advance1
+                | t1 < t2 -> case prev2 of
+                    Just x2' -> (t1, (x1, x2')) : advance2
+                    Nothing -> advance2
+                | t1 == t2 -> (t1, (x1, x2)) : advance12
+                where 
+                    advance1 = go prev1 (Just x2) ((t1, x1) : txs1, txs2)
+                    advance2 = go (Just x1) prev2 (txs1, (t2, x2) : txs2)
+                    advance12 = go (Just x1) (Just x2) (txs1, txs2)
+            ([], txs2) -> rest (,) prev1 txs2
+            (txs1, []) -> rest (flip (,)) prev2 txs1
+            where
+                rest f prev txs = case prev of
+                    Just x  -> second (f x) <$> txs
+                    Nothing -> []

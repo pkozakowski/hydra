@@ -54,21 +54,11 @@ class Period p where
     type BatchBy p :: *
 
 data Level p where
-    Lowest :: Level Second
+    Lowest :: Level Minute
     Lower :: BatchablePeriod p' => Level p' -> Level p
 
 class (Period p, Period (BatchBy p)) => BatchablePeriod p where
     level :: Level p
-
-data Second
-
-instance Period Second where
-    periodName = "second"
-    numSeconds = 1
-    type BatchBy Second = Hour
-
-instance BatchablePeriod Second where
-    level = Lowest
 
 data Minute
 
@@ -78,7 +68,7 @@ instance Period Minute where
     type BatchBy Minute = Day
 
 instance BatchablePeriod Minute where
-    level = Lower $ level @Second
+    level = Lowest
 
 data Hour
 
@@ -103,6 +93,8 @@ instance Period Month where
     periodName = "month"
     numSeconds = round $ 30.44 * fromIntegral (numSeconds @Day)
     type BatchBy Month = Void
+
+type HighestBatchablePeriod = Hour
 
 data Batch ft atp byp = Batch
     { token :: String
@@ -349,27 +341,29 @@ cacheCoverage
     -> String
     -> Sem r (Maybe (UTCTime, UTCTime))
 cacheCoverage hostName token = ioToSem $ withStderrLogging do
-    maybeFirstHour <- mongo hostName $ findOne query
-    case maybeFirstHour of
+    maybeFirstBatch <- mongo hostName $ findOne query
+    cov <- case maybeFirstBatch of
         Nothing -> return Nothing
-        Just firstHour -> do
-            batchstamps <- getBatchstampsSince $ batchstamp firstHour
+        Just firstBatch -> do
+            batchstamps <- getBatchstampsSince $ batchstamp firstBatch
             return
                 $ Just
-                ( batchstampToTime @(BatchBy Second) $ batchstamp firstHour
-                , batchstampToTime @(BatchBy Second) $ last batchstamps + 1
+                ( batchstampToTime @(BatchBy Minute) $ batchstamp firstBatch
+                , batchstampToTime @(BatchBy Minute) $ last batchstamps + 1
                 )
+    debug $ "cache coverage for " <> pack token <> ": " <> pack (show cov)
+    return cov
     where
         selection
             = select [ "token" =: token ]
-            $ collection @ft @Second @(BatchBy Second)
+            $ collection @ft @Minute @(BatchBy Minute)
         query = selection
             { sort = [ "batchstamp" =: (1 :: Int) ]
             , project = [ "batchstamp" =: (1 :: Int) ]
             }
         getBatchstampsSince batchstamp
             = getCachedBatch
-                @ft @Second @(BatchBy Second)
+                @ft @Minute @(BatchBy Minute)
                 hostName token batchstamp >>= \case
                     Nothing -> return []
                     Just _ -> do

@@ -6,17 +6,21 @@
 
 module Spec.Market.Types where
 
+import qualified Data.Map as Map
+import Data.Foldable
 import Data.Proxy
 import Data.Typeable
+import Market.Ops
 import Market.Types
 import Market.Types.Test
-import Numeric.Algebra
+import Numeric.Algebra hiding ((-))
 import Numeric.Algebra.Test
 import Numeric.Delta
 import Numeric.Test
 import Test.QuickCheck
 import Test.QuickCheck.Classes
 import Test.Tasty
+import Test.Tasty.QuickCheck
 import Test.Tasty.QuickCheck.Laws
 import Test.Tasty.TH
 
@@ -190,6 +194,28 @@ test_Fees :: [TestTree]
 test_Fees =
     [ testOrderLaws @(Fees ThreeLabels) p
     ]
+
+test_zipSeries :: [TestTree]
+test_zipSeries =
+    [ testProperty "agreement with sweep" agreementWithSweep
+    ] where
+        agreementWithSweep :: TimeSeries Int -> TimeSeries Int -> Property
+        agreementWithSweep xs ys
+            = counterexample ("zipped: " ++ show zipped)
+            $ counterexample ("events: " ++ show events)
+            $ length zipped >= minLength .&&. diff >= 0 .&&. conjoin
+                (zipWith agree (seriesToList zipped) (drop diff events))
+            where
+                zipped = zipSeries xs ys
+                events = sweep $ Map.fromList
+                    [(False, seriesToList xs), (True, seriesToList ys)]
+                minLength = min (length xs) (length ys)
+                diff = length events - length zipped
+                agree (t, (x, y)) (t', Event changes)
+                    = t === t' .&&. conjoin (toList $ ok <$> changes) where
+                        ok (k, v) = case k of
+                            False -> v === x
+                            True  -> v === y
 
 p :: Proxy a
 p = Proxy

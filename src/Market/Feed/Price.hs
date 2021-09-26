@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Market.Feed.Price where
 
 import Control.Monad
@@ -8,14 +10,21 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe
 import Data.Record.Hom
+import Data.Text hiding (foldl, scanl)
 import Market.Ops
 import Market.Types
 import Market.Feed
+import Market.Feed.MongoDB
 import Numeric.Field.Fraction
 import Numeric.Precision
 import Numeric.Truncatable
 import Polysemy
 import Polysemy.Error
+
+data PriceFeed
+
+instance FeedType PriceFeed where
+    feedName = "price"
 
 runPriceFeed
     :: forall assets r b
@@ -37,7 +46,7 @@ runPriceFeed interpreter = interpret \case
             $ fmap buildTimeStep
             $ scanl update (Nothing, pure Nothing)
             $ sweep
-            $ maybe [] (NonEmpty.toList . unTimeSeries) <$> assetToMaybeSeries
+            $ maybe [] seriesToList <$> assetToMaybeSeries
         where
             buildTimeStep (maybeTime, currentPrices)
                 = (,) <$> maybeTime <*> (Prices <$> sequenceA currentPrices)

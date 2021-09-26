@@ -27,13 +27,14 @@ import Market
 import Market.Evaluation hiding (evaluate, evaluateOnWindows)
 import qualified Market.Evaluation as Evaluation
 import Market.Feed
+import Market.Feed.Binance
 import Market.Feed.MongoDB
-import Market.Feed.PancakeSwap
 import Market.Internal.IO
 import Market.Time
 import Market.Tuning hiding (tune)
 import qualified Market.Tuning as Tuning
 import Market.Types
+import Market.Feed.Price (PriceFeed)
 import qualified Market.Feed.Price as PriceFeed
 import Numeric.Precision
 import Polysemy
@@ -41,11 +42,6 @@ import Polysemy.Error
 import Polysemy.Output
 import Prelude hiding (log)
 import Text.Pretty.Simple
-
-data PriceFeed
-
-instance FeedType PriceFeed where
-    feedName = "price"
 
 runPriceFeed
     :: forall assets atp res
@@ -66,7 +62,7 @@ runPriceFeed res from to
             -> Sem [Time, Precision, Error String, Embed IO] a
         runPriceFeed
             = runFeedWithMongoCache @PriceFeed @atp "127.0.0.1"
-            $ runPriceFeedPancakeSwap
+            $ runPriceFeedBinance
 
 runPriceFeedEver
     :: forall assets atp res

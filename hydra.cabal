@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2d06da0c36f3b3c8434f651b431dd7190c5ed09a097018eb2553a41f20142842
+-- hash: 1a879e7968da86f3265c340b89cd310ccf22002f96f6e8f9bf2d4afce3f9a4c6
 
 name:           hydra
 version:        0.1.0.0
@@ -33,6 +33,7 @@ library
       Market.Deriving
       Market.Evaluation
       Market.Feed
+      Market.Feed.Binance
       Market.Feed.MongoDB
       Market.Feed.PancakeSwap
       Market.Feed.Price
@@ -88,6 +89,7 @@ library
     , logging
     , mongoDB
     , morpheus-graphql-client
+    , optparse-applicative
     , parallel
     , polysemy
     , polysemy-plugin
@@ -98,10 +100,12 @@ library
     , req
     , retry
     , semigroupoids
+    , stm
     , tasty
     , tasty-quickcheck
     , tasty-th
     , template-haskell
+    , terminal-progress-bar
     , text
     , time
     , vector
@@ -110,6 +114,7 @@ library
 executable hydra-exe
   main-is: Main.hs
   other-modules:
+      Command.Sync
       Paths_hydra
   hs-source-dirs:
       app
@@ -147,6 +152,7 @@ executable hydra-exe
     , logging
     , mongoDB
     , morpheus-graphql-client
+    , optparse-applicative
     , parallel
     , polysemy
     , polysemy-plugin
@@ -157,10 +163,12 @@ executable hydra-exe
     , req
     , retry
     , semigroupoids
+    , stm
     , tasty
     , tasty-quickcheck
     , tasty-th
     , template-haskell
+    , terminal-progress-bar
     , text
     , time
     , vector
@@ -221,6 +229,7 @@ test-suite hydra-test
     , logging
     , mongoDB
     , morpheus-graphql-client
+    , optparse-applicative
     , parallel
     , polysemy
     , polysemy-plugin
@@ -231,10 +240,12 @@ test-suite hydra-test
     , req
     , retry
     , semigroupoids
+    , stm
     , tasty
     , tasty-quickcheck
     , tasty-th
     , template-haskell
+    , terminal-progress-bar
     , text
     , time
     , vector

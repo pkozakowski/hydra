@@ -58,6 +58,9 @@ dependencies:
 - parallel
 - free
 - random
+- optparse-applicative
+- stm
+- terminal-progress-bar
 
 library:
   source-dirs: src

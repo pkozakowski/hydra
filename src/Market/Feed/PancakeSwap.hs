@@ -14,14 +14,13 @@ module Market.Feed.PancakeSwap where
 import Control.Exception
 import Control.Logging
 import Control.Monad
-import Control.Retry
 import Data.Aeson.Types as AesonTypes hiding ((.:))
 import Data.ByteString.Lazy (ByteString)
 import Data.Composition
 import Data.Either
 import Data.Function
-import Data.Hashable
-import qualified Data.HashMap as HashMap
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.IORef
 import Data.List
 import Data.List.NonEmpty (nonEmpty)
@@ -156,30 +155,11 @@ fetchPancakeSwap args = do
     fetchFail (resolver pancakeSwapUrl) args
 
 data WhichToken = Token0 | Token1
-    deriving (Generic, Show, Eq, Ord, Hashable)
+    deriving (Generic, Show, Eq, Ord)
 
 deriving instance Ord ID
 
 type TokenInPair = (WhichToken, ID)
-
-cachedFetchIORef
-    :: (Hashable k, Ord k)
-    => IORef (HashMap.Map k v)
-    -> (k -> IO v)
-    -> (k -> Text)
-    -> k
-    -> IO v
-cachedFetchIORef cache fetch describe key = do
-    maybeValue <- HashMap.lookup key <$> readIORef cache
-    case maybeValue of
-        Just value -> do
-            debug $ describe key <> " found in cache"
-            return value
-        Nothing -> do
-            debug $ describe key <> " not found in cache; fetching"
-            value <- fetch key
-            modifyIORef cache $ HashMap.insert key value
-            return value
 
 fetchStrongestPair :: String -> IO TokenInPair
 fetchStrongestPair tokenName = do
@@ -202,13 +182,13 @@ fetchStrongestPair tokenName = do
         returnAsToken0 = return . (Token0,) . idPrefix . head
         returnAsToken1 = return . (Token1,) . idSuffix . head
 
-pairCache :: IORef (HashMap.Map String TokenInPair)
-pairCache = unsafePerformIO $ newIORef HashMap.empty
+pairCache :: IORef (Map String TokenInPair)
+pairCache = unsafePerformIO $ newIORef Map.empty
 {-# NOINLINE pairCache #-}
 
 cachedFetchStrongestPair :: String -> IO TokenInPair
 cachedFetchStrongestPair
-    = cachedFetchIORef pairCache fetchStrongestPair
+    = cacheF pairCache fetchStrongestPair
     $ \tokenName -> "strongest pair for token " <> pack tokenName
 
 data PriceVolume = PriceVolume { price :: Double, volume :: Double }
@@ -300,28 +280,21 @@ fetchBeginTime (_, pairID) = do
         return $ Just $ posixSecondsToUTCTime $ fromInteger
                $ unBigInt $ timestamp $ head swaps
 
-beginTimeCache :: IORef (HashMap.Map TokenInPair (Maybe UTCTime))
-beginTimeCache = unsafePerformIO $ newIORef HashMap.empty
+beginTimeCache :: IORef (Map TokenInPair (Maybe UTCTime))
+beginTimeCache = unsafePerformIO $ newIORef Map.empty
 {-# NOINLINE beginTimeCache #-}
 
 cachedFetchBeginTime :: TokenInPair -> IO (Maybe UTCTime)
 cachedFetchBeginTime
-    = cachedFetchIORef beginTimeCache fetchBeginTime
+    = cacheF beginTimeCache fetchBeginTime
     $ \(_, pairID) -> "begin time for pair " <> pack (show pairID)
 
 resolver :: Url a -> ByteString -> IO ByteString
 resolver url body
-    = recovering retryPolicy [retryHandler]
-    $ const
+    = withExponentialBackoff @HttpException
     $ runReq defaultHttpConfig do
         let headers = header "Content-Type" "application/json"
         responseBody <$> req POST url (ReqBodyLbs body) lbsResponse headers
-    where
-        -- Retry with exponential backoff starting from 100ms.
-        retryPolicy = exponentialBackoff 100000
-        retryHandler
-            = logRetries (\(e :: HttpException) -> return True)
-            $ warn . pack .:. defaultLogMsg
 
 runPriceFeedPancakeSwap
     :: Members [Error String, Embed IO] r
