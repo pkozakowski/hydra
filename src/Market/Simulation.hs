@@ -5,8 +5,8 @@ module Market.Simulation where
 
 import Control.Monad
 import Data.List.NonEmpty
+import Data.Map.Class ((!))
 import Data.Maybe
-import qualified Data.Record.Hom as HR
 import Data.Time
 import Data.Traversable
 import Market
@@ -26,85 +26,82 @@ import Polysemy.State as State
 import Prelude hiding ((-), negate, pi, truncate)
 
 runMarketSimulation
-    :: forall assets r a
-     .  ( HR.Labels assets
-        , Members
-            [ Input (Prices assets)
-            , Input (Fees assets)
-            , Error (MarketError assets)
+    :: forall r a
+     .  ( Members
+            [ Input Prices
+            , Input Fees
+            , Error MarketError
             ] r
         )
-    => Portfolio assets
-    -> Sem (Market assets ': Input (Portfolio assets) ': r) a
-    -> Sem r (Portfolio assets, a)
+    => Portfolio
+    -> Sem (Market ': Input Portfolio ': r) a
+    -> Sem r (Portfolio, a)
 runMarketSimulation initPortfolio monad
     = runState initPortfolio
     $ marketInputToState monad
 
-type BacktestEffects assets c s r =
-    ( Market assets
-    : Input (Portfolio assets)
-    : Input (Prices assets)
-    : Input (Fees assets)
+type BacktestEffects c s r =
+    ( Market
+    : Input Portfolio
+    : Input Prices
+    : Input Fees
     : Time
     : State (IState s)
     : Input (IConfig c)
-    : Input (Prices assets)
-    : State (Portfolio assets)
+    : Input Prices
+    : State Portfolio
     : r
     )
 
-type OnStep assets c s r = Sem (BacktestEffects assets c s r) ()
+type OnStep c s r = Sem (BacktestEffects c s r) ()
 
 -- | Basic backtesting function, allowing to run arbitrary effects after each
 -- timestep.
 backtest
-    :: forall assets c s r
-     .  ( HR.Labels assets
-        , Instrument assets c s
-        , Members [Precision, Error (MarketError assets)] r
+    :: forall c s r
+     .  ( Instrument c s
+        , Members [Precision, Error MarketError] r
         )
-    => Fees assets
-    -> TimeSeries (Prices assets)
-    -> Portfolio assets
+    => Fees
+    -> TimeSeries Prices
+    -> Portfolio
     -> c
-    -> OnStep assets c s r
-    -> Sem r (Portfolio assets)
+    -> OnStep c s r
+    -> Sem r Portfolio
 backtest fees priceSeries initPortfolio config onStep
     = backtest' fees priceSeries initPortfolio config (*> onStep)
 
-type OnStep' assets c s r
-    =  Sem (BacktestEffects assets c s r) ()
-    -> Sem (BacktestEffects assets c s r) ()
+type OnStep' c s r
+    =  Sem (BacktestEffects c s r) ()
+    -> Sem (BacktestEffects c s r) ()
 
 -- | Advanced backtesting function, allowing to intercept the executed actions
 -- at each timestep and run arbitrary effects.
 backtest'
-    :: forall assets c s r
-     .  ( HR.Labels assets
-        , Instrument assets c s
-        , Members [Precision, Error (MarketError assets)] r
+    :: forall c s r
+     .  ( Instrument c s
+        , Members [Precision, Error MarketError] r
         )
-    => Fees assets
-    -> TimeSeries (Prices assets)
-    -> Portfolio assets
+    => Fees
+    -> TimeSeries Prices
+    -> Portfolio
     -> c
-    -> OnStep' assets c s r
-    -> Sem r (Portfolio assets)
+    -> OnStep' c s r
+    -> Sem r Portfolio
 backtest' fees priceSeries initPortfolio config onStep'
     = execState initPortfolio
     $ runInputConst initPrices
-    $ runInstrument @assets config
+    $ runInstrument config
     $ forM restOfPrices \(time, prices)
        -> runTimeConst time
         $ runInputConst fees
         $ runInputConst prices
-        $ (*> truncateState @(Portfolio assets))
+        $ (*> truncateState @Portfolio)
         $ (*> truncateState @(IState s))
-        $ subsume @(State (Portfolio assets))
+        $ subsume @(State Portfolio)
         $ marketInputToState
         $ onStep'
-        $ execute @assets @c @s
+        $ execute @c @s
     where
         TimeSeries ((_, initPrices) :| restOfPrices) = priceSeries
 
@@ -120,21 +117,20 @@ backtest' fees priceSeries initPortfolio config onStep'
             put state'
 
 marketInputToState
-    :: forall assets r a
-     .  ( HR.Labels assets
-        , Members
-            [ Input (Prices assets)
-            , Input (Fees assets)
-            , Error (MarketError assets)
+    :: forall r a
+     .  ( Members
+            [ Input Prices
+            , Input Fees
+            , Error MarketError
             ] r
         )
-    => Sem (Market assets ': Input (Portfolio assets) ': r) a
-    -> Sem (State (Portfolio assets) : r) a
+    => Sem (Market ': Input Portfolio ': r) a
+    -> Sem (State Portfolio : r) a
 marketInputToState monad =
     let monad' :: Sem
-             ( Market assets
-            ': Input (Portfolio assets)
-            ': State (Portfolio assets)
+             ( Market
+            ': Input Portfolio
+            ': State Portfolio
             ': r
              )
              a
@@ -143,31 +139,30 @@ marketInputToState monad =
         inputToState $ marketToState monad'
 
 marketToState
-    :: forall assets r a
-     .  ( HR.Labels assets
-        , Members
-            [ State (Portfolio assets)
-            , Input (Prices assets)
-            , Input (Fees assets)
-            , Error (MarketError assets)
+    :: forall r a
+     .  ( Members
+            [ State Portfolio
+            , Input Prices
+            , Input Fees
+            , Error MarketError
             ] r
         )
-    => Sem (Market assets ': r) a
+    => Sem (Market ': r) a
     -> Sem r a
 marketToState = interpret \case
     Trade from to orderAmount -> do
         when (from == to)
-            $ throw @(MarketError assets)
+            $ throw @MarketError
             $ OtherError $ "trying to trade for the same token: " ++ show to
 
-        portfolioBefore :: Portfolio assets <- State.get
-        let fromBefore = HR.getIn from portfolioBefore
+        portfolioBefore :: Portfolio <- State.get
+        let fromBefore = portfolioBefore ! from
             fromAmountBefore = absoluteAmount fromBefore orderAmount
-        fees <- input @(Fees assets)
+        fees <- input @Fees
         (feeDelta, fromAmountAfterFees)
             <- case applyFees fees (from, fromAmountBefore) of
                 Just x -> return x
-                Nothing -> throw @(MarketError assets)
+                Nothing -> throw @MarketError
                     $ OtherError
                     $ "trade amount less than the fixed fee: "
                    ++ show (fromJust $ fixed fees)
@@ -175,11 +170,11 @@ marketToState = interpret \case
             Just portfolio -> return $ portfolio
             Nothing -> throw $ InsufficientBalanceToCoverFees fees
 
-        prices <- input @(Prices assets)
-        let fromPrice = HR.getIn from prices
-            toPrice   = HR.getIn to prices
+        prices <- input @Prices
+        let fromPrice = prices ! from
+            toPrice   = prices ! to
             toAmount  = fromJust
-                $ fromAmountAfterFees `pi` fromPrice `kappa'` toPrice
+                $ fromPrice `pi` fromAmountAfterFees `kappa` toPrice
             totalDelta
                 = transfer (to, toAmount)
                 - transfer (from, fromAmountAfterFees)

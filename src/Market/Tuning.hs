@@ -3,11 +3,10 @@ module Market.Tuning where
 import Control.Monad
 import Control.Monad.Free
 import Data.Composition
-import Data.List.NonEmpty (NonEmpty(..))
+import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
-import Data.Map as Map
+import Data.Map.Static
 import Data.Maybe
-import qualified Data.Record.Hom as HR
 import Data.Time.Clock
 import Market
 import Market.Evaluation
@@ -47,21 +46,20 @@ runGridRandom gen grid = runOne <$> gens where
             (gen', gen'') = Random.split gen
 
 instrumentFitness
-    :: forall assets c s r
-     .  ( HR.Labels assets
-        , Instrument assets c s
-        , Members [Precision, Error (MarketError assets)] r
+    :: forall c s r
+     .  ( Instrument c s
+        , Members [Precision, Error (MarketError)] r
         )
     => Metric
-    -> Fees assets
+    -> Fees
     -> NominalDiffTime
     -> NominalDiffTime
-    -> TimeSeries (Prices assets)
-    -> Portfolio assets
+    -> TimeSeries (Prices)
+    -> Portfolio
     -> c
     -> Sem r Double
 instrumentFitness metric = fmap toDouble .::: evaluateOnWindows [metric] where
-    toDouble eval = integrate $ active eval Map.! name metric
+    toDouble eval = integrate $ active eval ! name metric
 
 data StopWhen
     = TrialLimit Integer

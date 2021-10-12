@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Spec.Market.Instruments where
@@ -6,8 +6,8 @@ module Spec.Market.Instruments where
 import Data.Either
 import Data.List
 import Data.List.NonEmpty (NonEmpty(..))
+import Data.Map.Static
 import Data.Maybe
-import Data.Record.Hom
 import Data.Time
 import Market
 import Market.Instruments
@@ -15,7 +15,6 @@ import Market.Instruments.Test
 import Market.Ops
 import Market.Simulation
 import Market.Types
-import Market.Types.Test
 import Numeric.Algebra hiding ((>), (+), (-), (/))
 import Numeric.Precision
 import Polysemy
@@ -24,46 +23,41 @@ import Polysemy.Input
 import Polysemy.Output as Output
 import Test.Tasty
 import Test.Tasty.QuickCheck hiding (tolerance)
+import Test.Tasty.QuickCheck.Laws
 import Test.Tasty.TH
-
-type ThreeLabels = '["a", "b", "c"]
-type Prcs = Prices ThreeLabels
-type Port = Portfolio ThreeLabels
-type BalCfg = BalanceConfig ThreeLabels ThreeLabels
-type BalSt = BalanceState ThreeLabels ThreeLabels
 
 test_Hold :: [TestTree]
 test_Hold =
-    [ testInstrumentLaws @ThreeLabels arbitraryConfig arbitraryConfig
+    [ testLaws $ instrumentLaws arbitraryConfig arbitraryConfig
     , testProperty "allocation is one point" onePointAllocation
     ] where
-        onePointAllocation :: Prcs -> Property
-        onePointAllocation prices = alloc === onePoint (labelIn @"a") where
-            alloc = runInit prices (Hold #a) initAllocation
+        onePointAllocation :: Prices -> Property
+        onePointAllocation prices = alloc === onePoint "A" where
+            alloc = runInit prices (Hold "A") initAllocation
 
-        arbitraryConfig = return $ Hold #a
+        arbitraryConfig = return $ Hold "A"
 
 test_Balance_Hold :: [TestTree]
 test_Balance_Hold =
-    [ testInstrumentLaws @ThreeLabels arbitraryApproxConfig arbitraryExactConfig
-    , testInstantExact "portfolio is balanced (instant)"
-        portfolioIsBalanced
-    , testContinuousExact "portfolio is balanced (continuous)"
-        portfolioIsBalanced
+    [ testLaws $ instrumentLaws arbitraryApproxConfig arbitraryExactConfig
+    , testProperty "portfolio is balanced (instant)"
+        $ instExact portfolioIsBalanced
+    , testProperty "portfolio is balanced (continuous)"
+        $ contExact portfolioIsBalanced
     , testProperty "rebalances are rare"
         $ forAll ((,) <$> arbitraryApproxConfig <*> resize 5 arbitrary)
         $ uncurry rebalancesAreRare
     ] where
         portfolioIsBalanced = whenNotBroke do
-            IConfig config <- input
-            prices <- input
+            IConfig config <- input @(IConfig BalanceConfig)
+            prices <- input @Prices
             portfolio' <- fst <$> runExecuteM execute
             let valueAlloc = fromJust $ valueAllocation prices portfolio'
             return $ property
                 $ isBalanced (tolerance config) valueAlloc (target config)
 
         rebalancesAreRare
-            :: BalCfg -> TimeSeries Prcs -> Port -> Property
+            :: BalanceConfig -> TimeSeries Prices -> Portfolio -> Property
         rebalancesAreRare config priceSeries initPortfolio
               = totalValue initPrices initPortfolio > zero
              && updateEvery config > 0
@@ -89,11 +83,11 @@ test_Balance_Hold =
                     $ runOutputList
                     $ runPrecisionExact
                     $ backtest zeroFees priceSeries initPortfolio config do
-                        portfolio <- input @(Portfolio ThreeLabels)
+                        portfolio <- input @Portfolio
                         Output.output portfolio
 
         arbitraryApproxConfig = do
-            tolerance <- arbitraryPositiveFraction
+            tolerance <- arbitraryPositiveScalar
             updateEvery <- arbitrary `suchThat` \x -> x >= 0
             arbitraryConfig tolerance updateEvery
 
@@ -102,23 +96,16 @@ test_Balance_Hold =
         arbitraryConfig tolerance updateEvery = do
             target <- arbitrary
             return BalanceConfig
-                { configs
-                     = #a := Hold #a
-                    ~& #b := Hold #b
-                    ~& #c := Hold #c
-                    ~& noConfigs @ThreeLabels
+                { configs = fromList $ hold <$> testAssets
                 , target = target
                 , tolerance = tolerance
                 , updateEvery = updateEvery
-                }
+                } where
+                    hold asset = (asset, someInstrumentConfig $ Hold asset)
 
-        testContinuousApprox
-            = testInstrumentPropertyContinuous
-                @ThreeLabels arbitraryApproxConfig
-        testInstantExact
-            = testInstrumentPropertyInstant @ThreeLabels arbitraryExactConfig
-        testContinuousExact
-            = testInstrumentPropertyContinuous @ThreeLabels arbitraryExactConfig
+        contApprox = instrumentPropertyContinuous arbitraryApproxConfig
+        instExact = instrumentPropertyInstant arbitraryExactConfig
+        contExact = instrumentPropertyContinuous arbitraryExactConfig
 
 tests :: TestTree
 tests = $(testGroupGenerator)

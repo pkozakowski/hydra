@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MonoLocalBinds #-}
@@ -6,17 +7,17 @@
 
 module Spec.Market.Types where
 
-import qualified Data.Map as Map
-import Data.Foldable
+import qualified Data.List.NonEmpty as NonEmpty
+import Data.Map.Static hiding (Value)
 import Data.Proxy
 import Data.Typeable
 import Market.Ops
 import Market.Types
-import Market.Types.Test
 import Numeric.Algebra hiding ((-))
 import Numeric.Algebra.Test
 import Numeric.Delta
-import Numeric.Test
+import Numeric.Kappa
+import Numeric.Normed
 import Test.QuickCheck
 import Test.QuickCheck.Classes
 import Test.Tasty
@@ -24,50 +25,69 @@ import Test.Tasty.QuickCheck
 import Test.Tasty.QuickCheck.Laws
 import Test.Tasty.TH
 
-type ThreeLabels = '["a", "b", "c"]
-
 showProxyType :: Typeable (Proxy t) => Proxy t -> String
 showProxyType = show . head . typeRepArgs . typeOf
 
-testAllQuantityLaws ::
-    ( Ring scr
-    , Abelian q, Abelian qd, Abelian qr, Abelian qdr
-    , Monoidal q, Monoidal qr
-    , Group qd, Group qdr
-    , LeftModule scr q, LeftModule scr qd
-    , LeftModule scr qr, LeftModule scr qdr
-    , RightModule scr q, RightModule scr qd
-    , RightModule scr qr, RightModule scr qdr
-    , Delta q qd, Delta qr qdr
-    , Arbitrary scr, Arbitrary q, Arbitrary qd, Arbitrary qr, Arbitrary qdr
-    , Eq q, Eq qd, Eq qr, Eq qdr
-    , Ord q, Ord qd
-    , Show scr, Show q, Show qd, Show qr, Show qdr
-    , Typeable q, Typeable qd, Typeable qr, Typeable qdr
+testAllAdditiveQuantityLaws ::
+    ( NonAdditiveQuantityConstraints scr q qd qm qdm
+    , Abelian q, Abelian qm
+    , Monoidal q, Monoidal qm
+    , LeftModule scr q, LeftModule scr qm
+    , RightModule scr q, RightModule scr qm
     ) =>
-    Proxy scr -> Proxy q -> Proxy qd -> Proxy qr -> Proxy qdr -> [TestTree]
-testAllQuantityLaws pscr pq pqd pqr pqdr =
+    Proxy scr -> Proxy q -> Proxy qd -> Proxy qm -> Proxy qdm -> [TestTree]
+testAllAdditiveQuantityLaws pscr pq pqd pqm pqdm =
     [ testGroup nq
-        $  testAllSemimoduleLaws pscr pq
-        ++ testCommonScalarLaws pq
-    , testGroup nqd
-        $  testAllModuleLaws pscr pqd
-        ++ testCommonScalarLaws pqd
+        $ (testLaws <$> allSemimoduleLaws pscr pq)
+    , testGroup nqm
+        $ (testLaws <$> allSemimoduleLaws pscr pqm)
     , testGroup (nq ++ " + " ++ nqd)
-        $  [testDeltaMonoidalOrdLaws pq pqd]
-    , testGroup nqr
-        $  testAllSemimoduleLaws pscr pqr
-        ++ testCommonRecordLaws pqr
-    , testGroup nqdr
-        $  testAllModuleLaws pscr pqdr
-        ++ testCommonRecordLaws pqdr
-    , testGroup (nqr ++ " + " ++ nqdr)
-        $  [testDeltaMonoidalLaws pqr pqdr]
+        $ [testLaws $ deltaMonoidalOrdLaws pq pqd]
+    , testGroup (nqm ++ " + " ++ nqdm)
+        $ [testLaws $ deltaMonoidalLaws pqm pqdm]
+    ] ++ testAllNonAdditiveQuantityLaws pscr pq pqd pqm pqdm where
+        nq = showProxyType pq
+        nqd = showProxyType pqd
+        nqm = showProxyType pqm
+        nqdm = showProxyType pqdm
+
+type NonAdditiveQuantityConstraints scr q qd qm qdm =
+    ( Ring scr
+    , Abelian qd, Abelian qdm
+    , Group qd, Group qdm
+    , LeftModule scr qd, LeftModule scr qdm
+    , RightModule scr qd, RightModule scr qdm
+    , Delta q qd, Delta qm qdm
+    , Arbitrary scr, Arbitrary q, Arbitrary qd, Arbitrary qm, Arbitrary qdm
+    , Eq q, Eq qd, Eq qm, Eq qdm
+    , Ord q, Ord qd
+    , Show scr, Show q, Show qd, Show qm, Show qdm
+    , Typeable q, Typeable qd, Typeable qm, Typeable qdm
+    )
+
+testAllNonAdditiveQuantityLaws
+    :: NonAdditiveQuantityConstraints scr q qd qm qdm
+    => Proxy scr -> Proxy q -> Proxy qd -> Proxy qm -> Proxy qdm -> [TestTree]
+testAllNonAdditiveQuantityLaws pscr pq pqd pqm pqdm =
+    [ testGroup nq
+        $ testCommonScalarLaws pq
+    , testGroup nqd
+        $ (testLaws <$> allModuleLaws pscr pqd)
+       ++ testCommonScalarLaws pqd
+    , testGroup nqm
+        $ testCommonMapLaws pqm
+    , testGroup (nq ++ " + " ++ nqd)
+        $ [testLaws $ deltaLaws pq pqd]
+    , testGroup nqdm
+        $ (testLaws <$> allModuleLaws pscr pqdm)
+       ++ testCommonMapLaws pqdm
+    , testGroup (nqm ++ " + " ++ nqdm)
+        $ [testLaws $ deltaLaws pqm pqdm]
     ] where
         nq = showProxyType pq
         nqd = showProxyType pqd
-        nqr = showProxyType pqr
-        nqdr = showProxyType pqdr
+        nqm = showProxyType pqm
+        nqdm = showProxyType pqdm
 
 testCommonScalarLaws
     :: (Eq a, Ord a, Show a, Arbitrary a)
@@ -78,122 +98,110 @@ testCommonScalarLaws p =
     , testLaws (showLaws p)
     ]
 
-testCommonRecordLaws :: (Eq a, Show a, Arbitrary a) => Proxy a -> [TestTree]
-testCommonRecordLaws p =
+testCommonMapLaws :: (Eq a, Show a, Arbitrary a) => Proxy a -> [TestTree]
+testCommonMapLaws p =
     [ testLaws (eqLaws p)
     , testLaws (showLaws p)
     ]
 
 test_quantity_laws_for_Portfolio :: [TestTree]
-test_quantity_laws_for_Portfolio = testAllQuantityLaws
-    @Scalar @Amount @AmountDelta
-    @(Portfolio ThreeLabels) @(PortfolioDelta ThreeLabels)
+test_quantity_laws_for_Portfolio = testAllAdditiveQuantityLaws
+    @Scalar @Amount @AmountDelta @Portfolio @PortfolioDelta
     p p p p p
 
 test_quantity_laws_for_Prices :: [TestTree]
-test_quantity_laws_for_Prices = testAllQuantityLaws
-    @Scalar @Price @PriceDelta @(Prices ThreeLabels) @(PriceDeltas ThreeLabels)
+test_quantity_laws_for_Prices = testAllNonAdditiveQuantityLaws
+    @Scalar @Price @PriceDelta @Prices @PriceDeltas
     p p p p p
 
 test_quantity_laws_for_Values :: [TestTree]
-test_quantity_laws_for_Values = testAllQuantityLaws
-    @Scalar @Value @ValueDelta @(Values ThreeLabels) @(ValueDeltas ThreeLabels)
+test_quantity_laws_for_Values = testAllAdditiveQuantityLaws
+    @Scalar @Value @ValueDelta @Values @ValueDeltas
     p p p p p
 
 test_Kappa_Value_Amount_Price :: [TestTree]
 test_Kappa_Value_Amount_Price
-    = [testKappaLaws @Value @Amount @Price p p p]
+    = [testLaws $ kappaLaws @Value @Price @Amount p p p]
 
 test_Kappa_ValueDelta_AmountDelta_Price :: [TestTree]
 test_Kappa_ValueDelta_AmountDelta_Price
-    = [testKappaLaws @ValueDelta @AmountDelta @Price p p p]
+    = [testLaws $ kappaLaws @ValueDelta @Price @AmountDelta p p p]
 
 test_Kappa_ValueDelta_Amount_PriceDelta :: [TestTree]
 test_Kappa_ValueDelta_Amount_PriceDelta
-    = [testKappaLaws @ValueDelta @Amount @PriceDelta p p p]
+    = [testLaws $ kappaLaws @ValueDelta @PriceDelta @Amount p p p]
 
 test_Kappa_Values_Portfolio_Prices :: [TestTree]
 test_Kappa_Values_Portfolio_Prices =
-    [ testKappaSemimoduleLaws
-        @(Values ThreeLabels)
-        @(Portfolio ThreeLabels)
-        @(Prices ThreeLabels)
-        @Scalar
+    [ testLaws $ kappaSemimoduleACLaws
+        @Values @Prices @Portfolio @Scalar
         p p p p
     ]
 
 test_Kappa_ValueDeltas_Portfolio_PriceDeltas :: [TestTree]
 test_Kappa_ValueDeltas_Portfolio_PriceDeltas =
-    [ testKappaSemimoduleLaws
-        @(ValueDeltas ThreeLabels)
-        @(Portfolio ThreeLabels)
-        @(PriceDeltas ThreeLabels)
-        @Scalar
+    [ testLaws $ kappaSemimoduleACLaws
+        @ValueDeltas @PriceDeltas @Portfolio @Scalar
         p p p p
     ]
 
 test_Kappa_ValueDeltas_PortfolioDelta_Prices :: [TestTree]
 test_Kappa_ValueDeltas_PortfolioDelta_Prices =
-    [ testKappaSemimoduleLaws
-        @(ValueDeltas ThreeLabels)
-        @(Portfolio ThreeLabels)
-        @(PriceDeltas ThreeLabels)
-        @Scalar
+    [ testLaws $ kappaSemimoduleACLaws
+        @ValueDeltas @PriceDeltas @Portfolio @Scalar
         p p p p
     ]
 
 testAllDistributionLaws ::
-    forall scr q qd qr qdr.
+    forall scr q qd qm qdm.
     ( Ring scr
-    , Abelian qd, Abelian qdr
-    , Group qd, Group qdr
-    , LeftModule scr qd, LeftModule scr qdr
-    , RightModule scr qd, RightModule scr qdr
-    , Delta q qd, Delta qr qdr
-    , Arbitrary scr, Arbitrary q, Arbitrary qd, Arbitrary qr, Arbitrary qdr
-    , Eq q, Eq qd, Eq qr, Eq qdr
+    , Abelian qd, Abelian qdm
+    , Group qd, Group qdm
+    , LeftModule scr qd, LeftModule scr qdm
+    , RightModule scr qd, RightModule scr qdm
+    , Delta q qd, Delta qm qdm
+    , Arbitrary scr, Arbitrary q, Arbitrary qd, Arbitrary qm, Arbitrary qdm
+    , Eq q, Eq qd, Eq qm, Eq qdm
     , Ord q, Ord qd
-    , Show scr, Show q, Show qd, Show qr, Show qdr
-    , Typeable q, Typeable qd, Typeable qr, Typeable qdr
+    , Show scr, Show q, Show qd, Show qm, Show qdm
+    , Typeable q, Typeable qd, Typeable qm, Typeable qdm
     ) =>
-    Proxy scr -> Proxy q -> Proxy qd -> Proxy qr -> Proxy qdr -> [TestTree]
-testAllDistributionLaws pscr pq pqd pqr pqdr =
+    Proxy scr -> Proxy q -> Proxy qd -> Proxy qm -> Proxy qdm -> [TestTree]
+testAllDistributionLaws pscr pq pqd pqm pqdm =
     [ testGroup nq
-        $  testCommonScalarLaws pq
+         $ testCommonScalarLaws pq
     , testGroup nqd
-        $  testAllModuleLaws pscr pqd
+         $ (testLaws <$> allModuleLaws pscr pqd)
         ++ testCommonScalarLaws pqd
     , testGroup (nq ++ " + " ++ nqd)
-        $  [testDeltaLaws pq pqd]
-    , testGroup nqr
-        $  testCommonRecordLaws pqr
-    , testGroup nqdr
-        $  testAllModuleLaws pscr pqdr
-        ++ testCommonRecordLaws pqdr
-    , testGroup (nqr ++ " + " ++ nqdr)
-        $  [testDeltaLaws pqr pqdr]
+         $ [testLaws $ deltaLaws pq pqd]
+    , testGroup nqm
+         $ testCommonMapLaws pqm
+    , testGroup nqdm
+         $ (testLaws <$> allModuleLaws pscr pqdm)
+        ++ testCommonMapLaws pqdm
+    , testGroup (nqm ++ " + " ++ nqdm)
+         $ [testLaws $ deltaLaws pqm pqdm]
     ] where
         nq = showProxyType pq
         nqd = showProxyType pqd
-        nqr = showProxyType pqr
-        nqdr = showProxyType pqdr
+        nqm = showProxyType pqm
+        nqdm = showProxyType pqdm
 
 test_distribution_laws_for_Distribution :: [TestTree]
 test_distribution_laws_for_Distribution = testAllDistributionLaws
     @Scalar @Share @ShareDelta
-    @(Distribution ThreeLabels) @(DistributionDelta ThreeLabels)
+    @Distribution @DistributionDelta
     p p p p p
 
 test_Normalizable_Distribution_Value_Values :: [TestTree]
 test_Normalizable_Distribution_Value_Values =
-    [ testNormalizableSemimoduleOrdLaws
-        @(Distribution ThreeLabels) @Value @(Values ThreeLabels) @Scalar p p p p
+    [ testLaws $ normedSemimoduleOrdLaws
+        @Distribution @Value @Values @Scalar p p p p
     ]
 
 test_Fees :: [TestTree]
-test_Fees =
-    [ testOrderLaws @(Fees ThreeLabels) p
-    ]
+test_Fees = [testLaws $ orderLaws @Fees p]
 
 test_zipSeries :: [TestTree]
 test_zipSeries =
@@ -207,15 +215,16 @@ test_zipSeries =
                 (zipWith agree (seriesToList zipped) (drop diff events))
             where
                 zipped = zipSeries xs ys
-                events = sweep $ Map.fromList
+                events = sweep $ fromList
                     [(False, seriesToList xs), (True, seriesToList ys)]
                 minLength = min (length xs) (length ys)
                 diff = length events - length zipped
                 agree (t, (x, y)) (t', Event changes)
-                    = t === t' .&&. conjoin (toList $ ok <$> changes) where
-                        ok (k, v) = case k of
-                            False -> v === x
-                            True  -> v === y
+                    = t === t' .&&. conjoin (NonEmpty.toList $ ok <$> changes)
+                        where
+                            ok (k, v) = case k of
+                                False -> v === x
+                                True  -> v === y
 
 p :: Proxy a
 p = Proxy

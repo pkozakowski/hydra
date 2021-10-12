@@ -12,7 +12,6 @@ import Prelude hiding ((<), (>), (+), (-), (*), negate, subtract)
 import Test.QuickCheck
 import Test.QuickCheck.Classes
 import Test.Tasty
-import Test.Tasty.QuickCheck.Laws
 
 instance Arbitrary Natural where
     arbitrary = arbitrarySizedNatural
@@ -28,9 +27,9 @@ instance (Arbitrary i, Integral i, GCDDomain i) => Arbitrary (Fraction i) where
         num = numerator frac
         den = denominator frac 
 
-testAdditiveLaws
-    :: (Additive r, Arbitrary r, Eq r, Show r) => proxy r -> TestTree
-testAdditiveLaws p = testLaws $ Laws "Additive"
+additiveLaws
+    :: (Additive r, Arbitrary r, Eq r, Show r) => proxy r -> Laws
+additiveLaws p = Laws "Additive"
     [ ("Associativity", additiveAssociativity p)
     , ("Unit", additiveUnit p)
     , ("Double", additiveDouble p)
@@ -65,8 +64,8 @@ additiveDoublePlusUnit _ = property
     $ \(n :: Natural) (x :: r)
     -> sinnum1p (2 * n + 2) x == sinnum1p n x + sinnum1p n x + x
 
-testAbelianLaws :: (Abelian r, Arbitrary r, Eq r, Show r) => proxy r -> TestTree
-testAbelianLaws p = testLaws $ Laws "Abelian"
+abelianLaws :: (Abelian r, Arbitrary r, Eq r, Show r) => proxy r -> Laws
+abelianLaws p = Laws "Abelian"
     [ ("Commutativity", abelianCommutativity p)
     ]
 
@@ -77,9 +76,9 @@ abelianCommutativity _ = property
     $ \(x :: r) (y :: r)
     -> x + y == y + x
 
-testMonoidalLaws
-    :: (Monoidal r, Arbitrary r, Eq r, Show r) => proxy r -> TestTree
-testMonoidalLaws p = testLaws $ Laws "Monoidal"
+monoidalLaws
+    :: (Monoidal r, Arbitrary r, Eq r, Show r) => proxy r -> Laws
+monoidalLaws p = Laws "Monoidal"
     [ ("Left Identity", monoidalLeftIdentity p)
     , ("Right Identity", monoidalRightIdentity p)
     , ("Sinnum", monoidalSinnum p)
@@ -106,8 +105,8 @@ monoidalSinnum _ = property
     $ \(n :: Natural) (x :: r)
     -> sinnum1p n x == sinnum (1 + n) x
 
-testGroupLaws :: (Group r, Arbitrary r, Eq r, Show r) => proxy r -> TestTree
-testGroupLaws p = testLaws $ Laws "Group"
+groupLaws :: (Group r, Arbitrary r, Eq r, Show r) => proxy r -> Laws
+groupLaws p = Laws "Group"
     [ ("Left Inverse", groupLeftInverse p)
     , ("Right Inverse", groupRightInverse p)
     , ("Minus", groupMinus p)
@@ -158,9 +157,8 @@ groupTimesNegative _ = property
     $ \(n :: Natural) (x :: r)
     -> negate (fromIntegral n :: Integer) `times` x == negate (sinnum n x)
 
-type LeftModuleConstraints r m proxy =
+type LeftModuleConstraints r m =
     ( Rig r
-    , Monoidal m
     , LeftModule r m
     , Arbitrary r
     , Arbitrary m
@@ -169,10 +167,20 @@ type LeftModuleConstraints r m proxy =
     , Show m
     )
 
-testLeftModuleLaws
-    :: LeftModuleConstraints r m proxy
-    => proxy r -> proxy m -> TestTree
-testLeftModuleLaws rp mp = testLaws $ Laws "LeftModule"
+leftModuleLaws
+    :: LeftModuleConstraints r m
+    => proxy r -> proxy m -> Laws
+leftModuleLaws rp mp = Laws "LeftModule"
+    [ ("Module Distributivity", leftModuleModuleDistributivity rp mp)
+    , ("Scalar Distributivity", leftModuleModuleDistributivity rp mp)
+    , ("Associativity", leftModuleAssociativity rp mp)
+    , ("Identity", leftModuleIdentity rp mp)
+    ]
+
+leftModuleMonoidalLaws
+    :: (LeftModuleConstraints r m, Monoidal m)
+    => proxy r -> proxy m -> Laws
+leftModuleMonoidalLaws rp mp = Laws "LeftModule + Monoidal"
     [ ("Module Distributivity", leftModuleModuleDistributivity rp mp)
     , ("Scalar Distributivity", leftModuleModuleDistributivity rp mp)
     , ("Associativity", leftModuleAssociativity rp mp)
@@ -183,7 +191,7 @@ testLeftModuleLaws rp mp = testLaws $ Laws "LeftModule"
 
 leftModuleModuleDistributivity
     :: forall r m proxy
-     . LeftModuleConstraints r m proxy
+     . LeftModuleConstraints r m
     => proxy r -> proxy m -> Property
 leftModuleModuleDistributivity _ _ = property
     $ \(a :: r) (x :: m) (y :: m)
@@ -191,7 +199,7 @@ leftModuleModuleDistributivity _ _ = property
 
 leftModuleScalarDistributivity
     :: forall r m proxy
-     . LeftModuleConstraints r m proxy
+     . LeftModuleConstraints r m
     => proxy r -> proxy m -> Property
 leftModuleScalarDistributivity _ _ = property
     $ \(a :: r) (b :: r) (x :: m)
@@ -199,7 +207,7 @@ leftModuleScalarDistributivity _ _ = property
 
 leftModuleAssociativity
     :: forall r m proxy
-     . LeftModuleConstraints r m proxy
+     . LeftModuleConstraints r m
     => proxy r -> proxy m -> Property
 leftModuleAssociativity _ _ = property
     $ \(a :: r) (b :: r) (x :: m)
@@ -207,7 +215,7 @@ leftModuleAssociativity _ _ = property
 
 leftModuleIdentity
     :: forall r m proxy
-     . LeftModuleConstraints r m proxy
+     . LeftModuleConstraints r m
     => proxy r -> proxy m -> Property
 leftModuleIdentity _ _ = property
     $ \(x :: m)
@@ -215,7 +223,7 @@ leftModuleIdentity _ _ = property
 
 leftModuleScalarAnnihilation
     :: forall r m proxy
-     . LeftModuleConstraints r m proxy
+     . (LeftModuleConstraints r m, Monoidal m)
     => proxy r -> proxy m -> Property
 leftModuleScalarAnnihilation _ _ = property
     $ \(x :: m)
@@ -223,15 +231,14 @@ leftModuleScalarAnnihilation _ _ = property
 
 leftModuleModuleAnnihilation
     :: forall r m proxy
-     . LeftModuleConstraints r m proxy
+     . (LeftModuleConstraints r m, Monoidal m)
     => proxy r -> proxy m -> Property
 leftModuleModuleAnnihilation _ _ = property
     $ \(a :: r)
     -> a .* (zero :: m) == zero
 
-type RightModuleConstraints r m proxy =
+type RightModuleConstraints r m =
     ( Rig r
-    , Monoidal m
     , RightModule r m
     , Arbitrary r
     , Arbitrary m
@@ -240,10 +247,20 @@ type RightModuleConstraints r m proxy =
     , Show m
     )
 
-testRightModuleLaws
-    :: RightModuleConstraints r m proxy
-    => proxy r -> proxy m -> TestTree
-testRightModuleLaws rp mp = testLaws $ Laws "RightModule"
+rightModuleLaws
+    :: RightModuleConstraints r m
+    => proxy r -> proxy m -> Laws
+rightModuleLaws rp mp = Laws "RightModule"
+    [ ("Module Distributivity", rightModuleModuleDistributivity rp mp)
+    , ("Scalar Distributivity", rightModuleModuleDistributivity rp mp)
+    , ("Associativity", rightModuleAssociativity rp mp)
+    , ("Identity", rightModuleIdentity rp mp)
+    ]
+
+rightModuleMonoidalLaws
+    :: (RightModuleConstraints r m, Monoidal m)
+    => proxy r -> proxy m -> Laws
+rightModuleMonoidalLaws rp mp = Laws "RightModule + Monoidal"
     [ ("Module Distributivity", rightModuleModuleDistributivity rp mp)
     , ("Scalar Distributivity", rightModuleModuleDistributivity rp mp)
     , ("Associativity", rightModuleAssociativity rp mp)
@@ -254,7 +271,7 @@ testRightModuleLaws rp mp = testLaws $ Laws "RightModule"
 
 rightModuleModuleDistributivity
     :: forall r m proxy
-     . RightModuleConstraints r m proxy
+     . RightModuleConstraints r m
     => proxy r -> proxy m -> Property
 rightModuleModuleDistributivity _ _ = property
     $ \(x :: m) (y :: m) (a :: r)
@@ -262,7 +279,7 @@ rightModuleModuleDistributivity _ _ = property
 
 rightModuleScalarDistributivity
     :: forall r m proxy
-     . RightModuleConstraints r m proxy
+     . RightModuleConstraints r m
     => proxy r -> proxy m -> Property
 rightModuleScalarDistributivity _ _ = property
     $ \(x :: m) (a :: r) (b :: r)
@@ -270,7 +287,7 @@ rightModuleScalarDistributivity _ _ = property
 
 rightModuleAssociativity
     :: forall r m proxy
-     . RightModuleConstraints r m proxy
+     . RightModuleConstraints r m
     => proxy r -> proxy m -> Property
 rightModuleAssociativity _ _ = property
     $ \(x :: m) (a :: r) (b :: r)
@@ -278,7 +295,7 @@ rightModuleAssociativity _ _ = property
 
 rightModuleIdentity
     :: forall r m proxy
-     . RightModuleConstraints r m proxy
+     . RightModuleConstraints r m
     => proxy r -> proxy m -> Property
 rightModuleIdentity _ _ = property
     $ \(x :: m)
@@ -286,7 +303,7 @@ rightModuleIdentity _ _ = property
 
 rightModuleScalarAnnihilation
     :: forall r m proxy
-     . RightModuleConstraints r m proxy
+     . (RightModuleConstraints r m, Monoidal m)
     => proxy r -> proxy m -> Property
 rightModuleScalarAnnihilation _ _ = property
     $ \(x :: m)
@@ -294,13 +311,13 @@ rightModuleScalarAnnihilation _ _ = property
 
 rightModuleModuleAnnihilation
     :: forall r m proxy
-     . RightModuleConstraints r m proxy
+     . (RightModuleConstraints r m, Monoidal m)
     => proxy r -> proxy m -> Property
 rightModuleModuleAnnihilation _ _ = property
     $ \(a :: r)
     -> (zero :: m) *. a == zero
 
-testAllSemimoduleLaws ::
+allSemimoduleLaws ::
     ( Rig r
     , Abelian m
     , Monoidal m
@@ -312,16 +329,16 @@ testAllSemimoduleLaws ::
     , Show r
     , Show m
     ) =>
-    proxy r -> proxy m -> [TestTree]
-testAllSemimoduleLaws rp mp =
-    [ testAdditiveLaws mp
-    , testAbelianLaws mp
-    , testMonoidalLaws mp
-    , testLeftModuleLaws rp mp
-    , testRightModuleLaws rp mp
+    proxy r -> proxy m -> [Laws]
+allSemimoduleLaws rp mp =
+    [ additiveLaws mp
+    , abelianLaws mp
+    , monoidalLaws mp
+    , leftModuleMonoidalLaws rp mp
+    , rightModuleMonoidalLaws rp mp
     ]
 
-testAllModuleLaws ::
+allModuleLaws ::
     ( Ring r
     , Abelian m
     , Group m
@@ -333,13 +350,13 @@ testAllModuleLaws ::
     , Show r
     , Show m
     ) =>
-    proxy r -> proxy m -> [TestTree]
-testAllModuleLaws rp mp
-    = testAllSemimoduleLaws rp mp ++ [testGroupLaws mp]
+    proxy r -> proxy m -> [Laws]
+allModuleLaws rp mp
+    = groupLaws mp : allSemimoduleLaws rp mp
 
-testOrderLaws
-    :: (Order o, Arbitrary o, Eq o, Show o) => proxy o -> TestTree
-testOrderLaws p = testLaws $ Laws "Order"
+orderLaws
+    :: (Order o, Arbitrary o, Eq o, Show o) => proxy o -> Laws
+orderLaws p = Laws "Order"
     [ ("Reflexivity", orderReflexivity p)
     , ("Transitivity", orderTransitivity p)
     , ("Antisymmetry", orderAntisymmetry p)

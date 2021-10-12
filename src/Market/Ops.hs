@@ -8,43 +8,37 @@ import Control.Monad
 import Data.Composition hiding ((.*))
 import Data.Constraint
 import Data.Function
-import Data.List.NonEmpty (NonEmpty(..), nonEmpty)
+import Data.Functor.Apply
+import Data.List
+import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
-import Data.Map (Map)
-import qualified Data.Map as Map
+import Data.Map.Sparse hiding (Value, null)
+import Data.Map.Static hiding (Value, null)
 import Data.Maybe
-import Data.Proxy
-import Data.Record.Hom
 import Data.Time.Clock
 import GHC.TypeLits
 import Market.Types
 import Numeric.Algebra hiding ((<), (>))
 import Numeric.Delta
 import Numeric.Kappa
-import Numeric.Normalizable
+import Numeric.Normed
 import Prelude hiding ((+), (-), negate, pi)
 import qualified Prelude
 
-data ShareTransfer assets
+data ShareTransfer
     = ShareTransfer
-        { from :: LabelIn assets
-        , to :: LabelIn assets
+        { from :: Asset
+        , to :: Asset
         , share :: Share
         } deriving Show
 
-data BalancingState assets
+data BalancingState
     = BalancingState
-        { diff :: DistributionDelta assets
-        , transfers :: [ShareTransfer assets]
+        { diff :: DistributionDelta
+        , transfers :: [ShareTransfer]
         } deriving Show
 
-balancingTransfers
-    :: forall assets
-     . Labels assets
-    => Scalar
-    -> Distribution assets
-    -> Distribution assets
-    -> [ShareTransfer assets]
+balancingTransfers :: Scalar -> Distribution -> Distribution -> [ShareTransfer]
 balancingTransfers tolRel current target
     = transfers $ fix iteration initState where
         iteration go state = if done state then state else go $ next state
@@ -53,50 +47,36 @@ balancingTransfers tolRel current target
         next state = BalancingState
             (diff state + transferDelta transfer)
             (transfer : transfers state) where
-                transfer = ShareTransfer maxAssetIn minAssetIn transShare where
+                transfer = ShareTransfer maxAsset minAsset transShare where
                     transShare
                         = fromJust $ fromDelta
                         $ min maxShareDelta $ negate minShareDelta
-                    (minAssetIn, minShareDelta) = minDelta $ diff state
-                    (maxAssetIn, maxShareDelta) = maxDelta $ diff state
+                    (minAsset, minShareDelta) = minDelta $ diff state
+                    (maxAsset, maxShareDelta) = maxDelta $ diff state
         done state
             = isBalanced tolRel (fromJust $ target `sigma` diff state) target
 
-transferDelta
-    :: Labels assets
-    => ShareTransfer assets -> DistributionDelta assets
+transferDelta :: ShareTransfer -> DistributionDelta
 transferDelta (ShareTransfer from to share)
     = DistributionDelta
-    $ setIn from (negate $ toDelta share)
-    $ setIn to (toDelta share)
-    $ zero
+    $ fromList [(from, negate $ toDelta share), (to, toDelta share)]
 
-isBalanced
-    :: Labels assets
-    => Scalar -> Distribution assets -> Distribution assets -> Bool
-isBalanced _ _ (Distribution Empty) = True
-isBalanced tolRel current target@(Distribution targetRec)
-    =  maxShareDelta <= tolAbs maxAssetIn
-    && minShareDelta >= negate (tolAbs minAssetIn) where
-        tolAbs assetIn = tolRel .* (toDelta $ getIn assetIn targetRec) where
-        (minAssetIn, minShareDelta) = minDelta $ current `delta` target
-        (maxAssetIn, maxShareDelta) = maxDelta $ current `delta` target
+isBalanced :: Scalar -> Distribution -> Distribution -> Bool
+isBalanced tolRel current target@(Distribution targetMap)
+    =  maxShareDelta <= tolAbs maxAsset
+    && minShareDelta >= negate (tolAbs minAsset) where
+        tolAbs asset = tolRel .* (toDelta $ targetMap ! asset) where
+        (minAsset, minShareDelta) = minDelta $ current `delta` target
+        (maxAsset, maxShareDelta) = maxDelta $ current `delta` target
 
-minDelta
-    :: Labels assets
-    => DistributionDelta assets -> (LabelIn assets, ShareDelta)
+minDelta :: DistributionDelta -> (Asset, ShareDelta)
 minDelta (DistributionDelta diff) = argMinimumOn id diff
 
-maxDelta
-    :: Labels assets
-    => DistributionDelta assets -> (LabelIn assets, ShareDelta)
+maxDelta :: DistributionDelta -> (Asset, ShareDelta)
 maxDelta (DistributionDelta diff) = argMinimumOn negate diff
 
-argMinimumOn :: (Labels ls, Ord a) => (a -> a) -> HomRec ls a -> (LabelIn ls, a)
-argMinimumOn f r = (assetIn, getIn assetIn r) where
-    assetIn = minimumOn $ f . flip getIn r where
-        minimumOn f
-            = foldl (\x y -> if f x < f y then x else y) (head labels) labels
+argMinimumOn :: Ord a => (a -> a) -> SparseMap Asset a -> (Asset, a)
+argMinimumOn f m = minimumBy (compare `on` f . snd) $ toList m
 
 fromDelta :: ShareDelta -> Maybe Share
 fromDelta (ShareDelta x) = if x >= zero then Just $ Share x else Nothing
@@ -106,30 +86,24 @@ toDelta (Share x) = ShareDelta x
 
 -- | Vector-matrix product between a Distribution and a matrix with
 -- Distributions in columns.
-redistribute
-    :: (Labels ls1, Labels ls2)
-    => Distribution ls1 -> HomRec ls1 (Distribution ls2) -> Distribution ls2
+redistribute :: Distribution -> StaticMap Asset Distribution -> Distribution
 redistribute (Distribution vector) matrix
     = Distribution $ fmap Share $ foldl (+) zero
-    $ scalarVector <$> vector <*> matrix where
+    $ scalarVector <$> vector `reapply` matrix where
         scalarVector (Share scalar) (Distribution vector)
             = (scalar .*) . unShare <$> vector where
                 unShare (Share scalar') = scalar'
+        reapply = reapplyOuter @_ @_ @(StaticMap Asset (SparseMap Asset Scalar))
+        infixl 4 `reapply`
 
-totalValue :: Labels assets => Prices assets -> Portfolio assets -> Value
+totalValue :: Prices -> Portfolio -> Value
 totalValue prices portfolio = foldl (+) zero values where
-    Values values = portfolio `pi` prices
+    Values values = prices `pi` portfolio
 
-valueAllocation
-    :: Labels assets
-    => Prices assets -> Portfolio assets -> Maybe (Distribution assets)
-valueAllocation prices portfolio = normalize $ portfolio `pi` prices
+valueAllocation :: Prices -> Portfolio -> Maybe Distribution
+valueAllocation prices portfolio = normalize $ prices `pi` portfolio
 
-applyFees
-    :: Labels assets
-    => Fees assets
-    -> SomeAmount assets
-    -> Maybe (PortfolioDelta assets, Amount)
+applyFees :: Fees -> SomeAmount -> Maybe (PortfolioDelta, Amount)
 applyFees fees (asset, amount) = do
     let amountAfterFees = (one - variable fees) .* amount
     return (portfolioDelta, amountAfterFees)
@@ -209,11 +183,11 @@ downsample periodLength
 newtype Event k v = Event { changes :: NonEmpty (k, v) }
     deriving (Eq, Ord, Show)
 
-sweep :: Map k [TimeStep v] -> [TimeStep (Event k v)]
+sweep :: Ord k => StaticMap k [TimeStep v] -> [TimeStep (Event k v)]
 sweep mapOfSeries =
     if null notNullSeries then []
     else (time, Event changes) : sweep mapOfSeries' where
-        notNullSeries = filter (not . null . snd) $ Map.toList mapOfSeries
+        notNullSeries = filter (not . null . snd) $ toList mapOfSeries
         time = minimum $ headTime <$> notNullSeries
         changes
             = fromJust

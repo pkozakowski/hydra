@@ -5,9 +5,8 @@ module Command.Sync where
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Monad
-import Data.Map (Map)
+import Data.Map.Static
 import Data.Maybe
-import qualified Data.Map as Map
 import Data.Time
 import Data.Time.Clock.POSIX
 import Market
@@ -96,7 +95,7 @@ sync options = do
     -- Interleave the per-asset series to a single series.
     let eventSeries
             = sweep 
-            $ Map.fromList
+            $ fromList
             $ zip (assets options) assetSeries
     -- Display sync progress.
     forM_ eventSeries \(time, _)

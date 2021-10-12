@@ -1,6 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-import qualified Spec.Data.Record.Hom
+import qualified Spec.Data.Map.Default
+import qualified Spec.Data.Map.Sparse
+import qualified Spec.Data.Map.Static
 import qualified Spec.Market.Evaluation
 import qualified Spec.Market.Instruments
 import qualified Spec.Market.Ops
@@ -12,7 +14,9 @@ import Test.Tasty
 main :: IO ()
 main = defaultMain $ testGroup "Specs"
     -- Data:
-    [ Spec.Data.Record.Hom.tests
+    [ Spec.Data.Map.Default.tests
+    , Spec.Data.Map.Sparse.tests
+    , Spec.Data.Map.Static.tests
     , Spec.Market.Types.tests
     -- Logic:
     , Spec.Market.Evaluation.tests

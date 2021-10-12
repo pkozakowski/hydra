@@ -44,17 +44,18 @@ import Prelude hiding (log)
 import Text.Pretty.Simple
 
 runPriceFeed
-    :: forall assets atp res
-     . (Labels assets, BatchablePeriod atp, HasResolution res)
+    :: forall atp res
+     . (BatchablePeriod atp, HasResolution res)
     => res
+    -> [Asset]
     -> UTCTime
     -> UTCTime
-    -> IO (TimeSeries (Prices assets))
-runPriceFeed res from to
+    -> IO (TimeSeries Prices)
+runPriceFeed res assets from to
     = semToIO
     $ runPrecision res
     $ runTimeIO
-    $ PriceFeed.runPriceFeed @assets runPriceFeed
+    $ PriceFeed.runPriceFeed assets runPriceFeed
     $ between from to where
         runPriceFeed
             :: String
@@ -65,49 +66,47 @@ runPriceFeed res from to
             $ runPriceFeedBinance
 
 runPriceFeedEver
-    :: forall assets atp res
-     . (Labels assets, BatchablePeriod atp, HasResolution res)
-    => res -> IO (TimeSeries (Prices assets))
-runPriceFeedEver res = do
+    :: forall atp res
+     . (BatchablePeriod atp, HasResolution res)
+    => res -> [Asset] -> IO (TimeSeries (Prices))
+runPriceFeedEver res assets = do
     let from = posixSecondsToUTCTime 0
     to <- getCurrentTime
-    runPriceFeed @assets @atp res from to
+    runPriceFeed @atp res assets from to
 
 evaluate
-    :: forall assets c s res r
-     .  ( Labels assets
-        , Instrument assets c s
+    :: forall c s res r
+     .  ( Instrument c s
         , HasResolution res
         )
     => res
     -> [Metric]
-    -> Fees assets
-    -> TimeSeries (Prices assets)
-    -> Portfolio assets
+    -> Fees
+    -> TimeSeries (Prices)
+    -> Portfolio
     -> c
     -> IO Evaluation
 evaluate res
-    = semToIOPure @(MarketError assets)
+    = semToIOPure @(MarketError)
     . runPrecision res
  .::. Evaluation.evaluate
 
 evaluateOnWindows
-    :: forall assets c s res r
-     .  ( Labels assets
-        , Instrument assets c s
+    :: forall c s res r
+     .  ( Instrument c s
         , HasResolution res
         )
     => res
     -> [Metric]
-    -> Fees assets
+    -> Fees
     -> NominalDiffTime
     -> NominalDiffTime
-    -> TimeSeries (Prices assets)
-    -> Portfolio assets
+    -> TimeSeries (Prices)
+    -> Portfolio
     -> c
     -> IO EvaluationOnWindows
 evaluateOnWindows res
-        = semToIOPure @(MarketError assets)
+        = semToIOPure @(MarketError)
         . runPrecision res
     .:::. Evaluation.evaluateOnWindows
 

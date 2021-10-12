@@ -14,18 +14,16 @@ import Control.Monad
 import Control.Parallel.Strategies
 import Data.Composition
 import Data.Bifunctor
-import Data.Foldable
+import Data.Foldable hiding (toList)
 import Data.Functor.Apply
 import Data.Functor.Compose
-import Data.Map (Map)
-import qualified Data.Map as Map
+import Data.Map.Static hiding (Value)
 import Data.Monoid
 import Data.List hiding (uncons)
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Maybe
 import qualified Data.Ratio as Ratio
-import qualified Data.Record.Hom as HR
 import Data.Semigroup.Traversable
 import Data.String
 import Data.Time.Clock
@@ -53,11 +51,11 @@ data ValueChange = ValueChange
     , current  :: Double
     }
 
-type PricesPortfolio assets = (Prices assets, Portfolio assets)
+type PricesPortfolio = (Prices, Portfolio)
 
-type ValueChangeCalculator assets
-   = PricesPortfolio assets
-  -> PricesPortfolio assets
+type ValueChangeCalculator
+   = PricesPortfolio
+  -> PricesPortfolio
   -> ValueChange
 
 -- | Active value calculation takes into account changes in the portfolio.
@@ -65,7 +63,7 @@ type ValueChangeCalculator assets
 -- negligible here), but doesn't make sense for nested Instruments - their
 -- portfolios are "virtual" - calculated on-the-fly based on the current
 -- prices.
-activeVC :: HR.Labels assets => ValueChangeCalculator assets
+activeVC :: ValueChangeCalculator
 activeVC (prices, portfolio) (prices', portfolio') = ValueChange
     { previous = toDouble $ totalValue prices portfolio
     , current = toDouble $ totalValue prices' portfolio'
@@ -75,7 +73,7 @@ activeVC (prices, portfolio) (prices', portfolio') = ValueChange
 -- portfolio, so it measures only the robustness of the current portfolio
 -- to the future price changes. Makes sense for nested Instruments, because
 -- the "virtual" nested portfolios are not recalculated based on the new prices.
-passiveVC :: HR.Labels assets => ValueChangeCalculator assets
+passiveVC :: ValueChangeCalculator
 passiveVC (prices, _) (prices', portfolio') = ValueChange
     { previous = toDouble $ totalValue prices portfolio'
     , current = toDouble $ totalValue prices' portfolio'
@@ -92,10 +90,9 @@ data Metric = Metric
     }
 
 calculateMetric
-    :: HR.Labels assets
-    => ValueChangeCalculator assets
+    :: ValueChangeCalculator
     -> Metric
-    -> TimeSeries (PricesPortfolio assets)
+    -> TimeSeries (PricesPortfolio)
     -> Maybe Double
 calculateMetric vcc metric series = do
     let downsampled = downsample (period metric) series
@@ -109,7 +106,7 @@ newtype InstrumentName = InstrumentName { unInstrumentName :: String }
 
 data InstrumentTree a = InstrumentTree
     { self :: a
-    , subinstruments :: (Map InstrumentName (InstrumentTree a))
+    , subinstruments :: (StaticMap InstrumentName (InstrumentTree a))
     } deriving (Functor, Foldable, Generic, NFData, Show, Traversable)
 
 instance Apply InstrumentTree where
@@ -122,8 +119,8 @@ instance Apply InstrumentTree where
         }
 
 data Evaluation' res = Evaluation
-    { active :: Map MetricName res
-    , passive :: InstrumentTree (Map MetricName res)
+    { active :: StaticMap MetricName res
+    , passive :: InstrumentTree (StaticMap MetricName res)
     } deriving (Functor, Generic, NFData, Show)
 
 instance Apply Evaluation' where
@@ -142,7 +139,7 @@ flattenTree = flattenWithPrefix $ "" where
         = [(prefix, self tree)] ++ subinstrs where
             subinstrs
                 = uncurry flattenWithPrefix . extendPrefix
-              =<< Map.toList (subinstruments tree)
+              =<< toList (subinstruments tree)
             extendPrefix (instrName, tree')
                 | prefix == "" = (instrName, tree')
                 | otherwise = (prefix <> "." <> instrName, tree')
@@ -213,27 +210,26 @@ monthly :: (NominalDiffTime -> Metric) -> Metric
 monthly = periodically "monthly" $ 3600 * 24 * 30.44
 
 evaluate
-    :: forall assets c s r
-     .  ( HR.Labels assets
-        , Instrument assets c s
-        , Members [Precision, Error (MarketError assets)] r
+    :: forall c s r
+     .  ( Instrument c s
+        , Members [Precision, Error (MarketError)] r
         )
     => [Metric]
-    -> Fees assets
-    -> TimeSeries (Prices assets)
-    -> Portfolio assets
+    -> Fees
+    -> TimeSeries (Prices)
+    -> Portfolio
     -> c
     -> Sem r Evaluation
 evaluate metrics fees priceSeries initPortfolio config = do
-    maybeTree :: Maybe (InstrumentTree (TimeSeries (PricesPortfolio assets)))
+    maybeTree :: Maybe (InstrumentTree (TimeSeries (PricesPortfolio)))
        <- fmap (fmap sequence1 . seriesFromList . fst)
         $ runOutputList
         $ backtest fees priceSeries initPortfolio config do
-            prices <- input @(Prices assets)
-            portfolio <- get @(Portfolio assets)
+            prices <- input @(Prices)
+            portfolio <- get @(Portfolio)
             IState state <- get @(IState s)
             time <- now
-            output @(TimeStep (InstrumentTree (PricesPortfolio assets)))
+            output @(TimeStep (InstrumentTree (PricesPortfolio)))
                 $ (time,)
                 $ visit prices portfolio config state visitAgg
                 $ visitSelf
@@ -243,51 +239,50 @@ evaluate metrics fees priceSeries initPortfolio config = do
             { active  = calculateMetrics activeVC (self tree)
             , passive = calculateMetrics passiveVC <$> tree
             }
-        Nothing -> throw @(MarketError assets)
+        Nothing -> throw @(MarketError)
             $ OtherError "no trades performed (the price series is too short)"
 
     where
         visitAgg
-            :: AggregateVisitor (PricesPortfolio assets)
-                (InstrumentTree (PricesPortfolio assets))
+            :: AggregateVisitor (PricesPortfolio)
+                (InstrumentTree (PricesPortfolio))
         visitAgg pricesPortfolio subinstrs
             = InstrumentTree pricesPortfolio
-            $ Map.fromList
+            $ fromList
             $ fmap (first $ InstrumentName . show)
-            $ HR.toList subinstrs where
+            $ toList subinstrs where
 
-        visitSelf :: SelfVisitor assets (PricesPortfolio assets)
+        visitSelf :: SelfVisitor (PricesPortfolio)
         visitSelf prices portfolio _ _
             = (prices, portfolio)
 
         calculateMetrics vcc pricePortfolioSeries
-            = Map.fromList $ catMaybes $ kv <$> metrics where
+            = fromList $ catMaybes $ kv <$> metrics where
                 kv metric = (,)
                     <$> Just (name metric)
                     <*> calculateMetric vcc metric pricePortfolioSeries
 
 evaluateOnWindows
-    :: forall assets c s r
-     .  ( HR.Labels assets
-        , Instrument assets c s
-        , Members [Precision, Error (MarketError assets)] r
+    :: forall c s r
+     .  ( Instrument c s
+        , Members [Precision, Error (MarketError)] r
         )
     => [Metric]
-    -> Fees assets
+    -> Fees
     -> NominalDiffTime
     -> NominalDiffTime
-    -> TimeSeries (Prices assets)
-    -> Portfolio assets
+    -> TimeSeries (Prices)
+    -> Portfolio
     -> c
     -> Sem r EvaluationOnWindows
 evaluateOnWindows metrics fees windowLen stride series initPortfolio config = do
     let wnds = windowsE windowLen stride series
     truncator <- getTruncator
     let interpreter = runError . runPrecisionFromTruncator truncator
-        deinterpreter = either (throw @(MarketError assets)) return
+        deinterpreter = either (throw @(MarketError)) return
     evals <- pforSem interpreter deinterpreter wnds
         $ evaluateOnWindow
-     <=< fromEither @(MarketError assets) . first OtherError
+     <=< fromEither @(MarketError) . first OtherError
     return $ sequence1 evals
     where
         evaluateOnWindow window

@@ -7,7 +7,6 @@ import Data.List.NonEmpty as NonEmpty
 import Data.Maybe
 import Market.Evaluation
 import Market.Types
-import Market.Types.Test
 import Test.Tasty
 import Test.Tasty.QuickCheck
 import Test.Tasty.TH

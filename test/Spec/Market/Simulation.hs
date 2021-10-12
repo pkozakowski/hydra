@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Spec.Market.Simulation where
@@ -7,11 +8,11 @@ import Control.Monad
 import Data.Coerce
 import Data.Either
 import Data.List
-import Data.List.NonEmpty (NonEmpty(..))
+import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
+import Data.Map.Static hiding (null)
 import Data.Maybe
 import Data.Ord
-import Data.Record.Hom as HR
 import Data.Time
 import Market
 import Market.Instruments
@@ -19,7 +20,6 @@ import Market.Ops
 import Market.Simulation
 import Market.Time
 import Market.Types
-import Market.Types.Test
 import Numeric.Algebra hiding ((<), (>))
 import qualified Numeric.Algebra as Algebra
 import Numeric.Delta
@@ -36,14 +36,7 @@ import Test.Tasty
 import Test.Tasty.QuickCheck hiding (tolerance)
 import Test.Tasty.TH
 
-type FiveLabels = '["a", "b", "c", "d", "e"]
-type Prcs = Prices FiveLabels
-type Port = Portfolio FiveLabels
-type Dist = Distribution FiveLabels
-type Fs = Fees FiveLabels
-type AssetIn = LabelIn FiveLabels
-
-zeroFees :: Fees FiveLabels
+zeroFees :: Fees
 zeroFees = Fees
     { fixed = Nothing
     , variable = zero
@@ -66,24 +59,25 @@ test_runMarketSimulation =
         tradeFinalValueDecreasesWithFees
     ] where
         tradeSucceedsIffSufficientBalance
-            :: UTCTime -> Fs -> Prcs -> Port -> AssetIn -> AssetIn -> Amount
+            :: UTCTime -> Fees -> Prices -> Portfolio -> Asset -> Asset -> Amount
             -> Property
         tradeSucceedsIffSufficientBalance
             time fees prices portfolio from to amount
-              = counterexample ("result: " ++ show result)
-              $ actualSuccess === expectedSuccess
-                where
-                    actualSuccess = isRight result
-                    expectedSuccess
-                        = from /= to
-                       && getIn from portfolio >= amount
-                       && enoughForFees fees from orderAmount portfolio
-                    result = runTrade
-                        time fees prices portfolio from to orderAmount
-                    orderAmount = Absolute amount
+                = label ("success: " ++ show actualSuccess)
+                $ counterexample ("result: " ++ show result)
+                $ actualSuccess === expectedSuccess
+                    where
+                        actualSuccess = isRight result
+                        expectedSuccess
+                            = from /= to
+                           && portfolio ! from >= amount
+                           && enoughForFees fees from orderAmount portfolio
+                        result = runTrade
+                            time fees prices portfolio from to orderAmount
+                        orderAmount = Absolute amount
 
         tradeSucceedsWithRelativeAmount
-            :: UTCTime -> Fs -> Prcs -> Port -> AssetIn -> AssetIn -> Share
+            :: UTCTime -> Fees -> Prices -> Portfolio -> Asset -> Asset -> Share
             -> Property
         tradeSucceedsWithRelativeAmount time fees prices portfolio from to share
             = from /= to && enoughForFees fees from orderAmount portfolio
@@ -93,7 +87,7 @@ test_runMarketSimulation =
                 orderAmount = Relative share
 
         tradePortfolioDeltaSigns
-            :: UTCTime -> Fs -> Prcs -> Port -> AssetIn -> AssetIn
+            :: UTCTime -> Fees -> Prices -> Portfolio -> Asset -> Asset
             -> OrderAmount -> Property
         tradePortfolioDeltaSigns time fees prices portfolio from to orderAmount
               = isRight result
@@ -110,13 +104,13 @@ test_runMarketSimulation =
                 portfolioDelta = portfolio' `delta` portfolio
 
         tradeSubtractsAbsoluteAmount
-            :: UTCTime -> Fs -> Prcs -> Port -> AssetIn -> AssetIn
+            :: UTCTime -> Fees -> Prices -> Portfolio -> Asset -> Asset
             -> OrderAmount -> Property
         tradeSubtractsAbsoluteAmount
                 time fees prices portfolio from to orderAmount
             = isRight result ==> amount' === expectedAmount' where
                 result = runTrade time fees prices portfolio from to orderAmount
-                amount = getIn from portfolio
+                amount = portfolio ! from
                 absAmount = absoluteAmount amount orderAmount
                 subtractAmount
                     = absAmount
@@ -126,12 +120,12 @@ test_runMarketSimulation =
                             | otherwise -> zero
                         Nothing -> zero
                 portfolio' = fromRight undefined result
-                amount' = getIn from portfolio'
+                amount' = portfolio' ! from
                 expectedAmount'
                     = fromJust $ amount `sigma` (zero `delta` subtractAmount)
 
         tradeConservesTotalValueAtZeroFees
-            :: UTCTime -> Prcs -> Port -> AssetIn -> AssetIn -> OrderAmount
+            :: UTCTime -> Prices -> Portfolio -> Asset -> Asset -> OrderAmount
             -> Property
         tradeConservesTotalValueAtZeroFees
             time prices portfolio from to orderAmount
@@ -143,12 +137,12 @@ test_runMarketSimulation =
                     portfolio' = fromRight undefined result
 
         tradeFinalValueDecreasesWithFees
-            :: UTCTime -> Fs -> Fs -> Prcs -> Port -> AssetIn -> AssetIn
+            :: UTCTime -> Fees -> Fees -> Prices -> Portfolio -> Asset -> Asset
             -> OrderAmount -> Property
         tradeFinalValueDecreasesWithFees
             time fees fees' prices portfolio from to orderAmount
-              = isRight result && isRight result'
-            ==> case fees `order` fees' of
+                = isRight result && isRight result'
+              ==> case fees `order` fees' of
                     Just ord
                         -> Down finalValue `compare` Down finalValue' == ord
                         || absAmount == zero
@@ -156,20 +150,21 @@ test_runMarketSimulation =
                         -> discard
                 where
                     [result, result'] =
-                        [ runTrade time fs prices portfolio from to orderAmount
+                        [ runTrade time fs prices portfolio' from to orderAmount
                         | fs <- [fees, fees']
                         ]
                     [finalValue, finalValue']
                         = fmap (totalValue prices . fromRight undefined)
                         $ [result, result']
                     absAmount
-                        = absoluteAmount (getIn from portfolio) orderAmount
+                        = absoluteAmount (portfolio' ! from) orderAmount
+                    portfolio' = portfolio + (const (Amount one) `remap` prices)
 
         enoughForFees fees asset amount portfolio = case fixed fees of
             Just (feeAsset, feeAmount)
-                -> getIn feeAsset portfolio >= feeAmount
+                -> portfolio ! feeAsset >= feeAmount
                 && (feeAsset /= asset || balance >= absAmount + feeAmount) where
-                    balance = getIn asset portfolio
+                    balance = portfolio ! asset
                     absAmount = absoluteAmount balance amount
             Nothing -> True
 
@@ -177,8 +172,8 @@ test_runMarketSimulation =
             = fmap fst
             $ run
             $ runError
-            $ runInputConst @Prcs prices
-            $ runInputConst @Fs fees
+            $ runInputConst @Prices prices
+            $ runInputConst @Fees fees
             $ runTimeConst time
             $ runMarketSimulation portfolio
             $ trade from to orderAmount
@@ -199,16 +194,16 @@ test_backtest =
         $ forAll (resize 3 arbitrary)
         $ balanceChangesPortfolioIffPriceRatiosChange
     ] where
-        holdConservesPortfolio :: TimeSeries Prcs -> Port -> Property
+        holdConservesPortfolio :: TimeSeries Prices -> Portfolio -> Property
         holdConservesPortfolio priceSeries initPortfolio
             = counterexample ("portfolios: " ++ show portfolios)
             $ n > 1 ==> length (nub portfolios) === 1 where
                 n = length srs where TimeSeries srs = priceSeries
-                portfolios :: [Port]
-                portfolios = runBacktest priceSeries initPortfolio (Hold #a)
+                portfolios :: [Portfolio]
+                portfolios = runBacktest priceSeries initPortfolio $ Hold "A"
 
         balanceChangesPortfolioIffPriceRatiosChange
-            :: TimeSeries Prcs -> Port -> Dist -> Property
+            :: TimeSeries Prices -> Portfolio -> Distribution -> Property
         balanceChangesPortfolioIffPriceRatiosChange
             priceSeries initPortfolio target = property do
                 priceSeries' <- disturb priceSeries
@@ -218,12 +213,12 @@ test_backtest =
                     TimeSeries ((_, initPrices) :| _) = priceSeries'
                     portfolios = runBacktest priceSeries' initPortfolio config
                 return @Gen
-                      $ counterexample ("prices: "     ++ show prices    )
-                      $ counterexample ("portfolios: " ++ show portfolios)
-                      $ collect (changes priceRatios)
-                      $ fullSupport target
-                     && totalValue initPrices initPortfolio > zero
-                    ==> changes priceRatios === changes portfolios
+                    $ counterexample ("prices: "     ++ show prices    )
+                    $ counterexample ("portfolios: " ++ show portfolios)
+                    $ collect (changes priceRatios)
+                    $ fullSupport target
+                   && totalValue initPrices initPortfolio > zero
+                  ==> changes priceRatios === changes portfolios
                 where
                     -- Randomly repeat prices to make the test case
                     -- distribution more interesting.
@@ -232,7 +227,9 @@ test_backtest =
                             n <- choose (0, 2)
                             return $ replicate n x
 
-                    fullSupport (Distribution dist) = all (> Share zero) dist
+                    fullSupport (Distribution dist)
+                        = all (> Share zero) dist
+                       && size dist == length testAssets
 
                     changes :: Eq a => [a] -> [Bool]
                     changes = discardWhenNull . \case
@@ -245,26 +242,24 @@ test_backtest =
 
                     rebase (Prices prices) = rebaseOne <$> prices where
                         rebaseOne (Price x) = Price $ x / base where
-                            Price base = HR.get #a prices
+                            Price base = prices ! head testAssets
+
                     config = BalanceConfig
                         { configs
-                             = #a := Hold #a
-                            ~& #b := Hold #b
-                            ~& #c := Hold #c
-                            ~& #d := Hold #d
-                            ~& #e := Hold #e
-                            ~& noConfigs @FiveLabels
+                            = fromList $ hold <$> testAssets
                         , target = target
                         , tolerance = zero
                         , updateEvery = 0
-                        }
+                        } where
+                            hold asset
+                                = (asset, someInstrumentConfig $ Hold asset)
 
         runBacktest
-            :: Instrument FiveLabels c s
-            => TimeSeries Prcs
-            -> Port
+            :: Instrument c s
+            => TimeSeries Prices
+            -> Portfolio
             -> c
-            -> [Port]
+            -> [Portfolio]
         runBacktest priceSeries initPortfolio config
             = fromRight undefined
             $ run
@@ -273,7 +268,7 @@ test_backtest =
             $ runOutputList
             $ runPrecisionExact
             $ backtest zeroFees priceSeries initPortfolio config
-            $ Output.output =<< input @Port
+            $ Output.output =<< input @Portfolio
 
 tests :: TestTree
 tests = $(testGroupGenerator)

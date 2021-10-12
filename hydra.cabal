@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1a879e7968da86f3265c340b89cd310ccf22002f96f6e8f9bf2d4afce3f9a4c6
+-- hash: 9c6e5855eb5a73848d554a4f3a2e40464b1c0c4629f0217041688fd45599435a
 
 name:           hydra
 version:        0.1.0.0
@@ -28,8 +28,14 @@ source-repository head
 library
   exposed-modules:
       Data.Deriving
+      Data.Map.Class
+      Data.Map.Default
+      Data.Map.Sparse
+      Data.Map.Static
       Data.Record.Hom
+      Data.Traversable.Constrained
       Market
+      Market.Asset
       Market.Deriving
       Market.Evaluation
       Market.Feed
@@ -39,6 +45,7 @@ library
       Market.Feed.Price
       Market.Feed.TH
       Market.Instruments
+      Market.Instruments.Test
       Market.Internal.IO
       Market.Internal.Sem
       Market.Notebook
@@ -48,9 +55,10 @@ library
       Market.Tuning
       Market.Types
       Numeric.Algebra.Deriving
+      Numeric.Algebra.Test
       Numeric.Delta
       Numeric.Kappa
-      Numeric.Normalizable
+      Numeric.Normed
       Numeric.Precision
       Numeric.Truncatable
   other-modules:
@@ -180,11 +188,9 @@ test-suite hydra-test
   other-modules:
       Data.Approx.Test
       Data.Record.Hom.Test
-      Market.Instruments.Test
-      Market.Types.Test
-      Numeric.Algebra.Test
-      Numeric.Test
-      Spec.Data.Record.Hom
+      Spec.Data.Map.Default
+      Spec.Data.Map.Sparse
+      Spec.Data.Map.Static
       Spec.Market.Evaluation
       Spec.Market.Instruments
       Spec.Market.Ops

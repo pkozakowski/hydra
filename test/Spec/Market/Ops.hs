@@ -3,17 +3,13 @@
 module Spec.Market.Ops where
 
 import Data.Coerce
-import Data.Foldable
 import Data.List
 import qualified Data.List.NonEmpty as NonEmpty
-import Data.Map (Map)
-import qualified Data.Map as Map
 import Data.Maybe
-import Data.Record.Hom hiding (toList)
+import Data.Map.Static
 import Data.Time.Clock
 import Market.Ops
 import Market.Types
-import Market.Types.Test
 import Numeric.Algebra hiding ((<), (>))
 import Numeric.Algebra.Test
 import Numeric.Delta
@@ -24,27 +20,16 @@ import Test.Tasty
 import Test.Tasty.QuickCheck
 import Test.Tasty.TH
 
-type ThreeLabels = '["a", "b", "c"]
-type Dist3 = Distribution ThreeLabels
-type DistDelta3 = DistributionDelta ThreeLabels
-
-type FiveLabels = '["a", "b", "c", "d", "e"]
-type Dist5 = Distribution FiveLabels
-type DistDelta5 = DistributionDelta FiveLabels
-
 test_balancingTransfers_and_transferDelta :: [TestTree]
 test_balancingTransfers_and_transferDelta = fmap (uncurry testProperty)
     [   ( "final Distribution is balanced"
         , wrap finalDistributionIsBalanced )
     ,   ( "final DistributionDelta sums to zero"
         , wrap finalDistributionDeltaSumsToZero )
-    ,   ( "transfers are few 3"
-        , wrap transfersAreFew3 )
-    ] ++ fmap (uncurry testProperty)
-    [   ( "transfers are few 5"
-        , wrap transfersAreFew5 )
+    ,   ( "transfers are few"
+        , wrap transfersAreFew )
     ] where
-        finalDistributionIsBalanced :: Scalar -> Dist3 -> Dist3 -> Property
+        finalDistributionIsBalanced :: Scalar -> Distribution -> Distribution -> Property
         finalDistributionIsBalanced tol current target
             = label (bucketScalar "tolerance" tol)
             $ isBalanced tol final target where
@@ -54,7 +39,7 @@ test_balancingTransfers_and_transferDelta = fmap (uncurry testProperty)
                             = fmap transferDelta
                             $ balancingTransfers tol current target
 
-        finalDistributionDeltaSumsToZero :: Scalar -> Dist3 -> Dist3 -> Property
+        finalDistributionDeltaSumsToZero :: Scalar -> Distribution -> Distribution -> Property
         finalDistributionDeltaSumsToZero tol current target
             = foldl (+) zero diff === zero where
                 DistributionDelta diff = foldl (+) zero transferDeltas where
@@ -62,19 +47,20 @@ test_balancingTransfers_and_transferDelta = fmap (uncurry testProperty)
                         = fmap transferDelta
                         $ balancingTransfers tol current target
 
-        transfersAreFew3 :: Scalar -> Dist3 -> Dist3 -> Property
-        transfersAreFew3 tol current target
+        transfersAreFew :: Scalar -> Distribution -> Distribution -> Property
+        transfersAreFew tol current target
             = label (show len ++ " transfers")
             -- Worst-case optimal number of transfers is
             -- the number of assets - 1.
-            $ len <= 2 where
-                len = length $ balancingTransfers tol current target
-
-        transfersAreFew5 :: Scalar -> Dist5 -> Dist5 -> Property
-        transfersAreFew5 tol current target
-            = label (show len ++ " transfers")
-            $ len <= 4 where
-                len = length $ balancingTransfers tol current target
+            $ len < limit where
+                len
+                    = length
+                    $ balancingTransfers tol current target
+                limit
+                    = length
+                    $ nub
+                    $ fmap fst
+                    $ toList current ++ toList target
 
         wrap prop current target
              = forAll (arbitrary `suchThat` \tol -> tol >= zero)
@@ -91,9 +77,9 @@ test_isBalanced = fmap (uncurry testProperty)
         closeImpliesBalanced
             :: Scalar
             -> Scalar
-            -> LabelIn ThreeLabels
-            -> LabelIn ThreeLabels
-            -> Dist3
+            -> Asset
+            -> Asset
+            -> Distribution
             -> Property
         closeImpliesBalanced tol tol' from to target
             = labelTolerances tol tol'
@@ -105,11 +91,11 @@ test_isBalanced = fmap (uncurry testProperty)
         farImpliesUnbalanced
             :: Scalar
             -> Scalar
-            -> LabelIn ThreeLabels
-            -> LabelIn ThreeLabels
-            -> Dist3
+            -> Asset
+            -> Asset
+            -> Distribution
             -> Property
-        farImpliesUnbalanced tol tol' from to target@(Distribution targetRec)
+        farImpliesUnbalanced tol tol' from to target@(Distribution targetMap)
               = labelTolerances tol tol'
               $ counterexample ("far: " ++ show far)
               $ nonTrivial
@@ -118,15 +104,15 @@ test_isBalanced = fmap (uncurry testProperty)
                     maxTr = maxTransfer tol' from to target
                 nonTrivial
                      = from /= to
-                    && getIn from targetRec > Share zero
-                    && getIn to targetRec > Share zero
+                    && targetMap ! from > Share zero
+                    && targetMap ! to > Share zero
 
         maxTransfer tol from to target
             = ShareTransfer from to $ Share $ tol * maxChange where
                 maxChange = min fromBal $ min toBal $ one - toBal
-                fromBal = coerce $ getIn from targetRec
-                toBal = coerce $ getIn to targetRec
-                Distribution targetRec = target
+                fromBal = coerce $ targetMap ! from
+                toBal = coerce $ targetMap ! to
+                Distribution targetMap = target
 
         labelTolerances tol tol'
             = label
@@ -211,17 +197,17 @@ test_sweep = fmap (uncurry testProperty)
     [ ("completeness", completeness)
     , ("order", order)
     ] where
-        completeness :: Map Int (TimeSeries Int) -> Property
+        completeness :: StaticMap Int (TimeSeries Int) -> Property
         completeness mapOfSeries = sort flatMap === sort flatEvents where
-            flatMap = flattenEntry =<< Map.toList mapOfLists where
+            flatMap = flattenEntry =<< toList mapOfLists where
                 flattenEntry (k, tvs)
                     = (\(t, v) -> (t, k, v)) <$> tvs
             flatEvents = flattenEvent =<< sweep mapOfLists where
                 flattenEvent (t, ev)
-                    = (\(k, v) -> (t, k, v)) <$> toList (changes ev)
+                    = (\(k, v) -> (t, k, v)) <$> NonEmpty.toList (changes ev)
             mapOfLists = seriesToList <$> mapOfSeries
 
-        order :: Map Int (TimeSeries Int) -> Property
+        order :: StaticMap Int (TimeSeries Int) -> Property
         order mapOfSeries = events === sort events where
             events = sweep $ seriesToList <$> mapOfSeries
 

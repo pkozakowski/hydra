@@ -17,8 +17,8 @@ module Market
 
 import Control.DeepSeq
 import Data.Fixed
+import Data.Map.Static
 import Data.Proxy
-import Data.Record.Hom
 import GHC.Generics
 import Market.Time
 import Market.Types
@@ -29,30 +29,23 @@ import Polysemy.Input
 import Polysemy.Internal
 import Polysemy.State as State
 
-data Market assets m a where
+data Market m a where
+    Trade :: Asset -> Asset -> OrderAmount -> Market m ()
 
-    Trade :: LabelIn assets -> LabelIn assets -> OrderAmount
-          -> Market assets m ()
+makeSem ''Market
 
-makeSem_ ''Market
+newtype IConfig c = IConfig { unIConfig :: c }
 
-trade
-    :: forall assets r
-    .  (Member (Market assets) r)
-    => LabelIn assets -> LabelIn assets -> OrderAmount -> Sem r ()
-
-newtype IConfig c = IConfig c
-
-newtype IState s = IState s
+newtype IState s = IState { unIState :: s }
     deriving newtype (Truncatable)
 
-data MarketError assets
-    = InsufficientBalanceForTransfer (SomeAmount assets)
-    | InsufficientBalanceToCoverFees (Fees assets)
+data MarketError
+    = InsufficientBalanceForTransfer SomeAmount
+    | InsufficientBalanceToCoverFees Fees
     | OtherError String
     deriving (Generic, NFData)
 
-instance Show (MarketError assets) where
+instance Show MarketError where
 
     show = \case
         InsufficientBalanceForTransfer someAmount
@@ -61,124 +54,102 @@ instance Show (MarketError assets) where
             -> "insufficient balance to cover fees: " ++ show fees
         OtherError s -> s
 
-type InitEffects assets c =
-    [ Input (Prices assets)
+type InitEffects c =
+    [ Input Prices
     , Input (IConfig c)
     ]
 
-type ExecuteEffects assets c s =
-    [ Market assets
+type ExecuteEffects c s =
+    [ Market
     , Time
-    , Input (Fees assets)
-    , Input (Prices assets)
-    , Input (Portfolio assets)
+    , Input Fees
+    , Input Prices
+    , Input Portfolio
     , Input (IConfig c)
     , State (IState s)
-    , Error (MarketError assets)
+    , Error MarketError
     ]
 
 type AggregateVisitor self agg
-    = forall sis
-    . self -> HomRec sis agg -> agg
+    = self -> StaticMap Asset agg -> agg
 
-type SelfVisitor assets self
-     = forall c' s'
-     . Instrument assets c' s'
-    => Prices assets
-    -> Portfolio assets
-    -> c' -> s' -> self
+type SelfVisitor self
+     = forall c s
+     . Instrument c s
+    => Prices -> Portfolio -> c -> s -> self
 
-type Visitor assets self agg
+type Visitor self agg
      = AggregateVisitor self agg
-    -> SelfVisitor assets self
+    -> SelfVisitor self
     -> agg
 
-class Truncatable s => Instrument assets c s | s -> c, c -> s where
-
-    initState :: Members (InitEffects assets c) r => Sem r s
-
-    initAllocation
-        :: Members (InitEffects assets c) r
-        => Sem r (Distribution assets)
-
-    execute
-        :: Members (ExecuteEffects assets c s) r
-        => Sem r ()
-
-    visit
-        :: Prices assets
-        -> Portfolio assets
-        -> c
-        -> s
-        -> Visitor assets self agg
+class Truncatable s => Instrument c s | s -> c, c -> s where
+    initState :: Members (InitEffects c) r => Sem r s
+    initAllocation :: Members (InitEffects c) r => Sem r Distribution
+    execute :: Members (ExecuteEffects c s) r => Sem r ()
+    visit :: Prices -> Portfolio -> c -> s -> Visitor self agg
 
 visit'
-    :: forall assets self agg c s
-     . Instrument assets c s
+    :: forall self agg c s
+     . Instrument c s
     => AggregateVisitor self agg
-    -> SelfVisitor assets self
-    -> Prices assets
-    -> Portfolio assets
+    -> SelfVisitor self
+    -> Prices
+    -> Portfolio
     -> c
     -> s
     -> agg
 visit' visitAgg visitSelf prices portfolio config state
-    = visit @assets prices portfolio config state visitAgg visitSelf
+    = visit prices portfolio config state visitAgg visitSelf
 
 runInstrument
-    :: forall assets c s r a
-     . (Instrument assets c s, Member (Input (Prices assets)) r)
+    :: forall c s r a
+     . (Instrument c s, Member (Input Prices) r)
     => c -> Sem (State (IState s) ': Input (IConfig c) ': r) a -> Sem r (s, a)
 runInstrument config monad = do
-    state <- runInputConst (IConfig config) $ initState @assets
-    runInstrument' @assets config state monad
+    state <- runInputConst (IConfig config) initState
+    runInstrument' config state monad
 
 runInstrument'
-    :: forall assets c s r a
-     . (Instrument assets c s, Member (Input (Prices assets)) r)
+    :: forall c s r a
+     . (Instrument c s, Member (Input Prices) r)
     => c -> s -> Sem (State (IState s) ': Input (IConfig c) ': r) a
     -> Sem r (s, a)
 runInstrument' config state monad = runInputConst (IConfig config) do
     (IState state', x) <- runState (IState state) monad
     return (state', x)
 
-data SomeInstrumentConfig assets = SomeInstrumentConfig
-    { someInitState :: Prices assets -> SomeInstrumentState assets
-    , someInitAllocation :: Prices assets -> Distribution assets
+data SomeInstrumentConfig = SomeInstrumentConfig
+    { someInitState :: Prices -> SomeInstrumentState
+    , someInitAllocation :: Prices -> Distribution
     , someShow :: String
     }
 
-data SomeInstrumentState assets = SomeInstrumentState
+data SomeInstrumentState = SomeInstrumentState
     { someExecute
         :: forall r
         .  Members
             ( ExecuteEffects
-                assets
-                (SomeInstrumentConfig assets)
-                (SomeInstrumentState assets)
+                SomeInstrumentConfig
+                SomeInstrumentState
             ) r
         => Sem r ()
     , someVisit
         :: forall self agg
-         . Prices assets
-        -> Portfolio assets
-        -> Visitor assets self agg
+         . Prices
+        -> Portfolio
+        -> Visitor self agg
     , someTruncateTo
         :: forall res
          . HasResolution res
         => res
-        -> SomeInstrumentState assets
+        -> SomeInstrumentState
     }
 
-instance Truncatable (SomeInstrumentState assets) where
+instance Truncatable SomeInstrumentState where
     truncateTo = flip someTruncateTo
 
-instance
-    Instrument
-        assets
-        (SomeInstrumentConfig assets)
-        (SomeInstrumentState assets)
-    where
+instance Instrument SomeInstrumentConfig SomeInstrumentState where
 
     initState = do
         IConfig config <- input
@@ -191,52 +162,51 @@ instance
         return $ someInitAllocation config prices
 
     execute = do
-        IState state <- State.get @(IState (SomeInstrumentState assets))
+        IState state <- State.get @(IState SomeInstrumentState)
         someExecute state
 
     visit prices portfolio _ state = someVisit state prices portfolio
 
-instance Show (SomeInstrumentConfig assets) where
+instance Show SomeInstrumentConfig where
     show = someShow
 
 someInstrumentConfig
-    :: forall assets c s
-    .  (Instrument assets c s, Show c)
-    => c -> SomeInstrumentConfig assets
+    :: forall c s
+    .  (Instrument c s, Show c)
+    => c -> SomeInstrumentConfig
 someInstrumentConfig config = SomeInstrumentConfig initSt initAlloc shw where
     initSt prices
         = someInstrumentState config
         $ run $ runInputConst prices $ runInputConst (IConfig config)
-        $ initState @assets
+        $ initState
     initAlloc prices
         = run $ runInputConst prices $ runInputConst (IConfig config)
-        $ initAllocation @assets @c
+        $ initAllocation @c
     shw = show config
 
 someInstrumentState
-    :: forall assets c s
-    .  Instrument assets c s
-    => c -> s -> SomeInstrumentState assets
+    :: forall c s
+    .  Instrument c s
+    => c -> s -> SomeInstrumentState
 someInstrumentState config state = SomeInstrumentState exec vis trunc where
     exec
         :: forall r
         .  Members
             ( ExecuteEffects
-                assets
-                (SomeInstrumentConfig assets)
-                (SomeInstrumentState assets)
+                SomeInstrumentConfig
+                SomeInstrumentState
             )
             r
         => Sem r ()
     exec = do
         IState state'
            <- runInputConst (IConfig config) $ execState (IState state)
-            $ execute @assets @c @s
-        put @(IState (SomeInstrumentState assets))
+            $ execute @c @s
+        put @(IState SomeInstrumentState)
             $ IState $ someInstrumentState config state'
 
-    vis :: Prices assets -> Portfolio assets -> Visitor assets self agg
+    vis :: Prices -> Portfolio -> Visitor self agg
     vis prices portfolio = visit prices portfolio config state
 
-    trunc :: forall res. HasResolution res => res -> SomeInstrumentState assets
+    trunc :: forall res. HasResolution res => res -> SomeInstrumentState
     trunc res = someInstrumentState config $ truncateTo res state
