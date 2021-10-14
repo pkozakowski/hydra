@@ -7,8 +7,6 @@ module Main where
 import Command.Sync
 import Control.Logging
 import Data.Fixed
-import Data.Proxy
-import Data.Record.Hom
 import Data.Time.Clock
 import Market.Feed.MongoDB
 import Market.Instruments

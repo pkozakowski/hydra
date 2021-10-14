@@ -17,7 +17,6 @@ import Control.Logging
 import Data.Composition
 import Data.Fixed
 import Data.List.NonEmpty as NonEmpty
-import Data.Record.Hom
 import Data.Text
 import qualified Data.Text.Lazy as L
 import Data.Time.Clock

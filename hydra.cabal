@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9c6e5855eb5a73848d554a4f3a2e40464b1c0c4629f0217041688fd45599435a
+-- hash: d184c6aed7cb4f8b4bbab0a796ba2d457500e46c2f5c588d43424aa76aa239b4
 
 name:           hydra
 version:        0.1.0.0
@@ -32,7 +32,6 @@ library
       Data.Map.Default
       Data.Map.Sparse
       Data.Map.Static
-      Data.Record.Hom
       Data.Traversable.Constrained
       Market
       Market.Asset
@@ -187,7 +186,6 @@ test-suite hydra-test
   main-is: Spec.hs
   other-modules:
       Data.Approx.Test
-      Data.Record.Hom.Test
       Spec.Data.Map.Default
       Spec.Data.Map.Sparse
       Spec.Data.Map.Static
