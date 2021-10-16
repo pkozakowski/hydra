@@ -24,12 +24,6 @@ import Test.QuickCheck.Classes
 import Test.QuickCheck.Instances.Time
 import Test.QuickCheck.Property
 
-zeroFees :: Fees
-zeroFees = Fees
-    { fixed = Nothing
-    , variable = zero
-    }
-
 instrumentLaws
     :: forall c s
      . (Show c, Instrument c s)
@@ -37,17 +31,17 @@ instrumentLaws
 instrumentLaws arbitraryApproxConfig arbitraryExactConfig
     = Laws "Instrument"
         [   ( "Idempotence (Instant)"
-            , instApprox $ idempotence @c @s )
+            , instApprox arbitrary $ idempotence @c @s )
         ,   ( "Idempotence (Continuous)"
-            , contApprox $ idempotence @c @s )
+            , contApprox arbitrary $ idempotence @c @s )
         ,   ( "Efficiency (Instant)"
-            , instApprox $ efficiency @c @s )
+            , instApprox arbitrary $ efficiency @c @s )
         ,   ( "Efficiency (Continuous)"
-            , contApprox $ efficiency @c @s )
+            , contApprox arbitrary $ efficiency @c @s )
         ,   ( "Allocation Agreement (Instant)"
-            , instExact $ allocationAgreement @c @s )
+            , instExact (pure zeroFees) $ allocationAgreement @c @s )
         ,   ( "Allocation Agreement (Continuous)"
-            , contExact $ allocationAgreement @c @s )
+            , contExact (pure zeroFees) $ allocationAgreement @c @s )
         ] where
             instApprox = instrumentPropertyInstant arbitraryApproxConfig
             contApprox = instrumentPropertyContinuous arbitraryApproxConfig
@@ -100,6 +94,7 @@ efficiency = whenNotBroke @c @s $ runEfficiencyTestM (execute @c @s) where
         IState state <- State.get
         time <- now
         portfolio <- input @Portfolio
+        fees <- input @Fees
         subsume_
             $ fmap eitherToProperty
             $ runError
@@ -107,7 +102,10 @@ efficiency = whenNotBroke @c @s $ runEfficiencyTestM (execute @c @s) where
             $ reinterpret2 \case
                 Trade from to orderAmount -> do
                     signs <- State.get @(SparseMap Asset Sign)
-                    when (absoluteAmount (portfolio ! from) orderAmount == zero)
+                    let absAmount = absoluteAmount
+                            fees from (portfolio ! from) orderAmount
+                    when (absAmount == zero)
+                        -- This can happen when balance == fixed fee.
                         $ throw
                         $ counterexample "trade with zero amount" False
                     assertSign from Plus signs
@@ -170,40 +168,51 @@ instrumentPropertyInstant
     :: forall c s
      . (Show c, Instrument c s)
     => Gen c
+    -> Gen Fees
     -> Sem (RunExecuteEffects c s) Property
     -> Property
-instrumentPropertyInstant arbitraryConfig monad
-    = forAll arbitraryConfig prop where
-        prop :: c -> UTCTime -> Prices -> Portfolio -> Property
-        prop config time prices portfolio
-            = snd $ fromRight undefined
-            $ runInitExecute config time zeroFees prices portfolio monad
+instrumentPropertyInstant arbitraryConfig arbitraryFees monad
+    = forAll ((,) <$> arbitraryConfig <*> arbitraryFees)
+    $ uncurry prop where
+        prop :: c -> Fees -> UTCTime -> Prices -> Portfolio -> Property
+        prop config fees time prices portfolio
+            = snd
+            $ handleMarketErrors
+            $ runInitExecute config time fees prices portfolio monad
 
 instrumentPropertyContinuous
     :: forall c s
      . (Show c, Instrument c s)
     => Gen c
+    -> Gen Fees
     -> Sem (RunExecuteEffects c s) Property
     -> Property
-instrumentPropertyContinuous arbitraryConfig monad
-    = forAll ((,) <$> arbitraryConfig <*> resize 5 arbitrary)
-    $ uncurry prop where
-        prop :: c -> TimeSeries Prices -> Portfolio -> Property
-        prop config priceSeries initPortfolio
+instrumentPropertyContinuous arbitraryConfig arbitraryFees monad
+    = forAll ((,,) <$> arbitraryConfig <*> arbitraryFees <*> resize 5 arbitrary)
+    $ uncurry3 prop where
+        prop :: c -> Fees -> TimeSeries Prices -> Portfolio -> Property
+        prop config fees priceSeries initPortfolio
             = (totalValue initPrices initPortfolio > zero ==>)
             $ conjoin
-            $ fromRight undefined
+            $ handleMarketErrors
             $ run
             $ runError @MarketError
             $ fmap fst
             $ runOutputList @Property
             $ runPrecisionExact
-            $ backtest' @c @s zeroFees priceSeries initPortfolio config \exec -> do
+            $ backtest' @c @s fees priceSeries initPortfolio config \exec -> do
                 instantProp <- snd <$> runExecuteM monad
                 Output.output instantProp
                 exec
             where
                 TimeSeries ((_, initPrices) :| _) = priceSeries
+        uncurry3 f (x, y, z) = f x y z
+
+handleMarketErrors :: Either MarketError a -> a
+handleMarketErrors = either handle id where
+    handle = \case
+        InsufficientBalanceToCoverFees _ _ -> discard
+        e -> error $ show e
 
 runInitExecute
     :: forall c s a

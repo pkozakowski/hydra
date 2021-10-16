@@ -103,7 +103,7 @@ newtype ValueDeltas = ValueDeltas (SparseMap Asset ValueDelta)
 deriveAdditiveQuantityInstances
     ''Scalar ''Value ''ValueDelta ''Values ''ValueDeltas
 
--- | Value = Amount * Price.
+-- | Value = Price * Amount.
 deriveKappaDivision ''Scalar ''Value ''Price ''Amount
 deriveKappaDivision ''Scalar ''ValueDelta ''PriceDelta ''Amount
 deriveKappaDivision ''Scalar ''ValueDelta ''Price ''AmountDelta
@@ -118,6 +118,16 @@ newtype ShareDelta = ShareDelta Scalar
 -- | Safe constructor for Share.
 share :: Scalar -> Share
 share x = assert (x >= zero && x <= one) $ Share x
+
+-- | Amount = Amount * Share.
+deriveKappaDivision ''Scalar ''Amount ''Amount ''Share
+deriveKappaDivision ''Scalar ''AmountDelta ''AmountDelta ''Share
+deriveKappaDivision ''Scalar ''AmountDelta ''Amount ''ShareDelta
+
+-- | Value = Value * Share.
+deriveKappaDivision ''Scalar ''Value ''Value ''Share
+deriveKappaDivision ''Scalar ''ValueDelta ''ValueDelta ''Share
+deriveKappaDivision ''Scalar ''ValueDelta ''Value ''ShareDelta
 
 -- | Distribution on Assets. Sums to 1.
 newtype Distribution = Distribution (SparseMap Asset Share)
@@ -188,18 +198,21 @@ instance Order Fees where
             (Just (_, amount), Nothing)
                 -> False
 
+zeroFees :: Fees
+zeroFees = Fees { fixed = Nothing, variable = 0 % 1 }
+
 data OrderAmount
     = Absolute Amount
     | Relative Share
     deriving Show
 
+orderAmountIsZero :: OrderAmount -> Bool
+orderAmountIsZero = \case
+    Absolute amount -> amount == zero
+    Relative share -> share == Share zero
+
 everything :: OrderAmount
 everything = Relative $ share one
-
-absoluteAmount :: Amount -> OrderAmount -> Amount
-absoluteAmount totalAmount = \case
-    Absolute amount      -> amount
-    Relative (Share shr) -> shr .* totalAmount
 
 type TimeStep a = (UTCTime, a)
 
@@ -355,8 +368,11 @@ instance Arbitrary a => Arbitrary (TimeSeries a) where
 instance Arbitrary Fees where
 
     arbitrary = Fees
-        <$> arbitrary `suchThat` positiveIfJust
-        <*> arbitrary `suchThat` validShare
+        <$> fmap decrease arbitrary `suchThat` positiveIfJust
+        <*> arbitrary `suchThat` validShare where
+            decrease
+                = fmap \(asset, amount)
+               -> (asset, ((1 % 100) :: Fraction Integer) .* amount)
 
     shrink fees = Fees
         <$> positiveIfJust `filter` shrink (fixed fees)

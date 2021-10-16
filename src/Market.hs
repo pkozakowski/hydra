@@ -40,18 +40,20 @@ newtype IState s = IState { unIState :: s }
     deriving newtype (Truncatable)
 
 data MarketError
-    = InsufficientBalanceForTransfer SomeAmount
-    | InsufficientBalanceToCoverFees Fees
+    = InsufficientBalanceForTransfer SomeAmount Portfolio
+    | InsufficientBalanceToCoverFees Fees Portfolio
     | OtherError String
     deriving (Generic, NFData)
 
 instance Show MarketError where
 
     show = \case
-        InsufficientBalanceForTransfer someAmount
+        InsufficientBalanceForTransfer someAmount portfolio
             -> "insufficient balance for transfer: " ++ show someAmount
-        InsufficientBalanceToCoverFees fees
+            ++ "; portfolio: " ++ show portfolio
+        InsufficientBalanceToCoverFees fees portfolio
             -> "insufficient balance to cover fees: " ++ show fees
+            ++ "; portfolio: " ++ show portfolio
         OtherError s -> s
 
 type InitEffects c =

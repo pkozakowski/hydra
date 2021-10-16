@@ -41,9 +41,9 @@ test_Balance_Hold :: [TestTree]
 test_Balance_Hold =
     [ testLaws $ instrumentLaws arbitraryApproxConfig arbitraryExactConfig
     , testProperty "portfolio is balanced (instant)"
-        $ instExact portfolioIsBalanced
+        $ instExact (pure zeroFees) portfolioIsBalanced
     , testProperty "portfolio is balanced (continuous)"
-        $ contExact portfolioIsBalanced
+        $ contExact (pure zeroFees) portfolioIsBalanced
     , testProperty "rebalances are rare"
         $ forAll ((,) <$> arbitraryApproxConfig <*> resize 5 arbitrary)
         $ uncurry rebalancesAreRare
@@ -57,11 +57,11 @@ test_Balance_Hold =
                 $ isBalanced (tolerance config) valueAlloc (target config)
 
         rebalancesAreRare
-            :: BalanceConfig -> TimeSeries Prices -> Portfolio -> Property
-        rebalancesAreRare config priceSeries initPortfolio
-              = totalValue initPrices initPortfolio > zero
-             && updateEvery config > 0
-            ==> prop where
+            :: BalanceConfig -> Fees -> TimeSeries Prices -> Portfolio
+            -> Property
+        rebalancesAreRare config fees priceSeries initPortfolio
+              = updateEvery config > 0
+            ==> withMaxSuccess 10 prop where
                 prop = numRebalances <= limit where
                     limit = fromEnum (diff / updateEvery config) + 1 where
                         diff = diffUTCTime endTime beginTime
@@ -76,13 +76,13 @@ test_Balance_Hold =
                     | rest == [] = beginTime
                     | otherwise  = fst $ last rest
                 portfolios
-                    = either (error . show) id
+                    = fromRight discard
                     $ run
                     $ runError
                     $ fmap fst
                     $ runOutputList
                     $ runPrecisionExact
-                    $ backtest zeroFees priceSeries initPortfolio config do
+                    $ backtest fees priceSeries initPortfolio config do
                         portfolio <- input @Portfolio
                         Output.output portfolio
 
@@ -103,7 +103,6 @@ test_Balance_Hold =
                 } where
                     hold asset = (asset, someInstrumentConfig $ Hold asset)
 
-        contApprox = instrumentPropertyContinuous arbitraryApproxConfig
         instExact = instrumentPropertyInstant arbitraryExactConfig
         contExact = instrumentPropertyContinuous arbitraryExactConfig
 

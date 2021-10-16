@@ -43,9 +43,7 @@ instance Instrument Hold Hold where
 
     execute = do
         IConfig (Hold asset) <- input
-        prices <- input @Prices
-        portfolio <- input @Portfolio
-        allocationToTrades zero prices portfolio $ onePoint asset
+        allocationToTrades zero $ onePoint asset
 
     visit prices portfolio config state visitAgg visitSelf
         = visitAgg (visitSelf prices portfolio config state) empty
@@ -99,8 +97,8 @@ instance Instrument BalanceConfig BalanceState where
     execute = do
         -- 0. Check if we have any money and if enough time has passed since the
         -- last update.
-        prices <- input @(Prices)
-        portfolio <- input @(Portfolio)
+        prices <- input @Prices
+        portfolio <- input @Portfolio
         time <- now
         IConfig config <- input @(IConfig (BalanceConfig))
         IState state <- State.get
@@ -110,19 +108,23 @@ instance Instrument BalanceConfig BalanceState where
             let portfolios = distributePortfolio config state prices portfolio
             -- 2. Execute the per-instrument trades in simulated markets to get
             -- new portfolios.
-            let exec = execute
-                    @(SomeInstrumentConfig)
-                    @(SomeInstrumentState)
+            fees <- input @Fees @r
+            let exec = execute @SomeInstrumentConfig @SomeInstrumentState
                 executions
-                    = fmap (fmap fst)
+                    = fmap
+                        ( fmap fst
+                        -- Forward the real fees to the instruments.
+                        . inject fees
+                        )
                     $ (\c s -> runInstrument' c s exec)
                         <$> configs config
                         <.> states state
-            -- TODO: Set fees in simulated markets to 0, otherwise Hold won't
-            -- work. Test.
             portfoliosAndInstruments'
-                <- sequence
-                 $ runMarketSimulation <$> portfolios <.> executions
+                -- Run the simulation with zero fees, so the instruments don't
+                -- have to allocate funds for them.
+               <- inject zeroFees
+                $ sequence
+                $ runMarketSimulation <$> portfolios <.> executions
             let portfolios' = fst <$> portfoliosAndInstruments'
                 states' = snd <$> portfoliosAndInstruments'
                 allocations'
@@ -131,7 +133,7 @@ instance Instrument BalanceConfig BalanceState where
             -- portfolios.
             let portfolio' = foldl (+) zero portfolios'
                 allocation' = valueAlloc prices portfolio'
-            allocationToTrades (tolerance config) prices portfolio allocation'
+            allocationToTrades (tolerance config) allocation'
             -- 4. Update the state.
             put $ IState $ BalanceState
                 { states = states'
@@ -151,6 +153,13 @@ instance Instrument BalanceConfig BalanceState where
 
                 valueAllocOr prices portfolio allocation
                     = fromMaybe allocation $ valueAllocation prices portfolio
+
+                inject
+                    :: forall i r a
+                     . Member (Input i) r
+                    => i -> Sem r a -> Sem r a
+                inject inp = intercept @(Input i) \case
+                    Input -> pure inp
 
     visit
         :: forall self agg
@@ -183,27 +192,50 @@ distributePortfolio config state prices portfolio
 
 allocationToTrades
     :: forall r
-     . Members [Market, Error MarketError] r
-    => Scalar -> Prices -> Portfolio -> Distribution
-    -> Sem r ()
-allocationToTrades tolerance prices portfolio targetAlloc
-    = when (value > zero) $ sequence_ $ transferToTrade value <$> transfers
+     . Members
+        [ Market
+        , Input Portfolio
+        , Input Prices
+        , Input Fees
+        , Error MarketError
+        ] r
+    => Scalar -> Distribution -> Sem r ()
+allocationToTrades tolerance targetAlloc
+    = do
+        prices <- input @Prices
+        portfolio <- input @Portfolio
+        let value = totalValue prices portfolio
+        when (value > zero) do
+            let currentAlloc = fromJust $ valueAllocation prices portfolio
+                transfers
+                    = balancingTransfers tolerance currentAlloc targetAlloc
+            sequence_ $ transferToTrade value <$> transfers
     where
-        value = totalValue prices portfolio
-        transferToTrade value (ShareTransfer from to (Share shr))
-            = catch @(MarketError)
-                (trade from to $ Absolute $ shr .* amount)
-                \case
-                    -- Can't afford the fees => skip this trade - instruments
-                    -- aren't supposed to check that.
-                    InsufficientBalanceToCoverFees _ -> return ()
-                    -- Don't have enough money for the transfer => throw -
-                    -- instruments shouldn't exceed the balance.
-                    e -> throw e
-            where
+        transferToTrade value (ShareTransfer from to shr) = do
+            prices <- input @Prices @r
+            portfolio' <- input @Portfolio
+            let balance = portfolio' ! from
                 amount = fromJust $ value `kappa` (prices ! from)
-        transfers = balancingTransfers tolerance currentAlloc targetAlloc where
-            currentAlloc = fromJust $ valueAllocation prices portfolio
+            -- Convert from share in the portfolio to share in the balance of
+            -- a specific asset.
+            orderAmount <- case amount `pi` shr `kappa` balance of
+                Just shr' -> return
+                    -- balance can be lower than amount `pi` shr
+                    -- because of fixed fees, so we clip.
+                    $ Relative $ min shr' $ Share one
+                Nothing -> throw
+                    $ InsufficientBalanceForTransfer
+                        (from, amount) portfolio'
+
+            when (not $ orderAmountIsZero orderAmount)
+                $ trade from to orderAmount
+                    `catch` \case
+                        -- Can't afford the fees => skip this trade -
+                        -- instruments don't have to check that.
+                        InsufficientBalanceToCoverFees _ _ -> return ()
+                        -- Don't have enough money for the transfer => throw -
+                        -- instruments shouldn't exceed the balance.
+                        e -> throw e
 
 multiplexConfig
     :: Traversable f

@@ -36,12 +36,6 @@ import Test.Tasty
 import Test.Tasty.QuickCheck hiding (tolerance)
 import Test.Tasty.TH
 
-zeroFees :: Fees
-zeroFees = Fees
-    { fixed = Nothing
-    , variable = zero
-    }
-
 -- | Low-level tests using raw Market actions.
 test_runMarketSimulation :: [TestTree]
 test_runMarketSimulation =
@@ -59,8 +53,8 @@ test_runMarketSimulation =
         tradeFinalValueDecreasesWithFees
     ] where
         tradeSucceedsIffSufficientBalance
-            :: UTCTime -> Fees -> Prices -> Portfolio -> Asset -> Asset -> Amount
-            -> Property
+            :: UTCTime -> Fees -> Prices -> Portfolio -> Asset -> Asset
+            -> Amount -> Property
         tradeSucceedsIffSufficientBalance
             time fees prices portfolio from to amount
                 = label ("success: " ++ show actualSuccess)
@@ -111,7 +105,7 @@ test_runMarketSimulation =
             = isRight result ==> amount' === expectedAmount' where
                 result = runTrade time fees prices portfolio from to orderAmount
                 amount = portfolio ! from
-                absAmount = absoluteAmount amount orderAmount
+                absAmount = absoluteAmount fees from amount orderAmount
                 subtractAmount
                     = absAmount
                     + case fixed fees of
@@ -156,8 +150,8 @@ test_runMarketSimulation =
                     [finalValue, finalValue']
                         = fmap (totalValue prices . fromRight undefined)
                         $ [result, result']
-                    absAmount
-                        = absoluteAmount (portfolio' ! from) orderAmount
+                    absAmount = absoluteAmount
+                        fees from (portfolio' ! from) orderAmount
                     portfolio' = portfolio + (const (Amount one) `remap` prices)
 
         enoughForFees fees asset amount portfolio = case fixed fees of
@@ -165,7 +159,7 @@ test_runMarketSimulation =
                 -> portfolio ! feeAsset >= feeAmount
                 && (feeAsset /= asset || balance >= absAmount + feeAmount) where
                     balance = portfolio ! asset
-                    absAmount = absoluteAmount balance amount
+                    absAmount = absoluteAmount fees asset balance amount
             Nothing -> True
 
         runTrade time fees prices portfolio from to orderAmount

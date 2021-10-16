@@ -156,9 +156,9 @@ marketToState = interpret \case
             $ OtherError $ "trying to trade for the same token: " ++ show to
 
         portfolioBefore :: Portfolio <- State.get
-        let fromBefore = portfolioBefore ! from
-            fromAmountBefore = absoluteAmount fromBefore orderAmount
         fees <- input @Fees
+        let fromBefore = portfolioBefore ! from
+            fromAmountBefore = absoluteAmount fees from fromBefore orderAmount
         (feeDelta, fromAmountAfterFees)
             <- case applyFees fees (from, fromAmountBefore) of
                 Just x -> return x
@@ -167,8 +167,9 @@ marketToState = interpret \case
                     $ "trade amount less than the fixed fee: "
                    ++ show (fromJust $ fixed fees)
         portfolioAfterFees <- case portfolioBefore `sigma` feeDelta of
-            Just portfolio -> return $ portfolio
-            Nothing -> throw $ InsufficientBalanceToCoverFees fees
+            Just portfolio -> return portfolio
+            Nothing -> throw
+                $ InsufficientBalanceToCoverFees fees portfolioBefore
 
         prices <- input @Prices
         let fromPrice = prices ! from
@@ -181,7 +182,8 @@ marketToState = interpret \case
         case portfolioAfterFees `sigma` totalDelta of
             Just portfolioAfterTrade -> put portfolioAfterTrade
             Nothing -> throw
-                $ InsufficientBalanceForTransfer (from, fromAmountAfterFees)
+                $ InsufficientBalanceForTransfer
+                    (from, fromAmountAfterFees) portfolioAfterFees
 
 inputToState
     :: forall s r a

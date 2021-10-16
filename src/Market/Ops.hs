@@ -115,6 +115,20 @@ applyFees fees (asset, amount) = do
                     Just someFee -> transfer someFee
                     Nothing -> zero
 
+absoluteAmount :: Fees -> Asset -> Amount -> OrderAmount -> Amount
+absoluteAmount fees asset totalAmount = \case
+    Absolute amount      -> amount
+    Relative (Share shr) -> shr .* totalAmount' where
+        totalAmount' = case fixed fees of
+            Just (feeAsset, feeAmount)
+                | feeAsset == asset
+                    -> case totalAmount `sigma` (zero `delta` feeAmount) of
+                        Just totalAmount' -> totalAmount'
+                        Nothing -> zero
+                | otherwise
+                    -> totalAmount
+            Nothing -> totalAmount
+
 windows
     :: NominalDiffTime
     -> NominalDiffTime
