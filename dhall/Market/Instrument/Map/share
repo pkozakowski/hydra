@@ -1,0 +1,16 @@
+let Entry = https://prelude.dhall-lang.org/Map/Entry
+
+let entry = ../../../Map/entry
+
+let Asset = ../../Asset
+let asset = ../../asset
+let Share = ../../Share
+let shareVal = ../../share
+
+let share
+      : Text -> Double -> Entry Asset Share
+      = \(symbol : Text)
+     -> \(value : Double)
+     -> entry Asset Share (asset symbol) (shareVal value)
+
+in share

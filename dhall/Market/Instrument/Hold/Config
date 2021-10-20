@@ -1,0 +1,8 @@
+let Asset = ../../Asset
+
+let Config
+      : Type -> Type
+      = \(Instrument : Type)
+     -> { held : Asset }
+
+in Config

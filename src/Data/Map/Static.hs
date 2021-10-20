@@ -24,6 +24,7 @@ import Data.Map.Sparse
 import qualified Data.Map.Sparse as Sparse
 import qualified Data.Traversable.Constrained as Constrained
 import Data.Type.Equality
+import Dhall (FromDhall)
 import GHC.Generics
 import Numeric.Algebra
 import Numeric.Delta
@@ -38,7 +39,7 @@ import qualified Prelude
 -- missing keys.
 newtype StaticMap k v = StaticMap (Map k v)
     deriving (Foldable, Functor, Generic, Traversable)
-    deriving anyclass NFData
+    deriving anyclass (FromDhall, NFData)
     deriving newtype (Arbitrary, Eq)
 
 deriving newtype instance Ord k => ReadMap k v (StaticMap k v)

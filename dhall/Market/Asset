@@ -1,0 +1,5 @@
+let Asset
+      : Type
+      = { asset : Text }
+
+in Asset

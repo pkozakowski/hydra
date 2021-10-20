@@ -18,6 +18,7 @@ import Data.Functor.Apply
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Map.Class
+import Dhall (FromDhall)
 import GHC.Generics
 import Numeric.Algebra
 import Numeric.Delta
@@ -29,7 +30,7 @@ import Test.QuickCheck
 data DefaultMap k v = DefaultMap
     { def :: v
     , contents :: Map k v
-    } deriving (Functor, Generic, NFData)
+    } deriving (FromDhall, Functor, Generic, NFData)
 
 instance Ord k => ReadMap k v (DefaultMap k v) where
 

@@ -23,6 +23,7 @@ import Control.Exception
 import Control.Monad
 import Data.Bifunctor
 import Data.Coerce
+import Data.Fixed
 import Data.Functor.Apply
 import Data.List (sort)
 import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
@@ -30,15 +31,18 @@ import qualified Data.List.NonEmpty as NonEmpty
 import Data.Map.Sparse hiding (Value)
 import Data.Map.Static hiding (Value)
 import Data.Maybe
+import Data.Proxy
 import Data.Semigroup.Foldable
 import Data.Semigroup.Traversable
 import Data.String
 import Data.Time
+import qualified Dhall as Dh
+import Dhall (FromDhall)
 import GHC.Generics
 import GHC.TypeLits
 import Market.Asset
 import Market.Deriving
-import Numeric.Algebra hiding ((<), (>))
+import Numeric.Algebra hiding ((<), (>), fromInteger)
 import Numeric.Algebra.Test
 import Numeric.Delta
 import Numeric.Field.Fraction
@@ -46,29 +50,52 @@ import Numeric.Kappa
 import Numeric.Normed
 import Numeric.Truncatable
 import Prelude hiding ((+), (-), (*), (/), negate, pi, sum)
+import qualified Prelude
 import Test.QuickCheck
 import Test.QuickCheck.Instances
 
-instance (Semiring a, Additive a) => LeftModule a a where
+instance FromDhall NominalDiffTime where
+
+    autoWith _ = Dh.union
+        ( ( fromNatural    1 <$> Dh.constructor "Seconds" Dh.natural )
+       <> ( fromNatural   60 <$> Dh.constructor "Minutes" Dh.natural )
+       <> ( fromNatural 3600 <$> Dh.constructor "Hours"   Dh.natural )
+        ) where
+            fromNatural mul = (mul Prelude.*) . fromInteger . toInteger
+
+-- | Underlying scalar type.
+type Scalar = Fraction Integer
+
+instance LeftModule Scalar Scalar where
     (.*) = (*)
 
-instance (Semiring a, Additive a) => RightModule a a where
+instance RightModule Scalar Scalar where
     (*.) = (*)
 
-instance (Semiring a, Additive a) => Module a a
+instance Module Scalar Scalar
 
-instance NFData a => NFData (Fraction a) where
+instance Default Scalar where
+    def = zero
+
+instance FromDhall Scalar where
+    autoWith _ = truncateTo (Proxy @E12) . realToFraction <$> Dh.double
+
+instance NFData Scalar where
     rnf frac
             = rnf (numerator frac)
         `seq` rnf (denominator frac)
         `seq` frac
         `seq` ()
 
--- | Underlying scalar type.
-type Scalar = Fraction Integer
+newtype InstrumentName = InstrumentName { unInstrumentName :: String }
+    deriving (Eq, Generic, Ord)
+    deriving newtype (IsString, NFData, Semigroup, Show)
 
-instance Default Scalar where
-    def = zero
+instance FromDhall InstrumentName where
+    autoWith _
+        = Dh.record
+        $ Dh.field "instrumentName"
+        $ InstrumentName <$> Dh.string
 
 -- | Amount of an Asset.
 newtype Amount = Amount Scalar
@@ -183,8 +210,8 @@ transfer (asset, amount)
     = PortfolioDelta $ fromList [(asset, amount `delta` zero)]
 
 data Fees = Fees
-    { fixed :: Maybe SomeAmount
-    , variable :: Scalar
+    { variable :: Scalar
+    , fixed :: Maybe SomeAmount
     } deriving (Eq, Generic, NFData, Show)
 
 instance Order Fees where
@@ -200,6 +227,11 @@ instance Order Fees where
 
 zeroFees :: Fees
 zeroFees = Fees { fixed = Nothing, variable = 0 % 1 }
+
+feeAssets :: Fees -> [Asset]
+feeAssets fees = case fixed fees of
+    Just (asset, _) -> [asset]
+    Nothing -> []
 
 data OrderAmount
     = Absolute Amount
@@ -368,15 +400,15 @@ instance Arbitrary a => Arbitrary (TimeSeries a) where
 instance Arbitrary Fees where
 
     arbitrary = Fees
-        <$> fmap decrease arbitrary `suchThat` positiveIfJust
-        <*> arbitrary `suchThat` validShare where
+        <$> arbitrary `suchThat` validShare
+        <*> fmap decrease arbitrary `suchThat` positiveIfJust where
             decrease
                 = fmap \(asset, amount)
                -> (asset, ((1 % 100) :: Fraction Integer) .* amount)
 
     shrink fees = Fees
-        <$> positiveIfJust `filter` shrink (fixed fees)
-        <*> validShare `filter` (shrink $ variable fees)
+        <$> validShare `filter` (shrink $ variable fees)
+        <*> positiveIfJust `filter` shrink (fixed fees)
 
 positiveIfJust :: Maybe SomeAmount -> Bool
 positiveIfJust = maybe True $ (> zero) . snd

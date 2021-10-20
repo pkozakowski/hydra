@@ -1,0 +1,26 @@
+let Map/map = https://prelude.dhall-lang.org/Map/map
+
+let Asset = ../../Asset
+
+let Instrument = ../Type
+let InstrumentBuilder = ../Builder
+
+let BalanceConfig = ./Config
+
+let balance
+      : BalanceConfig Instrument -> Instrument
+      = \(config : BalanceConfig Instrument)
+     -> \(_Instrument : Type)
+     -> \(builder : InstrumentBuilder _Instrument)
+     -> let adapt
+              : Instrument -> _Instrument
+              = \(i : Instrument)
+             -> i _Instrument builder
+     in builder.balance
+            ( config with configs
+                = Map/map
+                    Asset Instrument _Instrument
+                    adapt config.configs
+            )
+
+in balance

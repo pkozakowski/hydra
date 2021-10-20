@@ -1,0 +1,5 @@
+let Name
+      : Type
+      = { instrumentName : Text }
+
+in Name

@@ -1,0 +1,7 @@
+let Instrument
+      : Type
+      = forall (Instrument : Type)
+     -> ./Builder Instrument
+     -> Instrument
+
+in Instrument

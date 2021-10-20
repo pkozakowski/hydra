@@ -1,0 +1,6 @@
+let asset 
+      : Text -> ./Asset
+      = \(symbol : Text)
+     -> { asset = symbol }
+
+in asset

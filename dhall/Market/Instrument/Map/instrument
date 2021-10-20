@@ -1,0 +1,16 @@
+let Entry = https://prelude.dhall-lang.org/Map/Entry
+
+let entry = ../../../Map/entry
+
+let Asset = ../../Asset
+let asset = ../../asset
+
+let Instrument = ../Type
+
+let instrument
+      : Text -> Instrument -> Entry Asset Instrument
+      = \(symbol : Text)
+     -> \(instr : Instrument)
+     -> entry Asset Instrument (asset symbol) instr
+
+in instrument

@@ -22,6 +22,8 @@ import Data.Map.Class
 import Data.Map.Default hiding (def)
 import qualified Data.Traversable.Constrained as Constrained
 import Data.Type.Equality
+import Dhall (FromDhall)
+import qualified Dhall as Dh
 import GHC.Generics
 import Numeric.Algebra
 import Numeric.Algebra.Deriving
@@ -108,3 +110,9 @@ instance (Ord k, Arbitrary k, Default v, Arbitrary v)
 
     arbitrary = SparseMap . DefaultMap def <$> arbitrary
     shrink m = fmap fromList $ shrink $ toList m
+
+instance (Ord k, FromDhall k, Default v, FromDhall v)
+    => FromDhall (SparseMap k v) where
+
+    autoWith normalizer
+        = SparseMap . DefaultMap def <$> Dh.autoWith normalizer

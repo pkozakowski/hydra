@@ -101,9 +101,6 @@ calculateMetric vcc metric series = do
     where
         step (_, pp) (_, pp') = vcc pp pp'
 
-newtype InstrumentName = InstrumentName { unInstrumentName :: String }
-    deriving newtype (Eq, NFData, IsString, Ord, Semigroup, Show)
-
 data InstrumentTree a = InstrumentTree
     { self :: a
     , subinstruments :: (StaticMap InstrumentName (InstrumentTree a))
@@ -241,7 +238,6 @@ evaluate metrics fees priceSeries initPortfolio config = do
             }
         Nothing -> throw @(MarketError)
             $ OtherError "no trades performed (the price series is too short)"
-
     where
         visitAgg
             :: AggregateVisitor (PricesPortfolio)
@@ -282,7 +278,7 @@ evaluateOnWindows metrics fees windowLen stride series initPortfolio config = do
         deinterpreter = either (throw @(MarketError)) return
     evals <- pforSem interpreter deinterpreter wnds
         $ evaluateOnWindow
-     <=< fromEither @(MarketError) . first OtherError
+     <=< fromEither @MarketError . first OtherError
     return $ sequence1 evals
     where
         evaluateOnWindow window

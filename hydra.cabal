@@ -3,8 +3,6 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 5abba40977b2dddaff14a238937f7a3b16f1cb2ddc6d21019e110a4c8c9ec94a
 
 name:           hydra
 version:        0.1.0.0
@@ -33,6 +31,7 @@ library
       Data.Map.Sparse
       Data.Map.Static
       Data.Traversable.Constrained
+      Debug.Trace.Pretty
       Market
       Market.Asset
       Market.Deriving
@@ -86,6 +85,8 @@ library
     , constraints
     , containers
     , deepseq
+    , dhall
+    , either
     , free
     , hashable
     , hashmap
@@ -97,6 +98,7 @@ library
     , morpheus-graphql-client
     , optparse-applicative
     , parallel
+    , parsec
     , polysemy
     , polysemy-plugin
     , pretty-simple
@@ -120,7 +122,11 @@ library
 executable hydra-exe
   main-is: Main.hs
   other-modules:
+      Command.Eval
       Command.Sync
+      Help
+      Parser
+      Types
       Paths_hydra
   hs-source-dirs:
       app
@@ -148,6 +154,8 @@ executable hydra-exe
     , constraints
     , containers
     , deepseq
+    , dhall
+    , either
     , free
     , hashable
     , hashmap
@@ -160,6 +168,7 @@ executable hydra-exe
     , morpheus-graphql-client
     , optparse-applicative
     , parallel
+    , parsec
     , polysemy
     , polysemy-plugin
     , pretty-simple
@@ -222,6 +231,8 @@ test-suite hydra-test
     , constraints
     , containers
     , deepseq
+    , dhall
+    , either
     , free
     , hashable
     , hashmap
@@ -234,6 +245,7 @@ test-suite hydra-test
     , morpheus-graphql-client
     , optparse-applicative
     , parallel
+    , parsec
     , polysemy
     , polysemy-plugin
     , pretty-simple

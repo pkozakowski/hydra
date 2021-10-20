@@ -1,0 +1,5 @@
+let Share
+      : Type
+      = { share : Double }
+
+in Share

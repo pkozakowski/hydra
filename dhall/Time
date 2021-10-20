@@ -1,0 +1,8 @@
+let Time
+      : Type
+      = < Seconds : Natural
+        | Minutes : Natural
+        | Hours : Natural
+        >
+
+in Time

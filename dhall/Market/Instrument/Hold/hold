@@ -1,0 +1,12 @@
+let Asset = ../../Asset
+let Instrument = ../Type
+let InstrumentBuilder = ../Builder
+
+let hold
+      : Asset -> Instrument
+      = \(asset : Asset)
+     -> \(Instrument : Type)
+     -> \(builder : InstrumentBuilder Instrument)
+     -> builder.hold { held = asset }
+
+in hold

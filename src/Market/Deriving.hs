@@ -1,13 +1,18 @@
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Market.Deriving where
 
 import Control.DeepSeq
+import Data.Char
 import Data.Deriving
 import Data.Map.Sparse
+import Data.Text (pack)
 import Data.Typeable
+import Dhall (FromDhall)
+import qualified Dhall as Dh
 import Language.Haskell.TH
 import Numeric.Algebra
 import Numeric.Algebra.Deriving
@@ -17,9 +22,9 @@ import Numeric.Truncatable
 import Market.Asset
 import Prelude hiding ((+), (*), (/))
 
--- | Derives instances of Semimodule, Module, Delta and Truncatable for two
--- pairs of types: scalar and map of absolute and relative quantities.
--- (Semi)modules are over a single, unitless scalar type.
+-- | Derives instances of Semimodule, Module, Delta, Truncatable and FromDhall
+-- for two pairs of types: scalar and map of absolute and relative quantities.
+-- (Semi)modules are over the same, unitless scalar type.
 -- Additionally derives ReadMap, BuildMap and SetMap for the map types.
 deriveAdditiveQuantityInstances
     :: Name -> Name -> Name -> Name -> Name -> Q [Dec]
@@ -49,16 +54,27 @@ deriveConstrainedQuantityInstances
     :: Name -> Name -> Name -> Name -> Name -> Q [Dec]
 deriveConstrainedQuantityInstances scr q qd qm qdm = fmap concat $ sequence $
     -- Scalar instances:
-    [ deriveUnary t [''Default, ''Eq, ''Ord, ''NFData, ''Show, ''Typeable]
+    [ deriveUnary t
+        [ ''Default, ''Eq, ''Ord, ''NFData, ''Show, ''Typeable ]
     | t <- [q, qd]
     ] ++
     [ deriveModule scr qd
     , deriveDeltaOrd q qd
     ] ++
+    [ do
+        TyConI (NewtypeD _ _ _ _ (NormalC tCon _) _) <- reify t
+        let fieldName = pack $ (:) <$> toLower . head <*> tail $ nameBase t
+        [d| instance FromDhall $(conT t) where
+                autoWith normalizer
+                    = Dh.record
+                    $ Dh.field fieldName
+                    $ $(conE tCon) <$> Dh.autoWith normalizer
+            |]
+    | t <- [q, qd]
+    ] ++
     -- Map instances:
     [ deriveUnary tm
-        [ ''Eq, ''NFData, ''Show, ''Typeable
-        ]
+        [ ''Eq, ''FromDhall, ''NFData, ''Show, ''Typeable ]
     | tm <- [qm, qdm]
     ] ++
     [ deriveModule scr qdm

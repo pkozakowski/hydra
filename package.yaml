@@ -61,6 +61,9 @@ dependencies:
 - optparse-applicative
 - stm
 - terminal-progress-bar
+- parsec
+- dhall
+- either
 
 library:
   source-dirs: src

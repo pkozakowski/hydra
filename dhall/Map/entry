@@ -1,0 +1,17 @@
+let Entry = https://prelude.dhall-lang.org/Map/Entry
+
+let entry
+
+      : forall (Key : Type)
+     -> forall (Value : Type)
+     -> Key -> Value -> Entry Key Value
+
+      = \(Key : Type)
+     -> \(Value : Type)
+     -> \(key : Key)
+     -> \(value : Value)
+     -> { mapKey = key
+        , mapValue = value
+        }
+
+in entry
