@@ -197,7 +197,7 @@ test_backtest =
                 portfolios = runBacktest priceSeries initPortfolio $ Hold "A"
 
         balanceChangesPortfolioIffPriceRatiosChange
-            :: TimeSeries Prices -> Portfolio -> Distribution -> Property
+            :: TimeSeries Prices -> Portfolio -> Distribution Asset -> Property
         balanceChangesPortfolioIffPriceRatiosChange
             priceSeries initPortfolio target = property do
                 priceSeries' <- disturb priceSeries

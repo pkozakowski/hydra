@@ -29,7 +29,8 @@ test_balancingTransfers_and_transferDelta = fmap (uncurry testProperty)
     ,   ( "transfers are few"
         , wrap transfersAreFew )
     ] where
-        finalDistributionIsBalanced :: Scalar -> Distribution -> Distribution -> Property
+        finalDistributionIsBalanced
+            :: Scalar -> Distribution Asset -> Distribution Asset -> Property
         finalDistributionIsBalanced tol current target
             = label (bucketScalar "tolerance" tol)
             $ isBalanced tol final target where
@@ -39,7 +40,8 @@ test_balancingTransfers_and_transferDelta = fmap (uncurry testProperty)
                             = fmap transferDelta
                             $ balancingTransfers tol current target
 
-        finalDistributionDeltaSumsToZero :: Scalar -> Distribution -> Distribution -> Property
+        finalDistributionDeltaSumsToZero
+            :: Scalar -> Distribution Asset -> Distribution Asset -> Property
         finalDistributionDeltaSumsToZero tol current target
             = foldl (+) zero diff === zero where
                 DistributionDelta diff = foldl (+) zero transferDeltas where
@@ -47,7 +49,8 @@ test_balancingTransfers_and_transferDelta = fmap (uncurry testProperty)
                         = fmap transferDelta
                         $ balancingTransfers tol current target
 
-        transfersAreFew :: Scalar -> Distribution -> Distribution -> Property
+        transfersAreFew
+            :: Scalar -> Distribution Asset -> Distribution Asset -> Property
         transfersAreFew tol current target
             = label (show len ++ " transfers")
             -- Worst-case optimal number of transfers is
@@ -79,7 +82,7 @@ test_isBalanced = fmap (uncurry testProperty)
             -> Scalar
             -> Asset
             -> Asset
-            -> Distribution
+            -> Distribution Asset
             -> Property
         closeImpliesBalanced tol tol' from to target
             = labelTolerances tol tol'
@@ -93,7 +96,7 @@ test_isBalanced = fmap (uncurry testProperty)
             -> Scalar
             -> Asset
             -> Asset
-            -> Distribution
+            -> Distribution Asset
             -> Property
         farImpliesUnbalanced tol tol' from to target@(Distribution targetMap)
               = labelTolerances tol tol'

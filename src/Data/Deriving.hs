@@ -27,3 +27,27 @@ deriveBinary' cxt t u cs =
 
 deriveBinary :: Name -> Name -> [Name] -> Q [Dec]
 deriveBinary t = deriveBinary' [] t . ConT
+
+typeName :: Type -> Name
+typeName = \case
+    ConT name -> name
+    AppT t _ -> typeName t
+
+declareInstance :: Cxt -> Q Type -> [(Name, [Q Pat], Q Exp)] -> Q [Dec]
+declareInstance cxt cls methods
+    = fmap pure
+    $ InstanceD Nothing cxt
+        <$> cls
+        <*> sequenceA (uncurry3 declareFunction <$> methods)
+    where
+        uncurry3 f (x, y, z) = f x y z
+
+declareFunction :: Name -> [Q Pat] -> Q Exp -> Q Dec
+declareFunction name args body
+    = FunD name
+        <$> fmap pure 
+            ( Clause
+                <$> sequenceA args
+                <*> (NormalB <$> body)
+                <*> pure []
+            )

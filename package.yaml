@@ -33,7 +33,6 @@ dependencies:
 - polysemy
 - polysemy-plugin
 - time
-- morpheus-graphql-client
 - text
 - req
 - bytestring

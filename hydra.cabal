@@ -95,7 +95,6 @@ library
     , lazyio
     , logging
     , mongoDB
-    , morpheus-graphql-client
     , optparse-applicative
     , parallel
     , parsec
@@ -165,7 +164,6 @@ executable hydra-exe
     , lazyio
     , logging
     , mongoDB
-    , morpheus-graphql-client
     , optparse-applicative
     , parallel
     , parsec
@@ -242,7 +240,6 @@ test-suite hydra-test
     , lazyio
     , logging
     , mongoDB
-    , morpheus-graphql-client
     , optparse-applicative
     , parallel
     , parsec

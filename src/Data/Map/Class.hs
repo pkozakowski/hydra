@@ -30,6 +30,7 @@ module Data.Map.Class
 
 import Data.Bifunctor
 import Data.Coerce
+import Data.Deriving
 import Data.List (elem, nub, sort)
 import qualified Data.List as List
 import Data.Map (Map)
@@ -138,48 +139,55 @@ showsPrecReadMap depth map
     . shows (toList map)
 
 -- | Derive Delta for two newtypes of some maps.
-deriveDeltaNewtype :: Name -> Name -> Q [Dec]
-deriveDeltaNewtype a b = do
-    TyConI (NewtypeD _ _ _ _ (NormalC aCons _) _) <- reify a
-    TyConI (NewtypeD _ _ _ _ (NormalC bCons _) _) <- reify b
+deriveDeltaNewtype :: Cxt -> Type -> Type -> Q [Dec]
+deriveDeltaNewtype cxt a b = do
+    TyConI (NewtypeD _ _ _ _ (NormalC aCons _) _) <- reify $ typeName a
+    TyConI (NewtypeD _ _ _ _ (NormalC bCons _) _) <- reify $ typeName b
     let xp  = conP aCons [varP $ mkName "x" ]
         x'p = conP aCons [varP $ mkName "x'"]
         yp  = conP bCons [varP $ mkName "y" ]
 
-    [d| instance Delta $(conT a) $(conT b) where
-
-            delta $(xp) $(x'p)
-                = $(conE bCons) $ delta <$> x `reapplyOuter` x'
-
-            sigma $(xp) $(yp)
-                = fmap $(conE aCons)
-                $ Constrained.sequenceA
-                $ sigma <$> x `reapplyOuter` y |]
+    declareInstance cxt [t| $(conT ''Delta) $(pure a) $(pure b) |]
+        [   ( 'delta
+            , [xp, x'p]
+            , [| $(conE bCons) $ delta <$> x `reapplyOuter` x' |]
+            )
+        ,   ( 'sigma
+            , [xp, yp]
+            , [| fmap $(conE aCons)
+                    $ Constrained.sequenceA
+                    $ sigma <$> x `reapplyOuter` y |]
+            )
+        ]
 
 -- | Derive Kappa for three newtypes of some maps.
-deriveKappaNewtype :: Name -> Name -> Name -> Q [Dec]
-deriveKappaNewtype a b c = do
-    TyConI (NewtypeD _ _ _ _ (NormalC aCons _) _) <- reify a
-    TyConI (NewtypeD _ _ _ _ (NormalC bCons _) _) <- reify b
-    TyConI (NewtypeD _ _ _ _ (NormalC cCons _) _) <- reify c
+deriveKappaNewtype :: Cxt -> Type -> Type -> Type -> Q [Dec]
+deriveKappaNewtype cxt a b c = do
+    TyConI (NewtypeD _ _ _ _ (NormalC aCons _) _) <- reify $ typeName a
+    TyConI (NewtypeD _ _ _ _ (NormalC bCons _) _) <- reify $ typeName b
+    TyConI (NewtypeD _ _ _ _ (NormalC cCons _) _) <- reify $ typeName c
     let xp = conP aCons [varP $ mkName "x"]
         yp = conP bCons [varP $ mkName "y"]
         zp = conP cCons [varP $ mkName "z"]
 
-    [d| instance Kappa $(conT a) $(conT b) $(conT c) where
-
-            kappa $(xp) $(yp)
-                = fmap $(conE cCons)
-                $ Constrained.sequenceA
-                $ kappa <$> x `reapplyOuter` y
-
-            kappa' $(xp) $(zp)
-                = fmap $(conE bCons)
-                $ Constrained.sequenceA
-                $ kappa' <$> x `reapplyOuter` z
-
-            pi $(yp) $(zp)
-                = $(conE aCons) $ pi <$> y `reapplyOuter` z |]
+    declareInstance cxt [t| $(conT ''Kappa) $(pure a) $(pure b) $(pure c) |]
+        [   ( 'kappa
+            , [xp, yp]
+            , [| fmap $(conE cCons)
+                    $ Constrained.sequenceA
+                    $ kappa <$> x `reapplyOuter` y |]
+            )
+        ,   ( 'kappa'
+            , [xp, zp]
+            , [| fmap $(conE bCons)
+                    $ Constrained.sequenceA
+                    $ kappa' <$> x `reapplyOuter` z |]
+            )
+        ,   ( 'pi
+            , [yp, zp]
+            , [| $(conE aCons) $ pi <$> y `reapplyOuter` z |]
+            )
+        ]
 
 -- Laws:
 

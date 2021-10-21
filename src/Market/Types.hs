@@ -40,6 +40,7 @@ import qualified Dhall as Dh
 import Dhall (FromDhall)
 import GHC.Generics
 import GHC.TypeLits
+import Language.Haskell.TH
 import Market.Asset
 import Market.Deriving
 import Numeric.Algebra hiding ((<), (>), fromInteger)
@@ -106,7 +107,8 @@ newtype Portfolio = Portfolio (SparseMap Asset Amount)
 newtype PortfolioDelta = PortfolioDelta (SparseMap Asset AmountDelta)
 
 deriveAdditiveQuantityInstances
-    ''Scalar ''Amount ''AmountDelta ''Portfolio ''PortfolioDelta
+    ''Scalar ''Amount ''AmountDelta
+    (ConT ''Asset) (ConT ''Portfolio) (ConT ''PortfolioDelta)
 
 -- | Price of an Asset, measured in units of some baseline asset (e.g. USD).
 newtype Price = Price Scalar
@@ -117,7 +119,8 @@ newtype Prices = Prices (StaticMap Asset Price)
 newtype PriceDeltas = PriceDeltas (SparseMap Asset PriceDelta)
 
 deriveNonAdditiveQuantityInstances
-    ''Scalar ''Price ''PriceDelta ''Prices ''PriceDeltas
+    ''Scalar ''Price ''PriceDelta
+    (ConT ''Asset) (ConT ''Prices) (ConT ''PriceDeltas)
 
 -- | Possessed Value, measured in units of some baseline asset (e.g. USD).
 newtype Value = Value Scalar
@@ -128,15 +131,20 @@ newtype Values = Values (SparseMap Asset Value)
 newtype ValueDeltas = ValueDeltas (SparseMap Asset ValueDelta)
 
 deriveAdditiveQuantityInstances
-    ''Scalar ''Value ''ValueDelta ''Values ''ValueDeltas
+    ''Scalar ''Value ''ValueDelta
+    (ConT ''Asset) (ConT ''Values) (ConT ''ValueDeltas)
 
 -- | Value = Price * Amount.
 deriveKappaDivision ''Scalar ''Value ''Price ''Amount
 deriveKappaDivision ''Scalar ''ValueDelta ''PriceDelta ''Amount
 deriveKappaDivision ''Scalar ''ValueDelta ''Price ''AmountDelta
-deriveKappaNewtype ''Values ''Prices ''Portfolio
-deriveKappaNewtype ''ValueDeltas ''PriceDeltas ''Portfolio
-deriveKappaNewtype ''ValueDeltas ''Prices ''PortfolioDelta
+
+deriveKappaNewtype
+    [] (ConT ''Values) (ConT ''Prices) (ConT ''Portfolio)
+deriveKappaNewtype
+    [] (ConT ''ValueDeltas) (ConT ''PriceDeltas) (ConT ''Portfolio)
+deriveKappaNewtype
+    [] (ConT ''ValueDeltas) (ConT ''Prices) (ConT ''PortfolioDelta)
 
 -- | Share of some quantity in a bigger whole.
 newtype Share = Share Scalar
@@ -157,29 +165,29 @@ deriveKappaDivision ''Scalar ''ValueDelta ''ValueDelta ''Share
 deriveKappaDivision ''Scalar ''ValueDelta ''Value ''ShareDelta
 
 -- | Distribution on Assets. Sums to 1.
-newtype Distribution = Distribution (SparseMap Asset Share)
+newtype Distribution k = Distribution (SparseMap k Share)
 
 -- | Delta between two Distributions. Sums to 0.
-newtype DistributionDelta = DistributionDelta (SparseMap Asset ShareDelta)
+newtype DistributionDelta k = DistributionDelta (SparseMap k ShareDelta)
 
 deriveConstrainedQuantityInstances
-    ''Scalar ''Share ''ShareDelta ''Distribution ''DistributionDelta
+    ''Scalar ''Share ''ShareDelta
+    varKeyT (appKeyT ''Distribution) (appKeyT ''DistributionDelta)
 
 -- | Only Values are Normed, because it only makes sense to add up Values held
 -- in different Assets.
-deriveScalable ''Scalar ''Distribution ''Value ''Values
-deriveScalable ''Scalar ''DistributionDelta ''ValueDelta ''ValueDeltas
-deriveNormed ''Scalar ''Distribution ''Value ''Values
+deriveScalable ''Scalar (appConT ''Distribution ''Asset)
+    (ConT ''Value) (ConT ''Values)
+deriveScalable ''Scalar (appConT ''DistributionDelta ''Asset)
+    (ConT ''ValueDelta) (ConT ''ValueDeltas)
+deriveNormed ''Scalar (appConT ''Distribution ''Asset)
+    (ConT ''Value) (ConT ''Values)
 
-instance Truncatable Distribution where
+instance Ord k => Truncatable (Distribution k) where
 
     truncateTo res (Distribution shares)
         = Distribution $ share <$> xs'' where
             xs'' = addToFirst (one - sum xs') xs' where
-                addToFirst
-                    :: Scalar
-                    -> SparseMap Asset Scalar
-                    -> SparseMap Asset Scalar
                 addToFirst toAdd m = case toList m of
                     [] -> m
                     (k, v) : _ -> insert k (v + toAdd) m
@@ -187,17 +195,17 @@ instance Truncatable Distribution where
             xs = unShare <$> shares where
                 unShare (Share x) = x
 
-onePoint :: Asset -> Distribution
-onePoint asset = Distribution $ fromList [(asset, share one)]
+onePoint :: Ord k => k -> Distribution k
+onePoint key = Distribution $ fromList [(key, share one)]
 
-distributionValid :: Distribution -> Bool
+distributionValid :: Ord k => Distribution k -> Bool
 distributionValid (Distribution shares)
     =  all (>= zero) shares'
     && foldl (+) zero shares' == one where
         shares' = unShare <$> shares where
             unShare (Share scalar) = scalar
 
-distributionDeltaValid :: DistributionDelta -> Bool
+distributionDeltaValid :: Ord k => DistributionDelta k -> Bool
 distributionDeltaValid (DistributionDelta shareDeltas)
     = foldl (+) zero shareDeltas' == zero where
         shareDeltas' = unShareDelta <$> shareDeltas where
@@ -338,18 +346,18 @@ instance Arbitrary Share where
 
 deriving newtype instance Arbitrary ShareDelta
 
-instance Arbitrary Distribution where
+instance (Arbitrary k, Ord k) => Arbitrary (Distribution k) where
 
     arbitrary = Distribution . normalize <$> ensureNonzero arbitraryPosMap where
         normalize r = Share <$> (/ sum r) <$> r
         ensureNonzero gen = gen `suchThat` \dist -> sum dist /= zero
         sum = foldl (+) zero
-        arbitraryPosMap :: Gen (SparseMap Asset Scalar)
-        arbitraryPosMap = coerce <$> (arbitrary :: Gen (SparseMap Asset Share))
+        arbitraryPosMap :: Gen (SparseMap k Scalar)
+        arbitraryPosMap = coerce <$> (arbitrary :: Gen (SparseMap k Share))
 
     shrink _ = []
 
-instance Arbitrary DistributionDelta where
+instance (Arbitrary k, Ord k) => Arbitrary (DistributionDelta k) where
     arbitrary = delta <$> arbitrary <*> arbitrary
     shrink _ = []
 

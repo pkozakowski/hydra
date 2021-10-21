@@ -104,10 +104,6 @@ efficiency = whenNotBroke @c @s $ runEfficiencyTestM (execute @c @s) where
                     signs <- State.get @(SparseMap Asset Sign)
                     let absAmount = absoluteAmount
                             fees from (portfolio ! from) orderAmount
-                    when (absAmount == zero)
-                        -- This can happen when balance == fixed fee.
-                        $ throw
-                        $ counterexample "trade with zero amount" False
                     assertSign from Plus signs
                     assertSign to Minus signs
                     put $ set from Minus $ set to Plus $ signs

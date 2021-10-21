@@ -191,13 +191,13 @@ testAllDistributionLaws pscr pq pqd pqm pqdm =
 test_distribution_laws_for_Distribution :: [TestTree]
 test_distribution_laws_for_Distribution = testAllDistributionLaws
     @Scalar @Share @ShareDelta
-    @Distribution @DistributionDelta
+    @(Distribution Asset) @(DistributionDelta Asset)
     p p p p p
 
 test_Normalizable_Distribution_Value_Values :: [TestTree]
 test_Normalizable_Distribution_Value_Values =
     [ testLaws $ normedSemimoduleOrdLaws
-        @Distribution @Value @Values @Scalar p p p p
+        @(Distribution Asset) @Value @Values @Scalar p p p p
     ]
 
 test_Fees :: [TestTree]

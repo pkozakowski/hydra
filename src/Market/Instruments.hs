@@ -73,14 +73,14 @@ instance Instrument Hold Hold where
 
 data BalanceConfig = BalanceConfig
     { configs :: StaticMap Asset SomeInstrumentConfig
-    , target :: Distribution
+    , target :: Distribution Asset
     , tolerance :: Scalar
     , updateEvery :: NominalDiffTime
     } deriving (FromDhall, Generic, Show)
 
 data BalanceState = BalanceState
     { states :: StaticMap Asset SomeInstrumentState
-    , allocations :: StaticMap Asset Distribution
+    , allocations :: StaticMap Asset (Distribution Asset)
     , lastUpdateTime :: UTCTime
     }
 
@@ -171,7 +171,7 @@ instance Instrument BalanceConfig BalanceState where
 
                 valueAlloc
                     :: HasCallStack
-                    => Prices -> Portfolio -> Distribution
+                    => Prices -> Portfolio -> Distribution Asset
                 valueAlloc prices = fromJust . valueAllocation prices
 
                 valueAllocOr prices portfolio allocation
@@ -225,7 +225,7 @@ allocationToTrades
         , Input Fees
         , Error MarketError
         ] r
-    => Scalar -> Distribution -> Sem r ()
+    => Scalar -> Distribution Asset -> Sem r ()
 allocationToTrades tolerance targetAlloc
     = do
         prices <- input @Prices
@@ -271,7 +271,7 @@ multiplexConfig configs monad
 
 data SomeInstrumentConfig = SomeInstrumentConfig
     { someInitState :: Prices -> SomeInstrumentState
-    , someInitAllocation :: Prices -> Distribution
+    , someInitAllocation :: Prices -> Distribution Asset
     , someShow :: String
     , someManagedAssets :: [Asset]
     }

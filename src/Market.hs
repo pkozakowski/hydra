@@ -87,7 +87,7 @@ type Visitor self agg
 
 class Truncatable s => Instrument c s | s -> c, c -> s where
     initState :: Members (InitEffects c) r => Sem r s
-    initAllocation :: Members (InitEffects c) r => Sem r Distribution
+    initAllocation :: Members (InitEffects c) r => Sem r (Distribution Asset)
     execute :: Members (ExecuteEffects c s) r => Sem r ()
     visit :: Prices -> Portfolio -> c -> s -> Visitor self agg
     managedAssets :: c -> [Asset]
