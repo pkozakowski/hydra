@@ -1,9 +1,8 @@
 let Map/map = https://prelude.dhall-lang.org/Map/map
 
-let Asset = ../../Asset
-
 let Instrument = ../Type
 let InstrumentBuilder = ../Builder
+let InstrumentName = ../Name
 
 let BalanceConfig = ./Config
 
@@ -19,7 +18,7 @@ let balance
      in builder.balance
             ( config with configs
                 = Map/map
-                    Asset Instrument _Instrument
+                    InstrumentName Instrument _Instrument
                     adapt config.configs
             )
 

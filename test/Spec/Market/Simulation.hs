@@ -5,6 +5,7 @@
 module Spec.Market.Simulation where
 
 import Control.Monad
+import Data.Bifunctor
 import Data.Coerce
 import Data.Either
 import Data.List
@@ -197,7 +198,10 @@ test_backtest =
                 portfolios = runBacktest priceSeries initPortfolio $ Hold "A"
 
         balanceChangesPortfolioIffPriceRatiosChange
-            :: TimeSeries Prices -> Portfolio -> Distribution Asset -> Property
+            :: TimeSeries Prices
+            -> Portfolio
+            -> Distribution InstrumentName
+            -> Property
         balanceChangesPortfolioIffPriceRatiosChange
             priceSeries initPortfolio target = property do
                 priceSeries' <- disturb priceSeries
@@ -223,7 +227,7 @@ test_backtest =
 
                     fullSupport (Distribution dist)
                         = all (> Share zero) dist
-                       && size dist == length testAssets
+                       && size dist == length testInstrumentNames
 
                     changes :: Eq a => [a] -> [Bool]
                     changes = discardWhenNull . \case
@@ -240,13 +244,13 @@ test_backtest =
 
                     config = BalanceConfig
                         { configs
-                            = fromList $ hold <$> testAssets
+                            = fromList
+                            $ hold <$> zip testInstrumentNames testAssets
                         , target = target
                         , tolerance = zero
                         , updateEvery = 0
                         } where
-                            hold asset
-                                = (asset, someInstrumentConfig $ Hold asset)
+                            hold = second (someInstrumentConfig . Hold)
 
         runBacktest
             :: Instrument c s

@@ -73,7 +73,7 @@ type ExecuteEffects c s =
     ]
 
 type AggregateVisitor self agg
-    = self -> StaticMap Asset agg -> agg
+    = self -> StaticMap InstrumentName agg -> agg
 
 type SelfVisitor self
      = forall c s

@@ -124,11 +124,9 @@ eval options = do
 
     config
         :: SomeInstrumentConfig
-        <- Dhall.detailed
-         $ Dhall.input Dhall.auto
+        <- Dhall.input Dhall.auto
          $ pack (config options) <> " ./dhall/Market/Instrument/Type"
 
-    -- TODO: Instrument names different than the asset names don't work.
     let assets = nub
             $ managedAssets config
            ++ feeAssets (fees options)

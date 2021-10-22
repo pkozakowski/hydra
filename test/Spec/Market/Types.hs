@@ -116,7 +116,7 @@ test_quantity_laws_for_Prices = testAllNonAdditiveQuantityLaws
 
 test_quantity_laws_for_Values :: [TestTree]
 test_quantity_laws_for_Values = testAllAdditiveQuantityLaws
-    @Scalar @Value @ValueDelta @Values @ValueDeltas
+    @Scalar @Value @ValueDelta @(Values Asset) @(ValueDeltas Asset)
     p p p p p
 
 test_Kappa_Value_Amount_Price :: [TestTree]
@@ -134,21 +134,21 @@ test_Kappa_ValueDelta_Amount_PriceDelta
 test_Kappa_Values_Portfolio_Prices :: [TestTree]
 test_Kappa_Values_Portfolio_Prices =
     [ testLaws $ kappaSemimoduleACLaws
-        @Values @Prices @Portfolio @Scalar
+        @(Values Asset) @Prices @Portfolio @Scalar
         p p p p
     ]
 
 test_Kappa_ValueDeltas_Portfolio_PriceDeltas :: [TestTree]
 test_Kappa_ValueDeltas_Portfolio_PriceDeltas =
     [ testLaws $ kappaSemimoduleACLaws
-        @ValueDeltas @PriceDeltas @Portfolio @Scalar
+        @(ValueDeltas Asset) @PriceDeltas @Portfolio @Scalar
         p p p p
     ]
 
 test_Kappa_ValueDeltas_PortfolioDelta_Prices :: [TestTree]
 test_Kappa_ValueDeltas_PortfolioDelta_Prices =
     [ testLaws $ kappaSemimoduleACLaws
-        @ValueDeltas @PriceDeltas @Portfolio @Scalar
+        @(ValueDeltas Asset) @PriceDeltas @Portfolio @Scalar
         p p p p
     ]
 
@@ -197,7 +197,7 @@ test_distribution_laws_for_Distribution = testAllDistributionLaws
 test_Normalizable_Distribution_Value_Values :: [TestTree]
 test_Normalizable_Distribution_Value_Values =
     [ testLaws $ normedSemimoduleOrdLaws
-        @(Distribution Asset) @Value @Values @Scalar p p p p
+        @(Distribution Asset) @Value @(Values Asset) @Scalar p p p p
     ]
 
 test_Fees :: [TestTree]

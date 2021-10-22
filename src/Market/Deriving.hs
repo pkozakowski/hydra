@@ -96,32 +96,38 @@ deriveConstrainedQuantityInstances scr q qd k qm qdm
         , (v, tm) <- [(q, qm), (qd, qdm)]
         ]
 
-deriveNormed :: Name -> Type -> Type -> Type -> Q [Dec]
-deriveNormed scr d q qm = do
+deriveNormed :: Cxt -> Name -> Type -> Type -> Type -> Q [Dec]
+deriveNormed cxt scr d q qm = do
     TyConI (NewtypeD _ _ _ _ (NormalC dCon _) _) <- reify $ typeName d
     TyConI (NewtypeD _ _ _ _ (NormalC qmCon _) _) <- reify $ typeName qm
     let qmP = conP qmCon [varP $ mkName "qmn"]
-    [d| instance Normed $(pure d) $(pure q) $(pure qm) where
-            norm $(qmP) = foldl (+) zero qmn
-            normalize qs@($(qmP)) =
-                if n /= zero then
-                    Just $ $(conE dCon) $ coerce . div <$> qmn
-                else
-                    Nothing
-                where
+    declareInstance cxt [t| $(conT ''Normed) $(pure d) $(pure q) $(pure qm) |]
+        [   ( 'norm, [qmP], [| foldl (+) zero qmn |] )
+        ,   ( 'normalize
+            , [varP $ mkName "qs"]
+            , [|
+                let $(qmP) = qs
                     div x = coerce x / coerce n :: $(conT scr)
                     n = norm qs
-        |]
+                 in if n /= zero
+                    then Just $ $(conE dCon) $ coerce . div <$> qmn
+                    else Nothing
+                |]
+            )
+        ]
 
-deriveScalable :: Name -> Type -> Type -> Type -> Q [Dec]
-deriveScalable scr d q qm = do
+deriveScalable :: Cxt -> Name -> Type -> Type -> Type -> Q [Dec]
+deriveScalable cxt scr d q qm = do
     TyConI (NewtypeD _ _ _ _ (NormalC dCon _) _) <- reify $ typeName d
     TyConI (NewtypeD _ _ _ _ (NormalC qmCon _) _) <- reify $ typeName qm
-    [d| instance Scalable $(pure d) $(pure q) $(pure qm) where
-            scale n $(conP dCon [varP $ mkName "sr"])
-                = $(conE qmCon) $ coerce . mul <$> sr where
-                    mul x = coerce n * coerce x :: $(conT scr)
-        |]
+    declareInstance cxt [t| $(conT ''Scalable) $(pure d) $(pure q) $(pure qm) |]
+        [   ( 'scale
+            , [varP $ mkName "n", conP dCon [varP $ mkName "sr"]]
+            , [| let mul x = coerce n * coerce x :: $(conT scr)
+                 in $(conE qmCon) $ coerce . mul <$> sr
+                |]
+            )
+        ]
 
 varKeyT :: Type
 varKeyT = VarT $ mkName "key"

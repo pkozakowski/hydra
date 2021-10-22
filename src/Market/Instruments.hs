@@ -69,18 +69,16 @@ instance Instrument Hold Hold where
 
     managedAssets config = [held config]
 
--- TODO: Asset -> InstrumentName; need to make 2 Distributions for that.
-
 data BalanceConfig = BalanceConfig
-    { configs :: StaticMap Asset SomeInstrumentConfig
-    , target :: Distribution Asset
+    { configs :: StaticMap InstrumentName SomeInstrumentConfig
+    , target :: Distribution InstrumentName
     , tolerance :: Scalar
     , updateEvery :: NominalDiffTime
     } deriving (FromDhall, Generic, Show)
 
 data BalanceState = BalanceState
-    { states :: StaticMap Asset SomeInstrumentState
-    , allocations :: StaticMap Asset (Distribution Asset)
+    { states :: StaticMap InstrumentName SomeInstrumentState
+    , allocations :: StaticMap InstrumentName (Distribution Asset)
     , lastUpdateTime :: UTCTime
     }
 
@@ -206,7 +204,7 @@ distributePortfolio
     -> BalanceState
     -> Prices
     -> Portfolio
-    -> StaticMap Asset Portfolio
+    -> StaticMap InstrumentName Portfolio
 distributePortfolio config state prices portfolio
     = idealPortfolio prices <$> targetValues `reapplyOuter` allocations state
         where

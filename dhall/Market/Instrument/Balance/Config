@@ -2,14 +2,15 @@ let Map/Type = https://prelude.dhall-lang.org/Map/Type
 
 let Time = ../../../Time
 
-let Asset = ../../Asset
 let Share = ../../Share
+
+let InstrumentName = ../Name
 
 let Config
       : Type -> Type
       = \(Instrument : Type)
-     -> { configs : Map/Type Asset Instrument
-        , target : Map/Type Asset Share
+     -> { configs : Map/Type InstrumentName Instrument
+        , target : Map/Type InstrumentName Share
         , tolerance : Double
         , updateEvery : Time
         }

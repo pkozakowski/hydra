@@ -3,6 +3,7 @@
 
 module Spec.Market.Instruments where
 
+import Data.Bifunctor
 import Data.Either
 import Data.List
 import Data.List.NonEmpty (NonEmpty(..))
@@ -41,20 +42,29 @@ test_Balance_Hold :: [TestTree]
 test_Balance_Hold =
     [ testLaws $ instrumentLaws arbitraryApproxConfig arbitraryExactConfig
     , testProperty "portfolio is balanced (instant)"
-        $ instExact (pure zeroFees) portfolioIsBalanced
+        $ instrumentPropertyInstant
+            arbitraryMatchingExactConfig (pure zeroFees) portfolioIsBalanced
     , testProperty "portfolio is balanced (continuous)"
-        $ contExact (pure zeroFees) portfolioIsBalanced
+        $ instrumentPropertyContinuous
+            arbitraryMatchingExactConfig (pure zeroFees) portfolioIsBalanced
     , testProperty "rebalances are rare"
         $ forAll ((,) <$> arbitraryApproxConfig <*> resize 5 arbitrary)
         $ uncurry rebalancesAreRare
     ] where
+        portfolioIsBalanced
+            :: forall r
+             . Members (ExecuteEffects BalanceConfig BalanceState) r
+            => Sem r Property
         portfolioIsBalanced = whenNotBroke do
-            IConfig config <- input @(IConfig BalanceConfig)
+            IConfig config <- input @(IConfig BalanceConfig) @r
             prices <- input @Prices
             portfolio' <- fst <$> runExecuteM execute
             let valueAlloc = fromJust $ valueAllocation prices portfolio'
-            return $ property
-                $ isBalanced (tolerance config) valueAlloc (target config)
+            return
+                $ property
+                $ isBalanced (tolerance config) valueAlloc
+                $ mapDistKeys (Asset . unInstrumentName)
+                $ target config
 
         rebalancesAreRare
             :: BalanceConfig -> Fees -> TimeSeries Prices -> Portfolio
@@ -94,17 +104,38 @@ test_Balance_Hold =
         arbitraryExactConfig = arbitraryConfig zero 0
 
         arbitraryConfig tolerance updateEvery = do
+            instruments
+               <- sequenceA
+                $ fmap (const $ someInstrumentConfig . Hold <$> arbitrary)
+                $ testInstrumentNames
             target <- arbitrary
             return BalanceConfig
-                { configs = fromList $ hold <$> testAssets
+                { configs
+                    = fromList $ zip testInstrumentNames instruments
                 , target = target
                 , tolerance = tolerance
                 , updateEvery = updateEvery
-                } where
-                    hold asset = (asset, someInstrumentConfig $ Hold asset)
+                }
 
-        instExact = instrumentPropertyInstant arbitraryExactConfig
-        contExact = instrumentPropertyContinuous arbitraryExactConfig
+        arbitraryMatchingExactConfig = do
+            target <- mapDistKeys (InstrumentName . unAsset) <$> arbitrary
+            return BalanceConfig
+                { configs
+                    = fromList
+                    $ fmap
+                        ( \asset
+                         -> ( InstrumentName $ unAsset asset
+                            , someInstrumentConfig $ Hold asset
+                            )
+                        )
+                    $ testAssets
+                , target = target
+                , tolerance = zero
+                , updateEvery = 0
+                }
+            
+        mapKeys f = fromList . fmap (first f) . toList
+        mapDistKeys f (Distribution d) = Distribution $ mapKeys f d
 
 tests :: TestTree
 tests = $(testGroupGenerator)

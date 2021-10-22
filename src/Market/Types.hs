@@ -90,7 +90,10 @@ instance NFData Scalar where
 
 newtype InstrumentName = InstrumentName { unInstrumentName :: String }
     deriving (Eq, Generic, Ord)
-    deriving newtype (IsString, NFData, Semigroup, Show)
+    deriving newtype (IsString, NFData, Semigroup)
+
+instance Show InstrumentName where
+    show = unInstrumentName
 
 instance FromDhall InstrumentName where
     autoWith _
@@ -126,13 +129,13 @@ deriveNonAdditiveQuantityInstances
 newtype Value = Value Scalar
 newtype ValueDelta = ValueDelta Scalar
 
--- | Value held in each Asset.
-newtype Values = Values (SparseMap Asset Value)
-newtype ValueDeltas = ValueDeltas (SparseMap Asset ValueDelta)
+-- | Value held in each Asset or Instrument.
+newtype Values k = Values (SparseMap k Value)
+newtype ValueDeltas k = ValueDeltas (SparseMap k ValueDelta)
 
 deriveAdditiveQuantityInstances
     ''Scalar ''Value ''ValueDelta
-    (ConT ''Asset) (ConT ''Values) (ConT ''ValueDeltas)
+    varKeyT (appKeyT ''Values) (appKeyT ''ValueDeltas)
 
 -- | Value = Price * Amount.
 deriveKappaDivision ''Scalar ''Value ''Price ''Amount
@@ -140,11 +143,11 @@ deriveKappaDivision ''Scalar ''ValueDelta ''PriceDelta ''Amount
 deriveKappaDivision ''Scalar ''ValueDelta ''Price ''AmountDelta
 
 deriveKappaNewtype
-    [] (ConT ''Values) (ConT ''Prices) (ConT ''Portfolio)
+    [] (appConT ''Values ''Asset) (ConT ''Prices) (ConT ''Portfolio)
 deriveKappaNewtype
-    [] (ConT ''ValueDeltas) (ConT ''PriceDeltas) (ConT ''Portfolio)
+    [] (appConT ''ValueDeltas ''Asset) (ConT ''PriceDeltas) (ConT ''Portfolio)
 deriveKappaNewtype
-    [] (ConT ''ValueDeltas) (ConT ''Prices) (ConT ''PortfolioDelta)
+    [] (appConT ''ValueDeltas ''Asset) (ConT ''Prices) (ConT ''PortfolioDelta)
 
 -- | Share of some quantity in a bigger whole.
 newtype Share = Share Scalar
@@ -176,12 +179,12 @@ deriveConstrainedQuantityInstances
 
 -- | Only Values are Normed, because it only makes sense to add up Values held
 -- in different Assets.
-deriveScalable ''Scalar (appConT ''Distribution ''Asset)
-    (ConT ''Value) (ConT ''Values)
-deriveScalable ''Scalar (appConT ''DistributionDelta ''Asset)
-    (ConT ''ValueDelta) (ConT ''ValueDeltas)
-deriveNormed ''Scalar (appConT ''Distribution ''Asset)
-    (ConT ''Value) (ConT ''Values)
+deriveScalable [appKeyT ''Ord] ''Scalar (appKeyT ''Distribution)
+    (ConT ''Value) (appKeyT ''Values)
+deriveScalable [appKeyT ''Ord] ''Scalar (appKeyT ''DistributionDelta)
+    (ConT ''ValueDelta) (appKeyT ''ValueDeltas)
+deriveNormed [appKeyT ''Ord] ''Scalar (appKeyT ''Distribution)
+    (ConT ''Value) (appKeyT ''Values)
 
 instance Ord k => Truncatable (Distribution k) where
 
@@ -302,6 +305,17 @@ zipSeries s1 s2
 
 -- Arbitrary instances and other test utilities:
 
+instance Arbitrary InstrumentName where
+    arbitrary = elements testInstrumentNames
+    shrink = init . testInstrumentNamesUpTo . last . unInstrumentName
+
+testInstrumentNamesUpTo :: Char -> [InstrumentName]
+testInstrumentNamesUpTo char
+    = InstrumentName . ("Instrument " ++) . pure <$> ['1' .. char]
+
+testInstrumentNames :: [InstrumentName]
+testInstrumentNames = testInstrumentNamesUpTo '4'
+
 instance Arbitrary Amount where
     arbitrary = Amount <$> arbitraryNonNegativeScalar
     shrink (Amount scr) = Amount <$> shrinkNonNegativeScalar scr
@@ -333,8 +347,8 @@ instance Arbitrary Value where
     shrink (Value scr) = Value <$> shrinkNonNegativeScalar scr
 
 deriving newtype instance Arbitrary ValueDelta
-deriving newtype instance Arbitrary Values
-deriving newtype instance Arbitrary ValueDeltas
+deriving newtype instance (Arbitrary k, Ord k) => Arbitrary (Values k)
+deriving newtype instance (Arbitrary k, Ord k) => Arbitrary (ValueDeltas k)
 
 instance Arbitrary Share where
 
