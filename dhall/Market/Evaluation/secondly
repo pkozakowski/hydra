@@ -1,0 +1,11 @@
+let seconds = ../../Time/seconds
+
+let secondly
+      : ./MetricCalculator
+     -> ./Metric
+      = \(calculator : ./MetricCalculator)
+     -> { calculator
+        , period = seconds 1
+        }
+
+in secondly

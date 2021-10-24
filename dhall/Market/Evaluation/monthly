@@ -1,0 +1,11 @@
+let months = ../../Time/hours
+
+let monthly
+      : ./MetricCalculator
+     -> ./Metric
+      = \(calculator : ./MetricCalculator)
+     -> { calculator
+        , period = months 1
+        }
+
+in monthly

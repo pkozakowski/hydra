@@ -3,8 +3,10 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TupleSections #-}
 
@@ -26,8 +28,11 @@ import Data.Maybe
 import qualified Data.Ratio as Ratio
 import Data.Semigroup.Traversable
 import Data.String
+import Data.Text (pack, unpack)
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
+import Dhall (FromDhall)
+import qualified Dhall as Dh
 import GHC.Generics
 import Market
 import Market.Internal.Sem
@@ -83,11 +88,55 @@ toDouble :: Value -> Double
 toDouble (Value x)
     = fromRational $ numerator x Ratio.% denominator x
 
+data Period = Period
+    { duration :: NominalDiffTime
+    , periodName :: MetricName
+    }
+
+instance FromDhall Period where
+
+    autoWith _ = Dh.Decoder { .. } where
+        expected = Dh.expected nameDecoder
+
+        extract expr = Period
+            <$> Dh.extract Dh.auto expr
+            <*> Dh.extract nameDecoder expr
+
+        nameDecoder = Dh.union
+            ( ( buildName "secondly" <$> Dh.constructor "Seconds" Dh.natural )
+           <> ( buildName "minutely" <$> Dh.constructor "Minutes" Dh.natural )
+           <> ( buildName "hourly"   <$> Dh.constructor "Hours"   Dh.natural )
+           <> ( buildName "daily"    <$> Dh.constructor "Days"    Dh.natural )
+           <> ( buildName "monthly"  <$> Dh.constructor "Months"  Dh.natural )
+            ) where
+                buildName name number
+                    = if number == 1
+                        then name
+                        else MetricName (show number) <> "-" <> name
+
+type MetricCalculator = TimeSeries ValueChange -> Double
+
 data Metric = Metric
     { name :: MetricName
-    , calculate :: TimeSeries ValueChange -> Double
+    , calculate :: MetricCalculator
     , period :: NominalDiffTime
     }
+
+instance FromDhall Metric where
+
+    autoWith _ = Dh.record
+        ( buildMetric
+            <$> Dh.field "period" Dh.auto
+            <*> Dh.field "calculator" decodeMetricSansPeriod
+        ) where
+            buildMetric period
+                = periodically (periodName period) (duration period)
+            decodeMetricSansPeriod
+                = Dh.union
+                $ foldMap cons configurableMetricsSansPeriod where
+                    cons (name, calc)
+                        = Dh.constructor (pack name)
+                        $ const calc <$> Dh.unit
 
 calculateMetric
     :: ValueChangeCalculator
@@ -96,6 +145,7 @@ calculateMetric
     -> Maybe Double
 calculateMetric vcc metric series = do
     let downsampled = downsample (period metric) series
+    -- TODO: Upsample too.
     valueChanges <- convolve step downsampled
     return $ calculate metric valueChanges
     where
@@ -167,14 +217,14 @@ integrate series = case convolve xdt series of
             deltaTime = timeDiffToDouble $ endTime `diffUTCTime` startTime
         timeDiffToDouble = fromRational . toRational
 
-calcAvgReturn :: TimeSeries ValueChange -> Double
+calcAvgReturn :: MetricCalculator
 calcAvgReturn = integrate . fmap step where
     step change = (current change - previous change) / current change
 
 avgReturn :: NominalDiffTime -> Metric
 avgReturn = Metric "avgReturn" calcAvgReturn
 
-calcAvgLogReturn :: TimeSeries ValueChange -> Double
+calcAvgLogReturn :: MetricCalculator
 calcAvgLogReturn = integrate . fmap step where
     step change = log $ current change / previous change
 
@@ -188,23 +238,37 @@ integrateByPeriod
 integrateByPeriod periodLength
     = sequence . fmap (fmap integrate) . intervals periodLength
 
+type MetricSansPeriod = NominalDiffTime -> Metric
+
 periodically
     :: MetricName
     -> NominalDiffTime
-    -> (NominalDiffTime -> Metric)
+    -> MetricSansPeriod
     -> Metric
 periodically prefix period metricBuilder
     = metric { name = prefix <> " " <> name metric } where
         metric = metricBuilder period
 
-hourly :: (NominalDiffTime -> Metric) -> Metric
+secondly :: MetricSansPeriod -> Metric
+secondly = periodically "secondly" 60
+
+minutely :: MetricSansPeriod -> Metric
+minutely = periodically "minutely" 60
+
+hourly :: MetricSansPeriod -> Metric
 hourly = periodically "hourly" 3600
 
-daily :: (NominalDiffTime -> Metric) -> Metric
+daily :: MetricSansPeriod -> Metric
 daily = periodically "daily" $ 3600 * 24
 
-monthly :: (NominalDiffTime -> Metric) -> Metric
+monthly :: MetricSansPeriod -> Metric
 monthly = periodically "monthly" $ 3600 * 24 * 30.44
+
+configurableMetricsSansPeriod :: [(String, MetricSansPeriod)]
+configurableMetricsSansPeriod
+  = [ ("AvgReturn", avgReturn)
+    , ("AvgLogReturn", avgLogReturn)
+    ]
 
 evaluate
     :: forall c s r

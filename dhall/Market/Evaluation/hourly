@@ -1,0 +1,11 @@
+let hours = ../../Time/hours
+
+let hourly
+      : ./MetricCalculator
+     -> ./Metric
+      = \(calculator : ./MetricCalculator)
+     -> { calculator
+        , period = hours 1
+        }
+
+in hourly

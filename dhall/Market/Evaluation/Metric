@@ -1,0 +1,9 @@
+let Time = ../../Time/Type
+
+let Metric
+      : Type
+      = { calculator : ./MetricCalculator
+        , period : Time
+        }
+
+in Metric

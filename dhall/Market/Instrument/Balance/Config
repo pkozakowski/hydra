@@ -1,6 +1,6 @@
 let Map/Type = https://prelude.dhall-lang.org/Map/Type
 
-let Time = ../../../Time
+let Time = ../../../Time/Type
 
 let Share = ../../Share
 

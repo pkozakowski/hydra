@@ -58,13 +58,17 @@ import Test.QuickCheck.Instances
 instance FromDhall NominalDiffTime where
 
     autoWith _ = Dh.union
-        ( ( fromNatural    1 <$> Dh.constructor "Seconds" Dh.natural )
-       <> ( fromNatural   60 <$> Dh.constructor "Minutes" Dh.natural )
-       <> ( fromNatural 3600 <$> Dh.constructor "Hours"   Dh.natural )
+        ( ( fromNatural                  1  <$> cons "Seconds" )
+       <> ( fromNatural                 60  <$> cons "Minutes" )
+       <> ( fromNatural               3600  <$> cons "Hours"   )
+       <> ( fromNatural         (24 * 3600) <$> cons "Days"    )
+       <> ( fromNatural (30.44 * 24 * 3600) <$> cons "Months"  )
         ) where
-            fromNatural mul = (mul Prelude.*) . fromInteger . toInteger
+            (*) = (Prelude.*)
+            fromNatural mul = (mul *) . fromInteger . toInteger
+            cons name = Dh.constructor name Dh.natural
 
--- | Underlying scalar type.
+-- | The underlying scalar type.
 type Scalar = Fraction Integer
 
 instance LeftModule Scalar Scalar where

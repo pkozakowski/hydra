@@ -1,0 +1,7 @@
+let Time = ./Type
+
+let minutes
+      : Natural -> Time
+      = Time.Minutes
+
+in minutes

@@ -14,24 +14,24 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Map.Class as Map
 import Data.Maybe
 import Data.Text
+import qualified Data.Text as Text
 import Data.Time
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import qualified Dhall
 import Market
-import qualified Market.Evaluation as Evaluation
 import Market.Feed.MongoDB
 import Market.Instruments
-import Market.Notebook (evaluate, runPriceFeed)
+import Market.Notebook
 import Market.Types
 import Numeric.Field.Fraction
 import Options.Applicative
+import System.Directory
 import System.IO.Error
 import Text.Pretty.Simple
 
 import Parser hiding (Parser, fees, metrics)
 import qualified Parser as P
-import Types
 
 data EvalOptions = EvalOptions
     { config :: String
@@ -39,7 +39,7 @@ data EvalOptions = EvalOptions
     , begin :: Maybe UTCTime
     , end :: Maybe UTCTime
     , fees :: Fees
-    , metrics :: NonEmpty Metric
+    , metrics :: String
     }
 
 defaultBeginTime :: UTCTime
@@ -85,47 +85,48 @@ evalOptions = EvalOptions
        <> help "Fees in format 0.25% + 0.0015 BNB. Defaults to that value."
        <> value defaultFees
         )
-    <*> option P.metrics
+    <*> option str
         ( long "metrics"
        <> short 'm'
-       <> metavar "METRICS..."
+       <> metavar "METRICS"
        <> help
-            ( "Comma-separated list of metrics in format period metric, where "
-           <> "period is one of {hourly, daily, monthly}, and metric is one of "
-           <> "the metrics defined in Market.Evaluation. Defaults to hourly "
-           <> "avgReturn."
+            ( "List of metrics in Dhall, type: "
+           <> "List ./dhall/Market/Evaluation/Metric. Can be supplied using "
+           <> "the syntax [period metric, ...], where period is one of "
+           <> "{hourly, daily, monthly}, and metric is one of the metrics "
+           <> "defined in Market.Evaluation. Defaults to [hourly avgReturn]."
             )
-       <> value [Metric Hourly "avgReturn"]
+       <> value "[hourly avgReturn]"
         )
 
--- TODO: Dhall-configure.
-loadMetric :: Metric -> Either String Evaluation.Metric
-loadMetric metric = periodFn <$> metricBuilder where
-    periodFn = case period metric of
-        Hourly -> Evaluation.hourly
-        Daily -> Evaluation.daily
-        Monthly -> Evaluation.monthly
-    metricBuilder = case name metric of
-        "avgReturn" -> pure Evaluation.avgReturn
-        "avgLogReturn" -> pure Evaluation.avgLogReturn
-        _ -> Left $ "unknown metric: " ++ name metric
+loadBindingsFrom :: FilePath -> IO Text
+loadBindingsFrom dir = do
+    all <- listDirectory dir
+    files <- filterM (doesFileExist . abs) all
+    return $ Text.concat $ binding <$> files
+    where
+        abs = ((dir ++ "/") ++)
+        binding name
+            = "let " <> pack name <> " = ./" <> pack (abs name) <> "\n"
 
+-- TODO: Windows + output to Vega.
 eval :: EvalOptions -> IO ()
 eval options = do
+    evalBindings <- loadBindingsFrom "./dhall/Market/Evaluation"
     metrics_
-       <- either fail return
-        $ sequenceA
-        $ toList
-        $ loadMetric <$> metrics options
+       :: [Metric]
+       <- Dhall.input Dhall.auto
+        $ evalBindings <> "in " <> pack (metrics options)
 
     defaultEndTime <- getCurrentTime
     let beginTime = maybe defaultBeginTime id $ begin options
         endTime = maybe defaultEndTime id $ end options
 
+    -- TODO: Validation.
     config
         :: SomeInstrumentConfig
         <- Dhall.input Dhall.auto
-         $ pack (config options) <> " ./dhall/Market/Instrument/Type"
+         $ "./" <> pack (config options) <> " ./dhall/Market/Instrument/Type"
 
     let assets = nub
             $ managedAssets config

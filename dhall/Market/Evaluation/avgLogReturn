@@ -1,0 +1,7 @@
+let MetricCalculator = ./MetricCalculator
+
+let avgLogReturn
+      : MetricCalculator
+      = MetricCalculator.AvgLogReturn
+
+in avgLogReturn

@@ -7,7 +7,7 @@ import Data.Map.Class
 import Data.Maybe
 import Data.Time
 import Market.Types
-import Numeric.Algebra
+import Numeric.Algebra hiding (fromInteger)
 import Numeric.Field.Fraction
 import Numeric.Truncatable
 import Options.Applicative hiding (Parser, (<|>))
@@ -20,14 +20,12 @@ import qualified Text.Parsec.Token as P
 import qualified Text.Parsec as Parsec
 import Text.Read
 
-import Types
-
 -- Parsec parsers.
 
 type Parser a = Parsec String () a
 
 float :: Parser Double
-float = P.float haskell
+float = either fromInteger id <$> P.naturalOrFloat haskell
 
 lexeme :: Parser a -> Parser a
 lexeme = P.lexeme haskell
@@ -63,13 +61,3 @@ fees :: ReadM Fees
 fees = parsecReader $ Fees
     <$> (fmap ((1 % 100 *) . realToFraction) float <* symbol "%")
     <*> (symbol "+" *> fmap Just someAmount)
-
-periodP :: Parser Period
-periodP
-    = pure Hourly  <* symbol "hourly"
-  <|> pure Daily   <* symbol "daily"
-  <|> pure Monthly <* symbol "monthly"
-
-metrics :: ReadM (NonEmpty Metric)
-metrics = parsecReader $ fromJust . nonEmpty <$> metric `sepBy` symbol "," where
-    metric = Metric <$> periodP <*> identifier

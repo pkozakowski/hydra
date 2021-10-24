@@ -3,6 +3,8 @@ let Time
       = < Seconds : Natural
         | Minutes : Natural
         | Hours : Natural
+        | Days : Natural
+        | Months : Natural
         >
 
 in Time

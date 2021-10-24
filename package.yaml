@@ -63,6 +63,7 @@ dependencies:
 - parsec
 - dhall
 - either
+- directory
 
 library:
   source-dirs: src
