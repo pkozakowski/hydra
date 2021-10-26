@@ -47,6 +47,7 @@ library
       Market.Internal.Sem
       Market.Notebook
       Market.Ops
+      Market.Plot
       Market.Simulation
       Market.Time
       Market.Tuning

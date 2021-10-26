@@ -1,6 +1,7 @@
 module Parser where
 
 import Data.Bifunctor
+import Data.Functor.Apply
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Map.Class
@@ -12,6 +13,7 @@ import Numeric.Field.Fraction
 import Numeric.Truncatable
 import Options.Applicative hiding (Parser, (<|>))
 import Prelude hiding ((*))
+import qualified Prelude
 import Text.Parsec hiding (option)
 import Text.Parsec.Char hiding (Parser)
 import Text.Parsec.Language
@@ -24,8 +26,8 @@ import Text.Read
 
 type Parser a = Parsec String () a
 
-float :: Parser Double
-float = either fromInteger id <$> P.naturalOrFloat haskell
+floatP :: Parser Double
+floatP = either fromInteger id <$> P.naturalOrFloat haskell
 
 lexeme :: Parser a -> Parser a
 lexeme = P.lexeme haskell
@@ -38,7 +40,7 @@ identifier = P.identifier haskell
 
 someAmount :: Parser SomeAmount
 someAmount = flip (,)
-    <$> fmap (Amount . realToFraction) float
+    <$> fmap (Amount . realToFraction) floatP
     <*> fmap Asset (lexeme $ some upper)
 
 parsecReader :: Parsec String () a -> ReadM a
@@ -46,10 +48,28 @@ parsecReader parser = eitherReader $ first show . parse parser ""
 
 -- Options.Applicative parsers.
 
+float :: ReadM Double
+float = parsecReader floatP
+
 date :: ReadM UTCTime
 date
     = maybeReader
     $ parseTimeM True defaultTimeLocale "%Y-%-m-%-d"
+
+duration :: ReadM NominalDiffTime
+duration
+    = parsecReader
+    $ fmap realToFrac
+    $ (*)
+        <$> floatP
+        <*> ( symbol "s" $>                  1
+          <|> symbol "m" $>                 60
+          <|> symbol "h" $>               3600
+          <|> symbol "d" $>          24 * 3600
+          <|> symbol "M" $>  30.44 * 24 * 3600
+            )
+    where
+        (*) = (Prelude.*)
 
 portfolio :: ReadM Portfolio
 portfolio
@@ -59,5 +79,5 @@ portfolio
 
 fees :: ReadM Fees
 fees = parsecReader $ Fees
-    <$> (fmap ((1 % 100 *) . realToFraction) float <* symbol "%")
+    <$> (fmap ((1 % 100 *) . realToFraction) floatP <* symbol "%")
     <*> (symbol "+" *> fmap Just someAmount)

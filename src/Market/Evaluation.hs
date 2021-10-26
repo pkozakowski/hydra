@@ -144,8 +144,9 @@ calculateMetric
     -> TimeSeries (PricesPortfolio)
     -> Maybe Double
 calculateMetric vcc metric series = do
-    let downsampled = downsample (period metric) series
     -- TODO: Upsample too.
+    let downsampled = downsample (period metric) series
+    -- TODO: Dilated convolution, e.g. daily return changing every minute.
     valueChanges <- convolve step downsampled
     return $ calculate metric valueChanges
     where
@@ -181,7 +182,7 @@ type Evaluation = Evaluation' Double
 type EvaluationOnWindows = Evaluation' (TimeSeries Double)
 
 flattenTree :: InstrumentTree a -> [(InstrumentName, a)]
-flattenTree = flattenWithPrefix $ "" where
+flattenTree = flattenWithPrefix "" where
     flattenWithPrefix prefix tree
         = [(prefix, self tree)] ++ subinstrs where
             subinstrs
@@ -339,7 +340,7 @@ evaluateOnWindows metrics fees windowLen stride series initPortfolio config = do
     let wnds = windowsE windowLen stride series
     truncator <- getTruncator
     let interpreter = runError . runPrecisionFromTruncator truncator
-        deinterpreter = either (throw @(MarketError)) return
+        deinterpreter = either (throw @MarketError) return
     evals <- pforSem interpreter deinterpreter wnds
         $ evaluateOnWindow
      <=< fromEither @MarketError . first OtherError

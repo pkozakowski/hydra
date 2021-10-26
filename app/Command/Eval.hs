@@ -11,18 +11,21 @@ import Data.Foldable
 import Data.Proxy
 import Data.List
 import Data.List.NonEmpty (NonEmpty)
+import Data.Map.Class ((!))
 import qualified Data.Map.Class as Map
 import Data.Maybe
-import Data.Text
+import Data.Text (Text, pack, unpack)
 import qualified Data.Text as Text
 import Data.Time
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import qualified Dhall
+import Graphics.Vega.VegaLite hiding (name, window)
 import Market
 import Market.Feed.MongoDB
 import Market.Instruments
-import Market.Notebook
+import Market.Notebook hiding (duration)
+import Market.Plot
 import Market.Types
 import Numeric.Field.Fraction
 import Options.Applicative
@@ -38,8 +41,11 @@ data EvalOptions = EvalOptions
     , initPortfolio :: Portfolio
     , begin :: Maybe UTCTime
     , end :: Maybe UTCTime
+    , window :: Maybe NominalDiffTime
+    , stride :: Double
     , fees :: Fees
     , metrics :: String
+    , plot :: Maybe String
     }
 
 defaultBeginTime :: UTCTime
@@ -78,6 +84,26 @@ evalOptions = EvalOptions
        <> help "End date in format YYYY-MM-DD. Defaults to the current date."
        <> value Nothing
         )
+    <*> option (Just <$> duration)
+        ( long "window"
+       <> short 'w'
+       <> metavar "DURATION"
+       <> help
+            ( "Window size in format 1.4s (for seconds; use m/h/d/M for higher "
+           <> "units). Specifying turns on the windowed evaluation mode."
+            )
+       <> value Nothing
+        )
+    <*> option float
+        ( long "stride"
+       <> short 's'
+       <> metavar "FRACTION"
+       <> help
+            ( "The time difference between two consecutive windows. Specified "
+           <> "relatively to the window size. Defaults to 0.5."
+            )
+       <> value 0.5
+        )
     <*> option P.fees
         ( long "fees"
        <> short 'f'
@@ -98,6 +124,13 @@ evalOptions = EvalOptions
             )
        <> value "[hourly avgReturn]"
         )
+    <*> option (Just <$> str)
+        ( long "plot"
+       <> short 'p'
+       <> metavar "FILE"
+       <> help "Will render an evaluation plot to that file, in VegaLite HTML."
+       <> value Nothing
+        )
 
 loadBindingsFrom :: FilePath -> IO Text
 loadBindingsFrom dir = do
@@ -109,7 +142,6 @@ loadBindingsFrom dir = do
         binding name
             = "let " <> pack name <> " = ./" <> pack (abs name) <> "\n"
 
--- TODO: Windows + output to Vega.
 eval :: EvalOptions -> IO ()
 eval options = do
     evalBindings <- loadBindingsFrom "./dhall/Market/Evaluation"
@@ -135,10 +167,34 @@ eval options = do
         res = Proxy @E6
     priceSeries <- runPriceFeed @Minute res assets beginTime endTime
 
-    pPrint =<< evaluate
-        res
-        metrics_
-        (fees options)
-        priceSeries
-        (initPortfolio options)
-        config
+    -- TODO: Daily overlapping returns.
+    case window options of
+        Nothing ->
+            pPrint =<< evaluate
+                res
+                metrics_
+                (fees options)
+                priceSeries
+                (initPortfolio options)
+                config
+        Just window -> do
+            when (stride options <= 0 || stride options > 1)
+                $ fail
+                $ "stride should be in range [0, 1); got "
+               ++ show (stride options)
+            evaluation <- evaluateOnWindows
+                res
+                metrics_
+                (fees options)
+                window
+                (realToFrac (stride options) * window)
+                priceSeries
+                (initPortfolio options)
+                config
+            case plot options of
+                Just path -> do
+                    let plot = plotEvaluation evaluation
+                    toHtmlFile path $ toVegaLite plot
+                Nothing -> return ()
+            -- TODO: Encode as Dhall.
+            pPrint evaluation
