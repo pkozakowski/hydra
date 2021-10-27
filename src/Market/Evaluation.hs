@@ -14,8 +14,9 @@ module Market.Evaluation where
 
 import Control.Monad
 import Control.Parallel.Strategies
-import Data.Composition
+import Data.Aeson (ToJSON, ToJSONKey)
 import Data.Bifunctor
+import Data.Composition
 import Data.Foldable hiding (toList)
 import Data.Functor.Apply
 import Data.Functor.Compose
@@ -49,7 +50,7 @@ import Polysemy.Output
 import Polysemy.State
 
 newtype MetricName = MetricName { unMetricName :: String }
-    deriving newtype (Eq, NFData, IsString, Ord, Semigroup, Show)
+    deriving newtype (Eq, NFData, IsString, Ord, Semigroup, Show, ToJSONKey)
 
 data ValueChange = ValueChange
     { previous :: Double
@@ -155,7 +156,7 @@ calculateMetric vcc metric series = do
 data InstrumentTree a = InstrumentTree
     { self :: a
     , subinstruments :: (StaticMap InstrumentName (InstrumentTree a))
-    } deriving (Functor, Foldable, Generic, NFData, Show, Traversable)
+    } deriving (Functor, Foldable, Generic, NFData, Show, Traversable, ToJSON)
 
 instance Apply InstrumentTree where
 
@@ -169,7 +170,7 @@ instance Apply InstrumentTree where
 data Evaluation' res = Evaluation
     { active :: StaticMap MetricName res
     , passive :: InstrumentTree (StaticMap MetricName res)
-    } deriving (Functor, Generic, NFData, Show)
+    } deriving (Functor, Generic, NFData, Show, ToJSON)
 
 instance Apply Evaluation' where
 

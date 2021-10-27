@@ -16,6 +16,7 @@ module Data.Map.Static
     ) where
 
 import Control.DeepSeq
+import Data.Aeson
 import Data.Functor.Apply
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -39,7 +40,7 @@ import qualified Prelude
 -- missing keys.
 newtype StaticMap k v = StaticMap (Map k v)
     deriving (Foldable, Functor, Generic, Traversable)
-    deriving anyclass (FromDhall, NFData)
+    deriving anyclass (FromDhall, NFData, ToJSON)
     deriving newtype (Arbitrary, Eq)
 
 deriving newtype instance Ord k => ReadMap k v (StaticMap k v)

@@ -21,6 +21,7 @@ module Market.Types
 import Control.DeepSeq
 import Control.Exception
 import Control.Monad
+import Data.Aeson (ToJSON (..), ToJSONKey)
 import Data.Bifunctor
 import Data.Coerce
 import Data.Fixed
@@ -94,7 +95,7 @@ instance NFData Scalar where
 
 newtype InstrumentName = InstrumentName { unInstrumentName :: String }
     deriving (Eq, Generic, Ord)
-    deriving newtype (IsString, NFData, Semigroup)
+    deriving newtype (IsString, NFData, Semigroup, ToJSONKey)
 
 instance Show InstrumentName where
     show = unInstrumentName
@@ -264,7 +265,7 @@ everything = Relative $ share one
 type TimeStep a = (UTCTime, a)
 
 newtype TimeSeries a = TimeSeries { unTimeSeries :: NonEmpty (TimeStep a) }
-    deriving (Functor, Foldable, Show, Traversable)
+    deriving (Functor, Foldable, Generic, Show, Traversable)
     deriving newtype (Semigroup)
 
 deriving anyclass instance Foldable1 TimeSeries
@@ -275,6 +276,13 @@ instance Traversable1 TimeSeries where
 
 instance Apply TimeSeries where
     fs <.> xs = uncurry ($) <$> zipSeries fs xs
+
+instance ToJSON a => ToJSON (TimeSeries a) where
+    toJSON
+        = toJSON
+        . fromList @_ @_ @(StaticMap UTCTime a)
+        . NonEmpty.toList
+        . unTimeSeries
 
 seriesFromList :: [TimeStep a] -> Maybe (TimeSeries a)
 seriesFromList = fmap TimeSeries . nonEmpty

@@ -6,6 +6,7 @@
 module Market.Asset where
 
 import Control.DeepSeq
+import Data.Aeson (ToJSON)
 import Data.String
 import Dhall (FromDhall (..))
 import qualified Dhall as Dh

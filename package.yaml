@@ -64,6 +64,8 @@ dependencies:
 - dhall
 - either
 - directory
+- aeson-pretty
+- yaml
 
 library:
   source-dirs: src

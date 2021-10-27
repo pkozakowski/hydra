@@ -6,6 +6,9 @@ module Command.Eval where
 
 import Control.Exception hiding (evaluate)
 import Control.Monad
+import Data.Aeson (ToJSON)
+import Data.Aeson.Encode.Pretty hiding (encodePretty)
+import qualified Data.ByteString.Lazy.Char8 as BS
 import Data.Fixed
 import Data.Foldable
 import Data.Proxy
@@ -31,7 +34,6 @@ import Numeric.Field.Fraction
 import Options.Applicative
 import System.Directory
 import System.IO.Error
-import Text.Pretty.Simple
 
 import Parser hiding (Parser, fees, metrics)
 import qualified Parser as P
@@ -142,6 +144,9 @@ loadBindingsFrom dir = do
         binding name
             = "let " <> pack name <> " = ./" <> pack (abs name) <> "\n"
 
+encodePretty :: ToJSON a => a -> BS.ByteString
+encodePretty = encodePretty' defConfig { confCompare = compare }
+
 eval :: EvalOptions -> IO ()
 eval options = do
     evalBindings <- loadBindingsFrom "./dhall/Market/Evaluation"
@@ -169,14 +174,17 @@ eval options = do
 
     -- TODO: Daily overlapping returns.
     case window options of
-        Nothing ->
-            pPrint =<< evaluate
+        Nothing -> do
+            when (isJust $ plot options)
+                $ fail "plotting only supported for evaluation on windows"
+            evaluation <- evaluate
                 res
                 metrics_
                 (fees options)
                 priceSeries
                 (initPortfolio options)
                 config
+            BS.putStrLn $ encodePretty evaluation
         Just window -> do
             when (stride options <= 0 || stride options > 1)
                 $ fail
@@ -191,10 +199,11 @@ eval options = do
                 priceSeries
                 (initPortfolio options)
                 config
+
             case plot options of
                 Just path -> do
                     let plot = plotEvaluation evaluation
                     toHtmlFile path $ toVegaLite plot
                 Nothing -> return ()
-            -- TODO: Encode as Dhall.
-            pPrint evaluation
+
+            BS.putStrLn $ encodePretty evaluation
