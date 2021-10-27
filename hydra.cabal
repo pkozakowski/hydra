@@ -64,11 +64,16 @@ library
   hs-source-dirs:
       src
   default-extensions:
+      AllowAmbiguousTypes
       BlockArguments
       DataKinds
+      DeriveGeneric
       FlexibleContexts
+      FlexibleInstances
       GADTs
       LambdaCase
+      MultiParamTypeClasses
+      OverloadedStrings
       RankNTypes
       ScopedTypeVariables
       TypeApplications
@@ -133,11 +138,16 @@ executable hydra-exe
   hs-source-dirs:
       app
   default-extensions:
+      AllowAmbiguousTypes
       BlockArguments
       DataKinds
+      DeriveGeneric
       FlexibleContexts
+      FlexibleInstances
       GADTs
       LambdaCase
+      MultiParamTypeClasses
+      OverloadedStrings
       RankNTypes
       ScopedTypeVariables
       TypeApplications
@@ -212,11 +222,16 @@ test-suite hydra-test
   hs-source-dirs:
       test
   default-extensions:
+      AllowAmbiguousTypes
       BlockArguments
       DataKinds
+      DeriveGeneric
       FlexibleContexts
+      FlexibleInstances
       GADTs
       LambdaCase
+      MultiParamTypeClasses
+      OverloadedStrings
       RankNTypes
       ScopedTypeVariables
       TypeApplications

@@ -1,4 +1,3 @@
-{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Numeric.Precision where

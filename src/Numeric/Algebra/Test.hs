@@ -1,5 +1,4 @@
 {-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE PolyKinds #-}
 
 module Numeric.Algebra.Test where
 

@@ -100,11 +100,17 @@ tests:
     - hydra
 
 default-extensions:
+- AllowAmbiguousTypes
 - BlockArguments
 - DataKinds
+- DeriveGeneric
 - FlexibleContexts
+- FlexibleInstances
 - GADTs
 - LambdaCase
+- MultiParamTypeClasses
+- OverloadedStrings
+- PolyKinds
 - RankNTypes
 - ScopedTypeVariables
 - TypeApplications

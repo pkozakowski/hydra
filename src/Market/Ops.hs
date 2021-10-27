@@ -1,4 +1,3 @@
-{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE TupleSections #-}
 
 module Market.Ops where
