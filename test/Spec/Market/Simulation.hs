@@ -15,7 +15,9 @@ import Data.Maybe
 import Data.Ord
 import Data.Time
 import Market
-import Market.Instruments
+import Market.Instrument.Balance
+import Market.Instrument.Hold
+import Market.Instrument.Some
 import Market.Ops
 import Market.Simulation
 import Market.Time

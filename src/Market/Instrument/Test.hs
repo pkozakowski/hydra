@@ -1,5 +1,4 @@
-
-module Market.Instruments.Test where
+module Market.Instrument.Test where
 
 import Control.Monad
 import Data.Either

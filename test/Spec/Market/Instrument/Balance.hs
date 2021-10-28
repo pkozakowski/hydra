@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Spec.Market.Instruments where
+module Spec.Market.Instrument.Balance where
 
 import Data.Bifunctor
 import Data.Either
@@ -10,11 +10,13 @@ import Data.Map.Static
 import Data.Maybe
 import Data.Time
 import Market
-import Market.Instruments
-import Market.Instruments.Test
+import Market.Instrument.Balance
+import Market.Instrument.Hold
+import Market.Instrument.Ops
+import Market.Instrument.Some
+import Market.Instrument.Test
 import Market.Ops
 import Market.Simulation
-import Market.Types
 import Numeric.Algebra hiding ((>), (+), (-), (/))
 import Numeric.Precision
 import Polysemy
@@ -25,17 +27,6 @@ import Test.Tasty
 import Test.Tasty.QuickCheck hiding (tolerance)
 import Test.Tasty.QuickCheck.Laws
 import Test.Tasty.TH
-
-test_Hold :: [TestTree]
-test_Hold =
-    [ testLaws $ instrumentLaws arbitraryConfig arbitraryConfig
-    , testProperty "allocation is one point" onePointAllocation
-    ] where
-        onePointAllocation :: Prices -> Property
-        onePointAllocation prices = alloc === onePoint "A" where
-            alloc = runInit prices (Hold "A") initAllocation
-
-        arbitraryConfig = return $ Hold "A"
 
 test_Balance_Hold :: [TestTree]
 test_Balance_Hold =

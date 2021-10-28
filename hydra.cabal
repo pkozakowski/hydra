@@ -41,8 +41,13 @@ library
       Market.Feed.MongoDB
       Market.Feed.Price
       Market.Feed.TH
-      Market.Instruments
-      Market.Instruments.Test
+      Market.Instrument
+      Market.Instrument.Balance
+      Market.Instrument.Dhall
+      Market.Instrument.Hold
+      Market.Instrument.Ops
+      Market.Instrument.Some
+      Market.Instrument.Test
       Market.Internal.IO
       Market.Internal.Sem
       Market.Notebook
@@ -74,6 +79,7 @@ library
       LambdaCase
       MultiParamTypeClasses
       OverloadedStrings
+      PolyKinds
       RankNTypes
       ScopedTypeVariables
       TypeApplications
@@ -148,6 +154,7 @@ executable hydra-exe
       LambdaCase
       MultiParamTypeClasses
       OverloadedStrings
+      PolyKinds
       RankNTypes
       ScopedTypeVariables
       TypeApplications
@@ -212,7 +219,9 @@ test-suite hydra-test
       Spec.Data.Map.Sparse
       Spec.Data.Map.Static
       Spec.Market.Evaluation
-      Spec.Market.Instruments
+      Spec.Market.Instrument.Balance
+      Spec.Market.Instrument.Hold
+      Spec.Market.Instrument.Ops
       Spec.Market.Ops
       Spec.Market.Simulation
       Spec.Market.Types
@@ -232,6 +241,7 @@ test-suite hydra-test
       LambdaCase
       MultiParamTypeClasses
       OverloadedStrings
+      PolyKinds
       RankNTypes
       ScopedTypeVariables
       TypeApplications

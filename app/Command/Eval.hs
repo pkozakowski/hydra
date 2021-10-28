@@ -25,7 +25,7 @@ import qualified Dhall
 import Graphics.Vega.VegaLite hiding (name, window)
 import Market
 import Market.Feed.MongoDB
-import Market.Instruments
+import Market.Instrument
 import Market.Notebook hiding (duration)
 import Market.Plot
 import Market.Types
