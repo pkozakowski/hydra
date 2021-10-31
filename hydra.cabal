@@ -218,7 +218,6 @@ test-suite hydra-test
       Spec.Data.Map.Default
       Spec.Data.Map.Sparse
       Spec.Data.Map.Static
-      Spec.Market.Evaluation
       Spec.Market.Instrument.Balance
       Spec.Market.Instrument.Hold
       Spec.Market.Instrument.Ops

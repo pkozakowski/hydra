@@ -2,13 +2,18 @@
 
 module Spec.Market.Ops where
 
-import Data.List
+import Data.Approx
+import Data.Approx.Test
+import Data.Bifunctor
+import Data.List hiding (sum)
+import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Map.Static
+import Data.Maybe
 import Data.Time.Clock
 import Market.Ops
 import Market.Types
-import Numeric.Algebra hiding ((<), (>))
+import Numeric.Algebra hiding ((<), (>), sum)
 import Numeric.Algebra.Test
 import Prelude hiding ((+), (-), (*))
 import qualified Prelude
@@ -82,6 +87,135 @@ test_windows = fmap (uncurry testProperty)
             $ (windowLen >= stride && stride > 0 && n < 1000 ==>)
             $ prop windowLen stride series where
                 n = numStridesFrac windowLen stride series
+
+test_downsample :: [TestTree]
+test_downsample = fmap (uncurry testProperty . second (mapSize $ const 10))
+    [ ("downsampled <= original", downsampledIncludedInOriginal)
+    , ("delta time >= period", deltaTimeGreaterEqualPeriod)
+    , ("endpoints are within period", endpointsAreWithinPeriod)
+    ] where
+        downsampledIncludedInOriginal
+            :: Positive NominalDiffTime -> TimeSeries Int -> Property
+        downsampledIncludedInOriginal (Positive period) series
+            = counterexample ("downsampled: " ++ show downsampled)
+            $ testResampleSubsequence period downsampled series where
+                downsampled = downsample period series
+
+        deltaTimeGreaterEqualPeriod
+            :: Positive NominalDiffTime -> TimeSeries Int -> Property
+        deltaTimeGreaterEqualPeriod (Positive period) series
+            = counterexample ("downsampled: " ++ show downsampled)
+            $ testDeltaTimePeriodRelation (>=) period downsampled where
+                downsampled = downsample period series
+
+        endpointsAreWithinPeriod
+            :: Positive NominalDiffTime -> TimeSeries Int -> Property
+        endpointsAreWithinPeriod (Positive period) series
+            = counterexample ("downsampled: " ++ show downsampled)
+            $ testEndpointsWithin period series downsampled where
+                downsampled = downsample period series
+
+test_upsample :: [TestTree]
+test_upsample = fmap (uncurry testProperty . second (mapSize $ const 10))
+    [ ("original <= upsampled", originalIncludedInUpsampled)
+    , ("delta time <= period", deltaTimeLessEqualPeriod)
+    , ("endpoints are within period", endpointsAreWithinPeriod)
+    , ("efficiency", efficiency)
+    ] where
+        originalIncludedInUpsampled
+            :: Positive NominalDiffTime -> TimeSeries Int -> Property
+        originalIncludedInUpsampled (Positive period) series
+            = counterexample ("upsampled: " ++ show upsampled)
+            $ testResampleSubsequence period series upsampled where
+                upsampled = upsample period series
+
+        deltaTimeLessEqualPeriod
+            :: Positive NominalDiffTime -> TimeSeries Int -> Property
+        deltaTimeLessEqualPeriod (Positive period) series
+            = counterexample ("upsampled: " ++ show upsampled)
+            $ testDeltaTimePeriodRelation (<=) period upsampled where
+                upsampled = upsample period series
+
+        endpointsAreWithinPeriod
+            :: Positive NominalDiffTime -> TimeSeries Int -> Property
+        endpointsAreWithinPeriod (Positive period) series
+            = counterexample ("upsampled: " ++ show upsampled)
+            $ testEndpointsWithin period series upsampled where
+                upsampled = upsample period series
+
+        efficiency
+            :: Positive NominalDiffTime -> TimeSeries Int -> Property
+        efficiency (Positive period) series
+            = counterexample ("upsampled: " ++ show upsampled)
+            $ length upsampled <= length series + maxNewPoints
+            where
+                upsampled = upsample period series
+                maxNewPoints = floor ((end `diffUTCTime` begin) / period) where
+                    (begin, end) = beginEndTimes series
+                    (/) = (Prelude./)
+
+testResampleSubsequence
+    :: NominalDiffTime -> TimeSeries Int -> TimeSeries Int -> Property
+testResampleSubsequence period subseries series
+    = property $ subseries `isSubsequenceOf` series where
+        downsampled = downsample period series
+        isSubsequenceOf = isSubsequenceOfTS' eq where
+            eq (t, x) (t', x')
+              = abs (t `diffUTCTime` t') <= period && x == x'
+            isSubsequenceOfTS' eq s s'
+                = isSubsequenceOf' eq
+                    (NonEmpty.toList $ unTimeSeries s)
+                    (NonEmpty.toList $ unTimeSeries s') where
+                        isSubsequenceOf' eq xs ys = case (xs, ys) of
+                            ([], _) -> True
+                            (_, []) -> False
+                            (x : xs', y : ys)
+                                | x `eq` y  -> isSubsequenceOf' eq xs' ys
+                                | otherwise -> isSubsequenceOf' eq xs  ys
+
+testDeltaTimePeriodRelation
+    :: (NominalDiffTime -> NominalDiffTime -> Bool)
+    -> NominalDiffTime -> TimeSeries Int -> Property
+testDeltaTimePeriodRelation rel period series
+    = conjoin
+    $ fmap snd
+    $ maybe [] id
+    $ fmap seriesToList
+    $ convolve (\(t, _) (t', _) -> t' `diffUTCTime` t `rel` period)
+    $ series
+
+testEndpointsWithin
+    :: NominalDiffTime -> TimeSeries Int -> TimeSeries Int -> Property
+testEndpointsWithin period series series'
+    = begin' `diffUTCTime` begin <= period
+ .&&. end' `diffUTCTime` end <= period where
+        (begin, end) = beginEndTimes series
+        (begin', end') = beginEndTimes series'
+
+beginEndTimes :: TimeSeries a -> (UTCTime, UTCTime)
+beginEndTimes = ((,) <$> fst . head <*> fst . last) . seriesToList
+
+test_convolve :: [TestTree]
+test_convolve =
+    [ testProperty "sum inverses difference" sumInversesDifference
+    ] where
+        sumInversesDifference :: TimeSeries Double -> Property
+        sumInversesDifference series
+              = isJust maybeDiffs
+            ==> first Prelude.+ sum diffs ==~ last where
+                TimeSeries ((_, first) :| _) = series
+                last = snd $ NonEmpty.last $ unTimeSeries series
+                maybeDiffs = convolve diff series where
+                    diff (_, x) (_, x') = x' Prelude.- x
+                diffs = fromJust maybeDiffs
+
+test_integrate :: [TestTree]
+test_integrate =
+    [ testProperty "integral of constant" integralOfConstant
+    ] where
+        integralOfConstant :: Double -> TimeSeries () -> Property
+        integralOfConstant constant times
+            = integrate (const constant <$> times) ==~ constant
 
 test_sweep :: [TestTree]
 test_sweep = fmap (uncurry testProperty)

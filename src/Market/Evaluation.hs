@@ -143,10 +143,9 @@ calculateMetric
     -> TimeSeries (PricesPortfolio)
     -> Maybe Double
 calculateMetric vcc metric series = do
-    -- TODO: Upsample too.
-    let downsampled = downsample (period metric) series
+    let resampled = resample (period metric) series
     -- TODO: Dilated convolution, e.g. daily return changing every minute.
-    valueChanges <- convolve step downsampled
+    valueChanges <- convolve step resampled
     return $ calculate metric valueChanges
     where
         step (_, pp) (_, pp') = vcc pp pp'
@@ -191,32 +190,6 @@ flattenTree = flattenWithPrefix "" where
                 | prefix == "" = (instrName, tree')
                 | otherwise = (prefix <> "." <> instrName, tree')
 
-convolve
-    :: (TimeStep a -> TimeStep a -> b)
-    -> TimeSeries a
-    -> Maybe (TimeSeries b)
-convolve f series
-    = case unTimeSeries series of
-        _ :| [] -> Nothing
-        tx :| txs
-           -> seriesFromList
-            $ zip (fst <$> txs)
-            $ uncurry f <$> zip (tx : txs) txs
-
--- | Integration using the trapezoidal rule.
-integrate :: TimeSeries Double -> Double
-integrate series = case convolve xdt series of
-    Nothing -> startX
-    Just (TimeSeries txdts)
-        -> finish $ foldMap' ((,) <$> Last . Just . fst <*> Sum . snd) txdts
-    where
-        xdt (t, x) (t', x')
-            = (x + x') * 0.5 * timeDiffToDouble (t' `diffUTCTime` t)
-        (startTime, startX) = NonEmpty.head $ unTimeSeries series
-        finish (Last (Just endTime), Sum sxdt) = sxdt / deltaTime where
-            deltaTime = timeDiffToDouble $ endTime `diffUTCTime` startTime
-        timeDiffToDouble = fromRational . toRational
-
 calcAvgReturn :: MetricCalculator
 calcAvgReturn = integrate . fmap step where
     step change = (current change - previous change) / current change
@@ -230,13 +203,6 @@ calcAvgLogReturn = integrate . fmap step where
 
 avgLogReturn :: NominalDiffTime -> Metric
 avgLogReturn = Metric "avgLogReturn" calcAvgLogReturn
-
-integrateByPeriod
-    :: NominalDiffTime
-    -> TimeSeries Double
-    -> Maybe (TimeSeries Double)
-integrateByPeriod periodLength
-    = sequence . fmap (fmap integrate) . intervals periodLength
 
 type MetricSansPeriod = NominalDiffTime -> Metric
 

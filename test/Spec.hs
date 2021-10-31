@@ -3,7 +3,6 @@
 import qualified Spec.Data.Map.Default
 import qualified Spec.Data.Map.Sparse
 import qualified Spec.Data.Map.Static
-import qualified Spec.Market.Evaluation
 import qualified Spec.Market.Instrument.Balance
 import qualified Spec.Market.Instrument.Hold
 import qualified Spec.Market.Instrument.Ops
@@ -21,7 +20,6 @@ main = defaultMain $ testGroup "Specs"
     , Spec.Data.Map.Static.tests
     , Spec.Market.Types.tests
     -- Logic:
-    , Spec.Market.Evaluation.tests
     , Spec.Market.Instrument.Balance.tests
     , Spec.Market.Instrument.Hold.tests
     , Spec.Market.Instrument.Ops.tests

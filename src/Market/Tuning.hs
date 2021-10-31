@@ -10,6 +10,7 @@ import Data.Maybe
 import Data.Time.Clock
 import Market
 import Market.Evaluation
+import Market.Ops
 import Market.Time
 import Numeric.Precision
 import Polysemy
