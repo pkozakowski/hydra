@@ -143,16 +143,15 @@ calculateMetric
     -> TimeSeries (PricesPortfolio)
     -> Maybe Double
 calculateMetric vcc metric series = do
-    let resampled = resample (period metric) series
-    -- TODO: Dilated convolution, e.g. daily return changing every minute.
-    valueChanges <- convolve step resampled
+    let upsampled = upsample (period metric) series
+    valueChanges <- convolveDilated (period metric) step upsampled
     return $ calculate metric valueChanges
     where
         step (_, pp) (_, pp') = vcc pp pp'
 
 data InstrumentTree a = InstrumentTree
     { self :: a
-    , subinstruments :: (StaticMap InstrumentName (InstrumentTree a))
+    , subinstruments :: StaticMap InstrumentName (InstrumentTree a)
     } deriving (Functor, Foldable, Generic, NFData, Show, Traversable, ToJSON)
 
 instance Apply InstrumentTree where

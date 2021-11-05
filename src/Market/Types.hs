@@ -259,7 +259,7 @@ everything = Relative $ share one
 type TimeStep a = (UTCTime, a)
 
 newtype TimeSeries a = TimeSeries { unTimeSeries :: NonEmpty (TimeStep a) }
-    deriving (Functor, Foldable, Generic, Show, Traversable)
+    deriving (Eq, Functor, Foldable, Generic, Show, Traversable)
     deriving newtype (Semigroup)
 
 deriving anyclass instance Foldable1 TimeSeries

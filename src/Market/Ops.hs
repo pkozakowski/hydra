@@ -160,6 +160,21 @@ convolve f series
             $ zip (fst <$> txs)
             $ uncurry f <$> zip (tx : txs) txs
 
+convolveDilated
+    :: NominalDiffTime
+    -> (TimeStep a -> TimeStep a -> b)
+    -> TimeSeries a
+    -> Maybe (TimeSeries b)
+convolveDilated period f (TimeSeries (tx :| txs))
+    = seriesFromList $ go (tx : txs) txs where
+        go = curry \case
+            (_, []) -> []
+            ((t, x) : txs, (t', x') : txs')
+                | t' `diffUTCTime` t >= period
+                   -> (t', f (t, x) (t', x')) : go txs txs'
+                | otherwise
+                   -> go ((t, x) : txs) txs'
+
 -- | Integration using the trapezoidal rule.
 integrate :: TimeSeries Double -> Double
 integrate series = case convolve xdt series of

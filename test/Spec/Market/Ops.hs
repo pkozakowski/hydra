@@ -11,6 +11,7 @@ import qualified Data.List.NonEmpty as NonEmpty
 import Data.Map.Static
 import Data.Maybe
 import Data.Time.Clock
+import Data.Time.Clock.POSIX
 import Market.Ops
 import Market.Types
 import Numeric.Algebra hiding ((<), (>), sum)
@@ -105,7 +106,7 @@ test_downsample = fmap (uncurry testProperty . second (mapSize $ const 10))
             :: Positive NominalDiffTime -> TimeSeries Int -> Property
         deltaTimeGreaterEqualPeriod (Positive period) series
             = counterexample ("downsampled: " ++ show downsampled)
-            $ testDeltaTimePeriodRelation (>=) period downsampled where
+            $ compareDeltaTimePeriod (>=) period downsampled where
                 downsampled = downsample period series
 
         endpointsAreWithinPeriod
@@ -133,7 +134,7 @@ test_upsample = fmap (uncurry testProperty . second (mapSize $ const 10))
             :: Positive NominalDiffTime -> TimeSeries Int -> Property
         deltaTimeLessEqualPeriod (Positive period) series
             = counterexample ("upsampled: " ++ show upsampled)
-            $ testDeltaTimePeriodRelation (<=) period upsampled where
+            $ compareDeltaTimePeriod (<=) period upsampled where
                 upsampled = upsample period series
 
         endpointsAreWithinPeriod
@@ -173,11 +174,11 @@ testResampleSubsequence period subseries series
                                 | x `eq` y  -> isSubsequenceOf' eq xs' ys
                                 | otherwise -> isSubsequenceOf' eq xs  ys
 
-testDeltaTimePeriodRelation
+compareDeltaTimePeriod
     :: (NominalDiffTime -> NominalDiffTime -> Bool)
-    -> NominalDiffTime -> TimeSeries Int -> Property
-testDeltaTimePeriodRelation rel period series
-    = conjoin
+    -> NominalDiffTime -> TimeSeries Int -> Bool
+compareDeltaTimePeriod rel period series
+    = foldl (&&) True
     $ fmap snd
     $ maybe [] id
     $ fmap seriesToList
@@ -208,6 +209,35 @@ test_convolve =
                 maybeDiffs = convolve diff series where
                     diff (_, x) (_, x') = x' Prelude.- x
                 diffs = fromJust maybeDiffs
+
+test_convolveDilated :: [TestTree]
+test_convolveDilated = fmap (uncurry testProperty . second (mapSize $ const 10))
+    [ ("delta time >= period ==> convolveDilated == convolve", tooLong1)
+    , ("end - begin < period ==> convolveDilated == Nothing", tooLong2)
+    ] where
+        tooLong1
+            :: NominalDiffTime
+            -> Fun (TimeStep Int, TimeStep Int) Int
+            -> TimeSeries Int
+            -> Property
+        tooLong1 period f series
+            = compareDeltaTimePeriod (>=) period series
+          ==> convolveDilated period f' series == convolve f' series where
+                f' = applyFun2 f
+
+        tooLong2
+            :: NominalDiffTime
+            -> Fun (TimeStep Int, TimeStep Int) Int
+            -> TimeSeries Int
+            -> Property
+        tooLong2 period f series
+            = end `diffUTCTime` begin < period
+          ==> convolveDilated period f' series' == Nothing where
+                f' = applyFun2 f
+                (begin, end) = beginEndTimes series'
+                series' = TimeSeries $ first incFreq <$> unTimeSeries series
+                incFreq = posixSecondsToUTCTime . (/ 10) . utcTimeToPOSIXSeconds
+                (/) = (Prelude./)
 
 test_integrate :: [TestTree]
 test_integrate =
