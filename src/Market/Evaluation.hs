@@ -113,11 +113,9 @@ instance FromDhall Period where
                         then name
                         else MetricName (show number) <> "-" <> name
 
-type MetricCalculator = TimeSeries ValueChange -> Double
-
 data Metric = Metric
     { name :: MetricName
-    , calculate :: MetricCalculator
+    , calculate :: TimeSeries ValueChange -> Double
     , period :: NominalDiffTime
     }
 
@@ -189,19 +187,38 @@ flattenTree = flattenWithPrefix "" where
                 | prefix == "" = (instrName, tree')
                 | otherwise = (prefix <> "." <> instrName, tree')
 
-calcAvgReturn :: MetricCalculator
-calcAvgReturn = integrate . fmap step where
-    step change = (current change - previous change) / current change
+calcReturns :: TimeSeries ValueChange -> TimeSeries Double
+calcReturns
+    = fmap \change
+   -> (current change - previous change) / current change
 
 avgReturn :: NominalDiffTime -> Metric
-avgReturn = Metric "avgReturn" calcAvgReturn
+avgReturn = Metric "avgReturn" $ integrate . calcReturns
 
-calcAvgLogReturn :: MetricCalculator
-calcAvgLogReturn = integrate . fmap step where
-    step change = log $ current change / previous change
+calcLogReturns :: TimeSeries ValueChange -> TimeSeries Double
+calcLogReturns = fmap \change -> log $ current change / previous change
 
 avgLogReturn :: NominalDiffTime -> Metric
-avgLogReturn = Metric "avgLogReturn" calcAvgLogReturn
+avgLogReturn = Metric "avgLogReturn" $ integrate . calcLogReturns
+
+calcStdReturn :: TimeSeries ValueChange -> Double
+calcStdReturn = calcStdReturn' . calcReturns
+
+calcStdReturn' :: TimeSeries Double -> Double
+calcStdReturn' returns
+    = sqrt $ integrate $ (** 2) . ((-) mean) <$> returns where
+        mean = integrate returns
+
+stdReturn :: NominalDiffTime -> Metric
+stdReturn = Metric "stdReturn" calcStdReturn
+
+calcSharpeRatio :: TimeSeries ValueChange -> Double
+calcSharpeRatio changes = integrate $ (/ std) <$> returns where
+    returns = calcReturns changes
+    std = calcStdReturn' returns
+
+sharpeRatio :: NominalDiffTime -> Metric
+sharpeRatio = Metric "sharpeRatio" calcSharpeRatio
 
 type MetricSansPeriod = NominalDiffTime -> Metric
 
@@ -233,6 +250,8 @@ configurableMetricsSansPeriod :: [(String, MetricSansPeriod)]
 configurableMetricsSansPeriod
   = [ ("AvgReturn", avgReturn)
     , ("AvgLogReturn", avgLogReturn)
+    , ("StdReturn", stdReturn)
+    , ("SharpeRatio", sharpeRatio)
     ]
 
 evaluate

@@ -162,7 +162,7 @@ testResampleSubsequence period subseries series
         downsampled = downsample period series
         isSubsequenceOf = isSubsequenceOfTS' eq where
             eq (t, x) (t', x')
-              = abs (t `diffUTCTime` t') <= period && x == x'
+                = abs (t `diffUTCTime` t') <= period && x == x'
             isSubsequenceOfTS' eq s s'
                 = isSubsequenceOf' eq
                     (NonEmpty.toList $ unTimeSeries s)

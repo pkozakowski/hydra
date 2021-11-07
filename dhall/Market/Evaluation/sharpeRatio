@@ -1,0 +1,7 @@
+let MetricCalculator = ./MetricCalculator
+
+let sharpeRatio
+      : MetricCalculator
+      = MetricCalculator.SharpeRatio
+
+in sharpeRatio
