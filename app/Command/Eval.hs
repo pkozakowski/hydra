@@ -39,14 +39,18 @@ import qualified Parser as P
 
 data EvalOptions = EvalOptions
     { config :: String
-    , initPortfolio :: Portfolio
+    , metrics :: String
+    , plot :: Maybe String
+    , core :: CoreEvalOptions
+    }
+
+data CoreEvalOptions = CoreEvalOptions
+    { initPortfolio :: Portfolio
     , begin :: Maybe UTCTime
     , end :: Maybe UTCTime
     , window :: Maybe NominalDiffTime
     , stride :: Double
     , fees :: Fees
-    , metrics :: String
-    , plot :: Maybe String
     }
 
 defaultBeginTime :: UTCTime
@@ -63,54 +67,6 @@ evalOptions = EvalOptions
     <$> argument str
         ( metavar "CONFIG"
        <> help "Instrument configuration script."
-        )
-    <*> argument portfolio
-        ( metavar "PORTFOLIO"
-       <> help "Initial portfolio in format 1 BTC + 0.5 ETH + ..."
-        )
-    <*> option (Just <$> date)
-        ( long "begin"
-       <> short 'b'
-       <> metavar "DATE"
-       <> help
-            ( "Begin date in format YYYY-MM-DD. Defaults to the earliest date "
-           <> "available."
-            )
-       <> value Nothing
-        )
-    <*> option (Just <$> date)
-        ( long "end"
-       <> short 'e'
-       <> metavar "DATE"
-       <> help "End date in format YYYY-MM-DD. Defaults to the current date."
-       <> value Nothing
-        )
-    <*> option (Just <$> duration)
-        ( long "window"
-       <> short 'w'
-       <> metavar "DURATION"
-       <> help
-            ( "Window size in format 1.4s (for seconds; use m/h/d/M for higher "
-           <> "units). Specifying turns on the windowed evaluation mode."
-            )
-       <> value Nothing
-        )
-    <*> option float
-        ( long "stride"
-       <> short 's'
-       <> metavar "FRACTION"
-       <> help
-            ( "The time difference between two consecutive windows. Specified "
-           <> "relatively to the window size. Defaults to 0.5."
-            )
-       <> value 0.5
-        )
-    <*> option P.fees
-        ( long "fees"
-       <> short 'f'
-       <> metavar "FEES"
-       <> help "Fees in format 0.25% + 0.0015 BNB. Defaults to that value."
-       <> value defaultFees
         )
     <*> option str
         ( long "metrics"
@@ -129,8 +85,66 @@ evalOptions = EvalOptions
         ( long "plot"
        <> short 'p'
        <> metavar "FILE"
-       <> help "Will render an evaluation plot to that file, in VegaLite HTML."
+       <> help
+            ( "Will render an evaluation plot to that file, in VegaLite "
+           <> "HTML."
+            )
        <> value Nothing
+        )
+    <*> coreEvalOptions
+
+coreEvalOptions = CoreEvalOptions
+    <$> argument portfolio
+        ( metavar "PORTFOLIO"
+       <> help "Initial portfolio in format 1 BTC + 0.5 ETH + ..."
+        )
+    <*> option (Just <$> date)
+        ( long "begin"
+       <> short 'b'
+       <> metavar "DATE"
+       <> help
+            ( "Begin date in format YYYY-MM-DD. Defaults to the earliest "
+           <> "date available."
+            )
+       <> value Nothing
+        )
+    <*> option (Just <$> date)
+        ( long "end"
+       <> short 'e'
+       <> metavar "DATE"
+       <> help
+            ( "End date in format YYYY-MM-DD. Defaults to the current "
+           <> "date."
+            )
+       <> value Nothing
+        )
+    <*> option (Just <$> duration)
+        ( long "window"
+       <> short 'w'
+       <> metavar "DURATION"
+       <> help
+            ( "Window size in format 1.4s (for seconds; use m/h/d/M for "
+           <> "higher units). Specifying turns on the windowed evaluation "
+           <> "mode."
+            )
+       <> value Nothing
+        )
+    <*> option float
+        ( long "stride"
+       <> short 's'
+       <> metavar "FRACTION"
+       <> help
+            ( "The time difference between two consecutive windows. "
+           <> "Specified relatively to the window size. Defaults to 0.5."
+            )
+       <> value 0.5
+        )
+    <*> option P.fees
+        ( long "fees"
+       <> short 'f'
+       <> metavar "FEES"
+       <> help "Fees in format 0.25% + 0.0015 BNB. Defaults to that value."
+       <> value defaultFees
         )
 
 loadBindingsFrom :: FilePath -> IO Text
@@ -148,6 +162,8 @@ encodePretty = encodePretty' defConfig { confCompare = compare }
 
 eval :: EvalOptions -> IO ()
 eval options = do
+    let coreOptions = core options
+
     evalBindings <- loadBindingsFrom "./dhall/Market/Evaluation"
     metrics_
        :: [Metric]
@@ -155,8 +171,8 @@ eval options = do
         $ evalBindings <> "in " <> pack (metrics options)
 
     defaultEndTime <- getCurrentTime
-    let beginTime = maybe defaultBeginTime id $ begin options
-        endTime = maybe defaultEndTime id $ end options
+    let beginTime = maybe defaultBeginTime id $ begin coreOptions
+        endTime = maybe defaultEndTime id $ end coreOptions
 
     -- TODO: Validation.
     config
@@ -166,37 +182,36 @@ eval options = do
 
     let assets = nub
             $ managedAssets config
-           ++ feeAssets (fees options)
-           ++ fmap fst (Map.toList $ initPortfolio options)
+           ++ feeAssets (fees coreOptions)
+           ++ fmap fst (Map.toList $ initPortfolio coreOptions)
         res = Proxy @E6
     priceSeries <- runPriceFeed @Minute res assets beginTime endTime
 
-    -- TODO: Daily overlapping returns.
-    case window options of
+    case window coreOptions of
         Nothing -> do
             when (isJust $ plot options)
                 $ fail "plotting only supported for evaluation on windows"
             evaluation <- evaluate
                 res
                 metrics_
-                (fees options)
+                (fees coreOptions)
                 priceSeries
-                (initPortfolio options)
+                (initPortfolio coreOptions)
                 config
             BS.putStrLn $ encodePretty evaluation
         Just window -> do
-            when (stride options <= 0 || stride options > 1)
+            when (stride coreOptions <= 0 || stride coreOptions > 1)
                 $ fail
                 $ "stride should be in range [0, 1); got "
-               ++ show (stride options)
+               ++ show (stride coreOptions)
             evaluation <- evaluateOnWindows
                 res
                 metrics_
-                (fees options)
+                (fees coreOptions)
                 window
-                (realToFrac (stride options) * window)
+                (realToFrac (stride coreOptions) * window)
                 priceSeries
-                (initPortfolio options)
+                (initPortfolio coreOptions)
                 config
 
             case plot options of

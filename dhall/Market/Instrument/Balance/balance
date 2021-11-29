@@ -10,12 +10,12 @@ let balance
       : BalanceConfig Instrument -> Instrument
       = \(config : BalanceConfig Instrument)
      -> \(_Instrument : Type)
-     -> \(builder : InstrumentBuilder _Instrument)
+     -> \(instrumentBuilder : InstrumentBuilder _Instrument)
      -> let adapt
               : Instrument -> _Instrument
               = \(i : Instrument)
-             -> i _Instrument builder
-     in builder.balance
+             -> i _Instrument instrumentBuilder
+        in instrumentBuilder.balance
             ( config with configs
                 = Map/map
                     InstrumentName Instrument _Instrument

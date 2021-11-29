@@ -1,0 +1,14 @@
+let NonEmpty = https://prelude.dhall-lang.org/NonEmpty/Type.dhall
+
+let Instrument = ../Instrument/Type
+
+let GridBuilder
+      : Type -> Type
+      = \(Grid : Type)
+     -> { pure : Instrument -> Grid
+        , choose  : forall (a : Type) -> ./Choose  Grid a -> Grid
+        , subset  : forall (a : Type) -> ./Subset  Grid a -> Grid
+        , subset1 : forall (a : Type) -> ./Subset1 Grid a -> Grid
+        }
+
+in GridBuilder

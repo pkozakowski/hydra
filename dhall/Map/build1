@@ -1,0 +1,23 @@
+let Map = https://prelude.dhall-lang.org/Map/Type
+let Entry = https://prelude.dhall-lang.org/Map/Entry
+let NonEmpty = https://prelude.dhall-lang.org/NonEmpty/Type.dhall
+let NonEmpty/toList = https://prelude.dhall-lang.org/NonEmpty/toList.dhall
+let List/map = https://prelude.dhall-lang.org/List/map.dhall
+
+let entry = ./entry
+
+let build1
+      : forall (a : Type)
+     -> forall (k : Type)
+     -> forall (v : Type)
+     -> (a -> k) -> (a -> v) -> NonEmpty a -> Map k v
+      = \(a : Type)
+     -> \(k : Type)
+     -> \(v : Type)
+     -> \(kf : a -> k)
+     -> \(vf : a -> v)
+     -> \(xs : NonEmpty a)
+     -> List/map a (Entry k v)
+          (\(x : a) -> entry k v (kf x) (vf x)) (NonEmpty/toList a xs)
+
+in build1

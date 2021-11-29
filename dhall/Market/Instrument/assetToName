@@ -1,0 +1,7 @@
+let assetToName
+      : (Text -> Text) -> ../Asset -> ./Name
+      = \(f : Text -> Text)
+     -> \(asset : ../Asset)
+     -> ./name (f asset.asset)
+
+in assetToName

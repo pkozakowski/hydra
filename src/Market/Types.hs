@@ -92,7 +92,7 @@ newtype InstrumentName = InstrumentName { unInstrumentName :: String }
     deriving newtype (IsString, NFData, Semigroup, ToJSONKey)
 
 instance Show InstrumentName where
-    show = unInstrumentName
+    show = show . unInstrumentName
 
 instance FromDhall InstrumentName where
     autoWith _
@@ -196,6 +196,18 @@ instance Ord k => Truncatable (Distribution k) where
             xs' = truncateTo res xs
             xs = unShare <$> shares where
                 unShare (Share x) = x
+
+instance (FromDhall k, Ord k) => FromDhall (Distribution k) where
+
+    autoWith normalizer
+        = fmap (Distribution . weightsToShares . remap id)
+        $ Dh.map Dh.auto
+        $ Dh.record
+        $ Dh.field "share"
+        $ Dh.autoWith normalizer where
+            weightsToShares :: SparseMap k Natural -> SparseMap k Share
+            weightsToShares m = Share . (% denom) . toInteger <$> m where
+                denom = toInteger $ sum m
 
 onePoint :: Ord k => k -> Distribution k
 onePoint key = Distribution $ fromList [(key, share one)]

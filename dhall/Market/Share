@@ -1,5 +1,5 @@
 let Share
       : Type
-      = { share : Double }
+      = { share : Natural }
 
 in Share

@@ -1,0 +1,19 @@
+let Map = https://prelude.dhall-lang.org/Map/Type
+let Entry = https://prelude.dhall-lang.org/Map/Entry
+let List/map = https://prelude.dhall-lang.org/List/map.dhall
+
+let entry = ./entry
+
+let build
+      : forall (a : Type)
+     -> forall (k : Type)
+     -> forall (v : Type)
+     -> (a -> k) -> (a -> v) -> List a -> Map k v
+      = \(a : Type)
+     -> \(k : Type)
+     -> \(v : Type)
+     -> \(kf : a -> k)
+     -> \(vf : a -> v)
+     -> List/map a (Entry k v) (\(x : a) -> entry k v (kf x) (vf x))
+
+in build

@@ -45,6 +45,9 @@ class Default a where
 instance Default Int where
     def = 0
 
+instance Default Natural where
+    def = 0
+
 instance Default a => Default (Maybe a) where
     def = pure def
 

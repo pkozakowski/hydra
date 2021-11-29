@@ -9,11 +9,13 @@ import Options.Applicative hiding (helper, hsubparser)
 
 import Command.Eval
 import Command.Sync
+import Command.Tune
 import Help
 
 data Cmd
     = Eval EvalOptions
     | Sync SyncOptions
+    | Tune TuneOptions
 
 parseCmd :: Parser Cmd
 parseCmd
@@ -26,6 +28,11 @@ parseCmd
         ( command "sync"
             $ info syncOptions
             $ progDesc "Synchronize the price data."
+        )
+  <|> Tune <$> hsubparser
+        ( command "tune"
+            $ info tuneOptions
+            $ progDesc "Tune an instrument."
         )
 
 data Verbosity = Warning | Info | Debug
@@ -62,8 +69,9 @@ run :: Options -> IO ()
 run opts = withStderrLogging do
     setLogLevel $ toLogLevel $ verbosity opts
     case cmd opts of
-        Sync opts' -> sync opts'
         Eval opts' -> eval opts'
+        Sync opts' -> sync opts'
+        Tune opts' -> tune opts'
 
 main :: IO ()
 main = run =<< customExecParser (prefs showHelpOnEmpty) opts where

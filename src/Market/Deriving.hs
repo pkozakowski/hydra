@@ -11,8 +11,6 @@ import Data.Deriving
 import Data.Map.Sparse
 import Data.Text (pack)
 import Data.Typeable
-import Dhall (FromDhall)
-import qualified Dhall as Dh
 import Language.Haskell.TH
 import Numeric.Algebra
 import Numeric.Algebra.Deriving
@@ -22,7 +20,7 @@ import Numeric.Truncatable
 import Market.Asset
 import Prelude hiding ((+), (*), (/))
 
--- | Derives instances of Semimodule, Module, Delta, Truncatable and FromDhall
+-- | Derives instances of Semimodule, Module, Delta and Truncatable
 -- for two pairs of types: scalar and map of absolute and relative quantities.
 -- (Semi)modules are over the same, unitless scalar type.
 -- Additionally derives ReadMap, BuildMap and SetMap for the map types.
@@ -66,17 +64,6 @@ deriveConstrainedQuantityInstances scr q qd k qm qdm
         [ deriveModule scr qd
         , deriveDeltaOrd q qd
         ] ++
-        [ do
-            TyConI (NewtypeD _ _ _ _ (NormalC tCon _) _) <- reify t
-            let fieldName = pack $ (:) <$> toLower . head <*> tail $ nameBase t
-            [d| instance FromDhall $(conT t) where
-                    autoWith normalizer
-                        = Dh.record
-                        $ Dh.field fieldName
-                        $ $(conE tCon) <$> Dh.autoWith normalizer
-                |]
-        | t <- [q, qd]
-        ] ++
         -- Map instances:
         [ deriveUnary' [appConT' ''Ord k] tm
             [''Eq]
@@ -84,7 +71,7 @@ deriveConstrainedQuantityInstances scr q qd k qm qdm
         ] ++
         [ deriveUnary' [appConT' c k, appConT' ''Ord k] tm [c]
         | tm <- [qm, qdm]
-        , c <- [''FromDhall, ''NFData, ''Show, ''Typeable]
+        , c <- [''NFData, ''Show, ''Typeable]
         ] ++
         [ deriveModule' [appConT' ''Ord k] scr qdm
         , deriveDeltaNewtype [appConT' ''Ord k] qm qdm

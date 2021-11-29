@@ -6,7 +6,7 @@ let hold
       : Asset -> Instrument
       = \(asset : Asset)
      -> \(Instrument : Type)
-     -> \(builder : InstrumentBuilder Instrument)
-     -> builder.hold { held = asset }
+     -> \(instrumentBuilder : InstrumentBuilder Instrument)
+     -> instrumentBuilder.hold { held = asset }
 
 in hold

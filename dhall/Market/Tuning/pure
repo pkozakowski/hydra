@@ -1,0 +1,13 @@
+let Instrument = ../Instrument/Type
+
+let Grid = ./Grid
+let GridBuilder = ./GridBuilder
+
+let pure
+      : Instrument -> Grid
+      = \(instrument : Instrument)
+     -> \(Grid : Type)
+     -> \(gridBuilder : GridBuilder Grid)
+     -> gridBuilder.pure instrument
+
+in pure

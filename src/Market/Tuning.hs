@@ -1,47 +1,133 @@
-module Market.Tuning where
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE QuasiQuotes #-}
+
+module Market.Tuning
+    ( Grid
+    , StopWhen
+    , choose
+    , runGridRandom
+    , subset
+    , subset1
+    , tune
+    ) where
 
 import Control.Monad
 import Control.Monad.Free
 import Data.Composition
-import Data.List.NonEmpty (NonEmpty (..))
+import Data.Foldable
+import Data.Functor.Contravariant
+import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
-import Data.Map.Static
+import Data.Map.Static hiding (null, toList)
 import Data.Maybe
+import qualified Data.Sequence as Seq
+import Data.Text (pack, unpack)
 import Data.Time.Clock
+import Data.Void
+import Dhall
+import Dhall.Core hiding (value)
+import qualified Dhall.Map as Map
+import Dhall.Src
+import Dhall.TH
+import Dhall.TypeCheck
 import Market
+import Market.Dhall
 import Market.Evaluation
+import Market.Instrument.Dhall
+import Market.Instrument.Some
 import Market.Ops
 import Market.Time
 import Numeric.Precision
-import Polysemy
+import Polysemy hiding (embed)
 import Polysemy.Error
 import Polysemy.Output
 import Polysemy.State
 import System.Random as Random
 import System.Random.Stateful
 
-data Choice a = forall b. Choice (NonEmpty b) (b -> a)
+data Choice a
+    = forall b. Choose (NonEmpty b) (b -> a)
+    | forall b. Subset Double [b] ([b] -> a)
+    | forall b. Subset1 Double (NonEmpty b) (NonEmpty b -> a)
 
 instance Functor Choice where
-    fmap f (Choice xs g) = Choice xs $ f . g
+    fmap f = \case
+        Choose xs g -> Choose xs $ f . g
+        Subset p xs g -> Subset p xs $ f . g
+        Subset1 p xs g -> Subset1 p xs $ f . g
 
 type Grid = Free Choice
 
-choice :: NonEmpty a -> Grid a
-choice xs = liftF $ Choice xs id
+instance FromDhall (Grid SomeInstrumentConfig) where
 
--- | Generates an exhaustive list of grid substitutions.
-runGridExhaustive :: Grid a -> NonEmpty a
-runGridExhaustive = foldFree go where
-    go (Choice xs f) = f <$> xs
+    autoWith _ = Decoder { .. } where
+
+        expected = pure [dhall|
+            let Grid = ./dhall/Market/Tuning/Grid
+            in ./dhall/Market/Tuning/GridBuilder Grid
+                    -> Grid
+            |]
+
+        extract = extractRecursiveT "Grid" expected lookup lookupT where
+            lookup = (. unpack) \case
+                "pure" -> Just $ pure <$> decodeConfig
+                _ -> Nothing
+
+            lookupT type_ = (. unpack) \case
+
+                "choose" -> Just
+                    $ fmap wrap
+                    $ record
+                    $ Choose
+                        <$> field "xs" (decodeNonEmpty $ decodeExpr type_)
+                        <*> field "cont" (function (encodeExpr type_) auto)
+
+                "subset" -> Just
+                    $ fmap wrap
+                    $ record
+                    $ Subset
+                        <$> field "p" auto
+                        <*> field "xs" (decodeList $ decodeExpr type_)
+                        <*> field "cont"
+                            (function (encodeList $ encodeExpr type_) auto)
+
+                "subset1" -> Just
+                    $ fmap wrap
+                    $ record
+                    $ Subset1
+                        <$> field "p" auto
+                        <*> field "xs" (decodeNonEmpty $ decodeExpr type_)
+                        <*> field "cont"
+                            (function (encodeNonEmpty $ encodeExpr type_) auto)
+
+                _ -> Nothing
+
+choose :: NonEmpty a -> Grid a
+choose xs = liftF $ Choose xs id
+
+subset :: Double -> [a] -> Grid [a]
+subset p xs = liftF $ Subset p xs id
+
+subset1 :: Double -> NonEmpty a -> Grid (NonEmpty a)
+subset1 p xs = liftF $ Subset1 p xs id
 
 -- | Generates an infinite list of random grid substitutions.
 runGridRandom :: RandomGen g => g -> Grid a -> NonEmpty a
 runGridRandom gen grid = runOne <$> gens where
     runOne gen = runStateGen_ gen $ const $ foldFree go grid where
-        go (Choice xs f) = do
-            i <- randomRM (0, NonEmpty.length xs - 1) StateGenM
-            return $ f $ xs NonEmpty.!! i
+        go = \case
+            Choose xs f -> do
+                i <- uniformRM (0, NonEmpty.length xs - 1) StateGenM
+                return $ f $ xs NonEmpty.!! i
+            Subset p xs f -> f <$> randomSubset p xs StateGenM
+            Subset1 p xs f -> do
+                subset <- randomSubset p (toList xs) StateGenM
+                case nonEmpty subset of
+                    Just subset' -> return $ f subset'
+                    Nothing -> go $ Subset1 p xs f
+        randomSubset p xs g = concat <$> forM xs \x -> do
+            r <- uniformRM (0.0, 1.0) g
+            return $ if r < p then [x] else []
     gens = NonEmpty.unfoldr f gen where
         f gen = (gen', Just gen'') where
             (gen', gen'') = Random.split gen
@@ -109,3 +195,67 @@ tune stopWhen fitness runGrid grid = do
                         time <- now
                         return $ time >= limit `addUTCTime` beginTime
                     NoLimit -> return False
+
+decodeConfig :: Decoder SomeInstrumentConfig
+decodeConfig = Decoder
+    { expected = pure [dhall| ./dhall/Market/Instrument/Type |]
+    , extract = extract_
+    } where
+       extract_ expr
+            = extract auto
+            $ normalize
+            $ App expr [dhall| ./dhall/Market/Instrument/Type |]
+
+data TypedExpr = TypedExpr
+    { type_ :: Expr Src Void
+    , value :: Expr Src Void
+    }
+
+decodeExpr :: Expr Src Void -> Decoder TypedExpr
+decodeExpr type_ = Decoder { .. } where
+    expected = pure type_
+    extract = pure . TypedExpr type_
+
+encodeExpr :: Expr Src Void -> Encoder TypedExpr
+encodeExpr type_ = Encoder { .. } where
+    declared = type_
+    embed = value
+
+decodeList :: Decoder a -> Decoder [a]
+decodeList decodeElem
+    = Decoder { expected = expected_, extract = extract_ } where
+        expected_ = App List <$> expected decodeElem
+        extract_ expr = case expr of
+            ListLit _ seq -> traverse (extract decodeElem) $ toList seq
+            _ -> typeError expected_ expr
+
+encodeList :: Encoder a -> Encoder [a]
+encodeList encodeElem
+    = Encoder { declared = declared_, embed = embed_ } where
+        declared_ = App List $ declared encodeElem
+        embed_
+            = ListLit (Just declared_)
+            . Seq.fromList
+            . fmap (embed encodeElem)
+
+decodeNonEmpty :: Decoder a -> Decoder (NonEmpty a)
+decodeNonEmpty decodeElem = record
+    $ (:|)
+        <$> field "head" decodeElem
+        <*> field "tail" (list decodeElem)
+
+encodeNonEmpty :: Encoder a -> Encoder (NonEmpty a)
+encodeNonEmpty encodeElem
+    = Encoder { declared = declared_, embed = embed_ } where
+        declared_
+            = Record
+            $ Map.fromList
+                [ ("head", makeRecordField $ declared encodeElem)
+                , ("tail", makeRecordField $ App List $ declared encodeElem)
+                ]
+        embed_ (head :| tail)
+            = RecordLit
+            $ Map.fromList
+                [ ("head", makeRecordField $ embed encodeElem head)
+                , ("tail", makeRecordField $ embed (encodeList encodeElem) tail)
+                ]

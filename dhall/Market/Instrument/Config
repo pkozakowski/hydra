@@ -1,7 +1,0 @@
-let Config
-      : Type -> Type
-      = \(Instrument : Type)
-     -> ./Builder Instrument
-     -> Instrument
-
-in Config
