@@ -3,8 +3,10 @@
 
 module Market.Tuning
     ( Grid
-    , StopWhen
+    , StopWhen (..)
     , choose
+    , instrumentFitness
+    , instrumentFitnessOnWindows
     , runGridRandom
     , subset
     , subset1
@@ -139,23 +141,46 @@ instrumentFitness
         )
     => Metric
     -> Fees
-    -> NominalDiffTime
-    -> NominalDiffTime
-    -> TimeSeries (Prices)
+    -> ([Asset] -> Sem r (TimeSeries Prices))
     -> Portfolio
     -> c
     -> Sem r Double
-instrumentFitness metric = fmap toDouble .::: evaluateOnWindows [metric] where
-    toDouble eval = integrate $ active eval ! name metric
+instrumentFitness metric fees assetsToPrices initPortfolio config = do
+    prices <- assetsToPrices $ managedAssets config
+    toDouble <$> evaluate [metric] fees prices initPortfolio config
+    where
+        toDouble eval = active eval ! name metric
+
+instrumentFitnessOnWindows
+    :: forall c s r
+     .  ( Instrument c s
+        , Members [Precision, Error (MarketError)] r
+        )
+    => Metric
+    -> Fees
+    -> NominalDiffTime
+    -> NominalDiffTime
+    -> ([Asset] -> Sem r (TimeSeries Prices))
+    -> Portfolio
+    -> c
+    -> Sem r Double
+instrumentFitnessOnWindows
+    metric fees window stride assetsToPrices initPortfolio config
+        = do
+            prices <- assetsToPrices $ managedAssets config
+            toDouble <$> evaluateOnWindows
+                [metric] fees window stride prices initPortfolio config
+            where
+                toDouble eval = integrate $ active eval ! name metric
 
 data StopWhen
-    = TrialLimit Integer
+    = TrialLimit Natural
     | TimeLimit NominalDiffTime
     | NoLimit
 
 data TuningState c = TuningState
     { best :: Maybe (c, Double)
-    , trial :: Integer
+    , trial :: Natural
     }
 
 tune
@@ -172,6 +197,10 @@ tune stopWhen fitness runGrid grid = do
         $ runError
         $ execState (TuningState Nothing 0)
         $ forM (runGrid grid) \config -> do
+            shouldStop <- runShouldStop beginTime
+            when shouldStop
+                $ throw @(c, Double) =<< fromJust . best <$> get
+
             ftn <- raise_ $ fitness config
             best <$> get @(TuningState c) >>= \case
                 Nothing -> newBest config ftn
@@ -179,10 +208,6 @@ tune stopWhen fitness runGrid grid = do
                     | ftn > bestFtn -> newBest config ftn
                     | otherwise -> return ()
             modify @(TuningState c) \s -> s { trial = trial s + 1 }
-
-            shouldStop <- runShouldStop beginTime
-            when shouldStop
-                $ throw @(c, Double) =<< fromJust . best <$> get
             where
                 newBest config ftn = do
                     output @(c, Double) (config, ftn)

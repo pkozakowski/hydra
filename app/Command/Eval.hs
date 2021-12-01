@@ -160,6 +160,31 @@ loadBindingsFrom dir = do
 encodePretty :: ToJSON a => a -> BS.ByteString
 encodePretty = encodePretty' defConfig { confCompare = compare }
 
+allAssets :: Fees -> Portfolio -> [Asset] -> [Asset]
+allAssets fees initPortfolio managedAssets
+    = nub
+    $ managedAssets
+   ++ feeAssets fees
+   ++ fmap fst (Map.toList initPortfolio)
+
+resolutionP :: Proxy E6
+resolutionP = Proxy
+
+beginEndTimes :: Maybe UTCTime -> Maybe UTCTime -> IO (UTCTime, UTCTime)
+beginEndTimes maybeBeginTime maybeEndTime = do
+    defaultEndTime <- getCurrentTime
+    let beginTime = maybe defaultBeginTime id maybeBeginTime
+        endTime = maybe defaultEndTime id maybeEndTime
+    return (beginTime, endTime)
+
+strideDuration :: NominalDiffTime -> Double -> IO NominalDiffTime
+strideDuration window stride = do
+    when (stride <= 0 || stride > 1)
+        $ fail
+        $ "stride should be in range (0, 1]; got "
+       ++ show stride
+    return $ realToFrac stride * window
+
 eval :: EvalOptions -> IO ()
 eval options = do
     let coreOptions = core options
@@ -170,29 +195,24 @@ eval options = do
        <- Dhall.input Dhall.auto
         $ evalBindings <> "in " <> pack (metrics options)
 
-    defaultEndTime <- getCurrentTime
-    let beginTime = maybe defaultBeginTime id $ begin coreOptions
-        endTime = maybe defaultEndTime id $ end coreOptions
-
     -- TODO: Validation.
     config
         :: SomeInstrumentConfig
         <- Dhall.input Dhall.auto
          $ "./" <> pack (config options) <> " ./dhall/Market/Instrument/Type"
 
-    let assets = nub
+    let assets
+            = allAssets (fees coreOptions) (initPortfolio coreOptions)
             $ managedAssets config
-           ++ feeAssets (fees coreOptions)
-           ++ fmap fst (Map.toList $ initPortfolio coreOptions)
-        res = Proxy @E6
-    priceSeries <- runPriceFeed @Minute res assets beginTime endTime
+    (beginTime, endTime) <- beginEndTimes (begin coreOptions) (end coreOptions)
+    priceSeries <- runPriceFeed @Minute resolutionP assets beginTime endTime
 
     case window coreOptions of
         Nothing -> do
             when (isJust $ plot options)
                 $ fail "plotting only supported for evaluation on windows"
             evaluation <- evaluate
-                res
+                resolutionP
                 metrics_
                 (fees coreOptions)
                 priceSeries
@@ -200,16 +220,13 @@ eval options = do
                 config
             BS.putStrLn $ encodePretty evaluation
         Just window -> do
-            when (stride coreOptions <= 0 || stride coreOptions > 1)
-                $ fail
-                $ "stride should be in range [0, 1); got "
-               ++ show (stride coreOptions)
+            stride_ <- strideDuration window $ stride coreOptions
             evaluation <- evaluateOnWindows
-                res
+                resolutionP
                 metrics_
                 (fees coreOptions)
                 window
-                (realToFrac (stride coreOptions) * window)
+                stride_
                 priceSeries
                 (initPortfolio coreOptions)
                 config
