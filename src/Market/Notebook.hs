@@ -17,7 +17,9 @@ import Data.Text
 import qualified Data.Text.Lazy as L
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
+import qualified Dhall.Pretty as Dh
 import Market
+import Market.Dhall
 import Market.Evaluation hiding (evaluate, evaluateOnWindows)
 import qualified Market.Evaluation as Evaluation
 import Market.Feed
@@ -35,7 +37,6 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Output
 import Prelude hiding (log)
-import Text.Pretty.Simple
 
 runPriceFeed
     :: forall atp res
@@ -105,8 +106,8 @@ evaluateOnWindows res
     .:::. Evaluation.evaluateOnWindows
 
 tune
-    :: forall c res e
-     . (Show c, HasResolution res, Show e)
+    :: forall c s res e
+     . (Instrument c s, Show c, HasResolution res, Show e)
     => res
     -> StopWhen
     -> ( c -> Sem
@@ -128,4 +129,4 @@ tune res
   .:: Tuning.tune where
         runOutputLog = runOutputSem \(config, ftn) -> embed $ log
             $ "new best config [fitness = " <> pack (show ftn) <> "]:\n"
-           <> L.toStrict (pShow config)
+           <> pack (showPrettyExpr $ smartToDhall config)

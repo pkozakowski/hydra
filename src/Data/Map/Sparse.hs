@@ -48,6 +48,9 @@ instance Default Int where
 instance Default Natural where
     def = 0
 
+instance Default Double where
+    def = 0.0
+
 instance Default a => Default (Maybe a) where
     def = pure def
 

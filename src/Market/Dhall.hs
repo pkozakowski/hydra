@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Market.Dhall where
 
 import Data.Bifunctor
@@ -6,10 +8,14 @@ import Data.Functor.Identity
 import Data.Text (pack, unpack)
 import Data.Void
 import Dhall hiding (maybe)
-import Dhall.Core
+import Dhall.Core hiding (pretty)
 import Dhall.Pretty
 import Dhall.Src
 import Dhall.TypeCheck
+import Numeric.Field.Fraction
+import Numeric.Truncatable
+import Prettyprinter
+import Prettyprinter.Render.Terminal
 
 extractRecursive
     :: Text
@@ -129,3 +135,47 @@ noBuilderCallError :: Text -> Expr Src Void -> Extractor Src Void a
 noBuilderCallError typeName expr = extractError 
     $ "invalid " <> typeName <> ": expected a builder call, got: \n"
    <> pack (show (prettyExpr expr))
+
+import_ :: [Text] -> Text -> Binding s Import
+import_ package name
+    = makeBinding name $ Embed Import { .. } where
+        importHashed = ImportHashed { .. } where
+            hash = Nothing
+            importType = Local Here File { .. } where
+                file = name
+                directory = Directory $ reverse package ++ ["dhall"]
+        importMode = Code
+
+call :: Text -> Expr s a -> Expr s a
+call name = App $ Var $ V name 0
+
+call2 :: Text -> Expr s a -> Expr s a -> Expr s a
+call2 name = App . call name
+
+embedScalar :: Fraction Integer -> Expr s a
+embedScalar = DoubleLit . DhallDouble . fractionToFractional
+
+embedString :: String -> Expr s a
+embedString = TextLit . Chunks [] . pack
+
+showPrettyExpr :: Pretty a => Expr s a -> String
+showPrettyExpr
+    = unpack
+    . renderStrict
+    . layout
+    . fmap annToAnsiStyle
+    . prettyExpr' where
+        -- Alternative prettyExpr which groups the imports together.
+        prettyExpr' = \case
+            Let bnd expr
+                -> annotate Keyword "let"
+               <+> pretty (variable bnd)
+               <+> annotate Syntax "="
+               <+> prettyExpr (value bnd)
+                <> line
+                <> prettyExpr' expr
+            expr
+                -> line
+                <> annotate Keyword "in"
+                <> "  "
+                <> prettyExpr expr

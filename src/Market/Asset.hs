@@ -5,8 +5,9 @@ module Market.Asset where
 
 import Control.DeepSeq
 import Data.Aeson (ToJSON)
+import Data.Functor.Contravariant
 import Data.String
-import Dhall (FromDhall (..))
+import Dhall (FromDhall, ToDhall)
 import qualified Dhall as Dh
 import GHC.Generics
 import Test.QuickCheck
@@ -23,6 +24,11 @@ instance FromDhall Asset where
         = Dh.record
         $ Dh.field "asset"
         $ Asset <$> Dh.string
+
+instance ToDhall Asset where
+    injectWith _
+        = Dh.recordEncoder
+        $ unAsset >$< Dh.encodeField "asset"
 
 instance Arbitrary Asset where
     arbitrary = elements testAssets

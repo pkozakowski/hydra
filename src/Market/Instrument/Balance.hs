@@ -4,20 +4,28 @@
 module Market.Instrument.Balance where
 
 import Control.Monad
+import Data.Bifunctor
 import Data.Functor.Apply
 import Data.List
+import Data.List.NonEmpty (NonEmpty (..))
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.Map.Static hiding (Value, null)
 import Data.Maybe
+import qualified Data.Sequence as Seq
 import Data.Time
+import qualified Dhall as Dh
+import qualified Dhall.Core as Dh
+import qualified Dhall.Map as Dh
 import GHC.Generics
 import GHC.Stack
 import Market
-import Market.Ops
+import Market.Dhall
 import Market.Instrument.Ops
 import Market.Instrument.Some
+import Market.Ops
 import Market.Simulation
 import Market.Time
-import Numeric.Algebra hiding ((>))
+import Numeric.Algebra hiding ((<), (>), fromInteger)
 import Numeric.Kappa
 import Numeric.Normed
 import Numeric.Truncatable
@@ -155,6 +163,79 @@ instance Instrument BalanceConfig BalanceState where
 
     managedAssets config
         = nub $ managedAssets =<< snd <$> toList (configs config)
+
+    smartEmbed config
+        = Dh.MultiLet
+            ( import_ ["Market", "Instrument", "Balance"] "balance"
+           :| import_ ["Market", "Instrument", "Map"] "instrument"
+            : import_ ["Market", "Instrument", "Map"] "share"
+            : import_ ["Time"] "days"
+            : import_ ["Time"] "hours"
+            : import_ ["Time"] "minutes"
+            : import_ ["Time"] "seconds"
+            : subconfigImports
+            )
+            $ call "balance"
+            $ Dh.RecordLit
+            $ Dh.fromList
+            $ second Dh.makeRecordField
+          <$> [ ("configs", configsDh)
+              , ("target", targetDh)
+              , ("tolerance", toleranceDh)
+              , ("updateEvery", updateEveryDh)
+              ]
+            where
+                smartSubconfigs = smartEmbed <$> configs config
+
+                subconfigImports
+                    = concat
+                    $ fmap (NonEmpty.toList . bindings . snd)
+                    $ toList smartSubconfigs where
+                        bindings (Dh.MultiLet b _) = b
+
+                configsDh
+                    = Dh.ListLit Nothing
+                    $ Seq.fromList
+                    $ fmap instrument
+                    $ toList smartSubconfigs where
+                        instrument (InstrumentName name, Dh.MultiLet _ expr)
+                            = call2 "instrument" (embedString name) expr
+
+                targetDh
+                    = Dh.ListLit Nothing
+                    $ Seq.fromList
+                    $ fmap share
+                    $ toList dist where
+                        Distribution dist = target config
+                        share (InstrumentName name, Share shr)
+                            = call2 "share" (embedString name)
+                            $ embedScalar shr
+
+                toleranceDh = embedScalar $ tolerance config
+
+                updateEveryDh
+                    = if truncError day < 1
+                        then callN "days" $ period `div` day
+                    else if truncError hour < 1
+                        then callN "hours" $ period `div` hour
+                    else if truncError minute < 1
+                        then callN "minutes" $ period `div` minute
+                        else callN "seconds" $ period `div` second
+                    where
+                        (-) = (Prelude.-)
+                        (*) = (Prelude.*)
+                        (/) = (Prelude./)
+                        truncError upTo
+                            = period - (period `div` upTo `mul` upTo)
+                        callN name
+                            = call name . Dh.NaturalLit . fromInteger
+                        div period upTo = floor $ period / upTo
+                        mul n period = fromInteger n * period
+                        day = 24 * hour
+                        hour = 60 * minute
+                        minute = 60 * second
+                        second = secondsToNominalDiffTime 1
+                        period = updateEvery config
 
 distributePortfolio
     :: BalanceConfig

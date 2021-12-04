@@ -9,9 +9,9 @@ let InstrumentName = ../Name
 let instrumentName = ../name
 
 let share
-      : Text -> Natural -> Entry InstrumentName Share
+      : Text -> Double -> Entry InstrumentName Share
       = \(symbol : Text)
-     -> \(value : Natural)
+     -> \(value : Double)
      -> entry InstrumentName Share (instrumentName symbol) (shareVal value)
 
 in share

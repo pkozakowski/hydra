@@ -37,6 +37,12 @@ realToFraction = ratioToFraction . toRational
 ratioToFraction :: Ratio.Ratio Integer -> Fraction Integer
 ratioToFraction = (%) <$> Ratio.numerator <*> Ratio.denominator
 
+fractionToFractional :: Fractional a => Fraction Integer -> a
+fractionToFractional = fromRational . fractionToRatio
+
+fractionToRatio :: Fraction Integer -> Ratio.Ratio Integer
+fractionToRatio = (Ratio.%) <$> numerator <*> denominator
+
 instance HasResolution r => HasResolution (Proxy r) where
     resolution :: p (Proxy r) -> Integer
     resolution _ = resolution $ Proxy @r

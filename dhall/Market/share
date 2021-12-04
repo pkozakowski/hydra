@@ -1,6 +1,6 @@
 let share 
-      : Natural -> ./Share
-      = \(x : Natural)
+      : Double -> ./Share
+      = \(x : Double)
      -> { share = x }
 
 in share

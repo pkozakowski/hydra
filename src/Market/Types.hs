@@ -20,6 +20,7 @@ import Data.Bifunctor
 import Data.Coerce
 import Data.Fixed
 import Data.Functor.Apply
+import Data.Functor.Contravariant
 import Data.List (sort)
 import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
@@ -32,7 +33,7 @@ import Data.Semigroup.Traversable
 import Data.String
 import Data.Time
 import qualified Dhall as Dh
-import Dhall (FromDhall)
+import Dhall (FromDhall, ToDhall)
 import GHC.Generics
 import GHC.TypeLits
 import Language.Haskell.TH
@@ -99,6 +100,11 @@ instance FromDhall InstrumentName where
         = Dh.record
         $ Dh.field "instrumentName"
         $ InstrumentName <$> Dh.string
+
+instance ToDhall InstrumentName where
+    injectWith _
+        = Dh.recordEncoder
+        $ unInstrumentName >$< Dh.encodeField "instrumentName"
 
 -- | Amount of an Asset.
 newtype Amount = Amount Scalar
@@ -205,9 +211,9 @@ instance (FromDhall k, Ord k) => FromDhall (Distribution k) where
         $ Dh.record
         $ Dh.field "share"
         $ Dh.autoWith normalizer where
-            weightsToShares :: SparseMap k Natural -> SparseMap k Share
-            weightsToShares m = Share . (% denom) . toInteger <$> m where
-                denom = toInteger $ sum m
+            weightsToShares :: SparseMap k Double -> SparseMap k Share
+            weightsToShares m = Share . realToFraction <$> m' where
+                m' = (Prelude./ Prelude.sum m) <$> m
 
 onePoint :: Ord k => k -> Distribution k
 onePoint key = Distribution $ fromList [(key, share one)]

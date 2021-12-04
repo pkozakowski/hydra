@@ -65,7 +65,8 @@ dependencies:
 - either
 - directory
 - aeson-pretty
-- yaml
+- prettyprinter
+- prettyprinter-ansi-terminal
 
 library:
   source-dirs: src

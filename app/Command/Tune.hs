@@ -4,8 +4,10 @@ import qualified Data.List.NonEmpty as NonEmpty
 import Data.Text (Text, pack, unpack)
 import qualified Data.Text.Lazy as L
 import Data.Time
-import qualified Dhall
+import qualified Dhall as Dh
+import qualified Dhall.Pretty as Dh
 import Market
+import Market.Dhall
 import Market.Feed.MongoDB
 import Market.Instrument
 import Market.Notebook hiding (duration)
@@ -64,18 +66,18 @@ tuneOptions = TuneOptions
     <*> coreEvalOptions
 
 tune :: TuneOptions -> IO ()
-tune options = Dhall.detailed do
+tune options = Dh.detailed do
     let coreOptions = core options
 
     evalBindings <- loadBindingsFrom "./dhall/Market/Evaluation"
     metric_
        :: Metric
-       <- Dhall.input Dhall.auto
+       <- Dh.input Dh.auto
         $ evalBindings <> "in " <> pack (metric options)
 
     grid
         :: Grid SomeInstrumentConfig
-        <- Dhall.input Dhall.auto
+        <- Dh.input Dh.auto
          $ "./" <> pack (grid options) <> " ./dhall/Market/Tuning/Grid"
 
     (beginTime, endTime) <- beginEndTimes (begin coreOptions) (end coreOptions)
@@ -99,4 +101,4 @@ tune options = Dhall.detailed do
     putStrLn
         $ unpack
         $ "best config [fitness = " <> pack (show bestFitness) <> "]:\n"
-       <> L.toStrict (pShow bestConfig)
+       <> pack (showPrettyExpr $ smartToDhall bestConfig)

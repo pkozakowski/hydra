@@ -12,8 +12,12 @@ module Market
 
 import Control.DeepSeq
 import Data.Fixed
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.Map.Static
 import Data.Proxy
+import Data.Void
+import qualified Dhall.Core as Dh
+import qualified Dhall.Src as Dh
 import GHC.Generics
 import Market.Time
 import Market.Types
@@ -86,6 +90,7 @@ class Truncatable s => Instrument c s | s -> c, c -> s where
     execute :: Members (ExecuteEffects c s) r => Sem r ()
     visit :: Prices -> Portfolio -> c -> s -> Visitor self agg
     managedAssets :: c -> [Asset]
+    smartEmbed :: c -> Dh.MultiLet Dh.Src Dh.Import
 
 visit'
     :: forall self agg c s
@@ -116,3 +121,8 @@ runInstrument'
 runInstrument' config state monad = runInputConst (IConfig config) do
     (IState state', x) <- runState (IState state) monad
     return (state', x)
+
+smartToDhall :: Instrument c s => c -> Dh.Expr Dh.Src Dh.Import
+smartToDhall config = Dh.wrapInLets bindings' expr where
+    bindings' = NonEmpty.sort $ NonEmpty.nub bindings
+    Dh.MultiLet bindings expr = smartEmbed config

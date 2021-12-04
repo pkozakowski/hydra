@@ -2,6 +2,8 @@ module Market.Instrument.Some where
 
 import Data.Fixed
 import Data.Text (pack, unpack)
+import qualified Dhall.Core as Dh
+import qualified Dhall.Src as Dh
 import Market
 import Numeric.Truncatable
 import Polysemy
@@ -13,6 +15,7 @@ data SomeInstrumentConfig = SomeInstrumentConfig
     , someInitAllocation :: Prices -> Distribution Asset
     , someShow :: String
     , someManagedAssets :: [Asset]
+    , someSmartEmbed :: Dh.MultiLet Dh.Src Dh.Import
     }
 
 instance Instrument SomeInstrumentConfig SomeInstrumentState where
@@ -35,6 +38,8 @@ instance Instrument SomeInstrumentConfig SomeInstrumentState where
 
     managedAssets = someManagedAssets
 
+    smartEmbed = someSmartEmbed
+
 instance Show SomeInstrumentConfig where
     show = someShow
 
@@ -43,7 +48,7 @@ someInstrumentConfig
     .  (Instrument c s, Show c)
     => c -> SomeInstrumentConfig
 someInstrumentConfig config
-    = SomeInstrumentConfig initSt initAlloc shw mngAss where
+    = SomeInstrumentConfig initSt initAlloc shw mngAss smartEmb where
         initSt prices
             = someInstrumentState config
             $ run $ runInputConst prices $ runInputConst (IConfig config)
@@ -53,6 +58,7 @@ someInstrumentConfig config
             $ initAllocation @c
         shw = show config
         mngAss = managedAssets config
+        smartEmb = smartEmbed config
 
 data SomeInstrumentState = SomeInstrumentState
     { someExecute

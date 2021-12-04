@@ -10,6 +10,6 @@ let build1 = ../../../Map/build1
 let uniform
       : forall (k : Type) -> NonEmpty k -> Map k Share
       = \(k : Type)
-     -> build1 k k Share (\(key : k) -> key) (\(_ : k) -> share 1)
+     -> build1 k k Share (\(key : k) -> key) (\(_ : k) -> share 1.0)
 
 in uniform
