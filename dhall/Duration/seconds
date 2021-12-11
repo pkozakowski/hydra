@@ -1,0 +1,7 @@
+let Duration = ./Type
+
+let seconds
+      : Natural -> Duration
+      = Duration.Seconds
+
+in seconds

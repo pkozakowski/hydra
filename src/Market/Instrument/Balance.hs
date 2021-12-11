@@ -169,10 +169,10 @@ instance Instrument BalanceConfig BalanceState where
             ( import_ ["Market", "Instrument", "Balance"] "balance"
            :| import_ ["Market", "Instrument", "Map"] "instrument"
             : import_ ["Market", "Instrument", "Map"] "share"
-            : import_ ["Time"] "days"
-            : import_ ["Time"] "hours"
-            : import_ ["Time"] "minutes"
-            : import_ ["Time"] "seconds"
+            : import_ ["Duration"] "days"
+            : import_ ["Duration"] "hours"
+            : import_ ["Duration"] "minutes"
+            : import_ ["Duration"] "seconds"
             : subconfigImports
             )
             $ call "balance"

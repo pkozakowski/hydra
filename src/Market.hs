@@ -74,12 +74,12 @@ type ExecuteEffects c s =
 type AggregateVisitor self agg
     = self -> StaticMap InstrumentName agg -> agg
 
-type SelfVisitor self
+type SelfVisitor (self :: *)
      = forall c s
      . Instrument c s
     => Prices -> Portfolio -> c -> s -> self
 
-type Visitor self agg
+type Visitor (self :: *) (agg :: *)
      = AggregateVisitor self agg
     -> SelfVisitor self
     -> agg

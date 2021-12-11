@@ -44,8 +44,7 @@ import Polysemy hiding (embed)
 import Polysemy.Error
 import Polysemy.Output
 import Polysemy.State
-import System.Random as Random
-import System.Random.Stateful
+import System.Random
 
 data Choice a
     = forall b. Choose (NonEmpty b) (b -> a)
@@ -116,23 +115,32 @@ subset1 p xs = liftF $ Subset1 p xs id
 -- | Generates an infinite list of random grid substitutions.
 runGridRandom :: RandomGen g => g -> Grid a -> NonEmpty a
 runGridRandom gen grid = runOne <$> gens where
-    runOne gen = runStateGen_ gen $ const $ foldFree go grid where
+    runOne gen = run $ evalState gen $ foldFree go grid where
+        go :: forall g a. RandomGen g => Choice a -> Sem '[State g] a
         go = \case
             Choose xs f -> do
-                i <- uniformRM (0, NonEmpty.length xs - 1) StateGenM
+                gen <- get @g
+                let (i, gen') = randomR (0, NonEmpty.length xs - 1) gen
+                put @g gen'
                 return $ f $ xs NonEmpty.!! i
-            Subset p xs f -> f <$> randomSubset p xs StateGenM
+            Subset p xs f -> f <$> randomSubset p xs
             Subset1 p xs f -> do
-                subset <- randomSubset p (toList xs) StateGenM
+                subset <- randomSubset p $ toList xs
                 case nonEmpty subset of
                     Just subset' -> return $ f subset'
                     Nothing -> go $ Subset1 p xs f
-        randomSubset p xs g = concat <$> forM xs \x -> do
-            r <- uniformRM (0.0, 1.0) g
+        randomSubset
+            :: forall g a
+             . RandomGen g
+            => Double -> [a] -> Sem '[State g] [a]
+        randomSubset p xs = concat <$> forM xs \x -> do
+            gen <- get @g
+            let (r, gen') = randomR (0.0, 1.0) gen
+            put gen'
             return $ if r < p then [x] else []
     gens = NonEmpty.unfoldr f gen where
         f gen = (gen', Just gen'') where
-            (gen', gen'') = Random.split gen
+            (gen', gen'') = split gen
 
 instrumentFitness
     :: forall c s r

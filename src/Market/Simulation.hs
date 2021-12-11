@@ -1,4 +1,3 @@
-
 module Market.Simulation where
 
 import Control.Monad

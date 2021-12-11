@@ -1,4 +1,4 @@
-let hours = ../../Time/hours
+let hours = ../../Duration/hours
 
 let hourly
       : ./MetricCalculator

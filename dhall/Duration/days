@@ -1,0 +1,7 @@
+let Duration = ./Type
+
+let days
+      : Natural -> Duration
+      = Duration.Days
+
+in days

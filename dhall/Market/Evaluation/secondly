@@ -1,4 +1,4 @@
-let seconds = ../../Time/seconds
+let seconds = ../../Duration/seconds
 
 let secondly
       : ./MetricCalculator

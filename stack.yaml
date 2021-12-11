@@ -18,7 +18,7 @@
 # resolver: ./custom-snapshot.yaml
 # resolver: https://example.com/snapshots/2018-01-01.yaml
 resolver:
-  url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/5.yaml
+  url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/16/31.yaml
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -44,7 +44,20 @@ extra-deps:
 - approx-0.1.0.1@sha256:fe0c176d0b07d8d282732d66a92517a5552a3b755b8d41cd2aef3bb41dc6494e,2094
 - unordered-containers-0.2.13.0@sha256:6310c636f92ed4908fdd0de582b6be31c2851c7b5f2ec14e9f416eb94df7a078,4978
 - vector-0.12.2.0@sha256:6e81683c2c19b4aea58f1f453547cb03851b3cfd4031b8eb82abfa4643a13494,7953
+- ghc-parser-0.2.3.0@sha256:fd18c83cbdfb95c97b1f9eb1318c4c229e6413c7c653030e080421e526688c6c,1291
+- ipython-kernel-0.10.2.1@sha256:3a2ba95eb65be03d8c548d8afacfed52d9acc49e357065c25e77816358093c19,2834
+- ihaskell-0.10.2.1@sha256:37aeb7417576d1131fa3c0f00baa3d29d0c095d2805c6a908bf3f36799ff8d32,6589
 - ihaskell-hvega-0.3.2.0@sha256:57b749f3c14b224af6f9484b2cd531299dd740477aa6e6f300f19a8c291b5fac,1182
+- logging-3.0.5@sha256:88096d3124fce9a19af3720f751e1a354d866ed5030d2e5197238d2277cdb2f2,2374
+- vinyl-0.12.1
+- web3-0.9.1.0@sha256:6b7faac0b63e7d0aae46588dd9a42e11f54ce0fdf4c2744bdf4cc6c5cbf39aa2,20760
+- prettyprinter-1.7.1@sha256:9c43c9d8c3cd9f445596e5a2379574bba87f935a4d1fa41b5407ee3cf4edc743,6987
+- base16-bytestring-1.0.2.0@sha256:64abad7816ab8cabed8489e29f807b3a6f828e0b2cec0eae404323d69d36df9a,2541
+- haskeline-0.8.2@sha256:c3bd227d778a56c0dd0b50b286b143e547d8fb335c5be59b9e4d56dac5b8e85c,6005
+- repline-0.4.0.0@sha256:3324479e497d27c40c3d4762bffc52058f9921621d20d2947dcf9a554b94cd0d,2253
+- dhall-1.40.2
+- hvega-0.11.0.1@sha256:0631812a1f849ac3f55fe6f2d4108d023a17118f14ffec085ead2d3c35e5c057,11183
+- optparse-applicative-0.16.1.0@sha256:418c22ed6a19124d457d96bc66bd22c93ac22fad0c7100fe4972bbb4ac989731,4982
 
 # - acme-missiles-0.3
 # - git: https://github.com/commercialhaskell/stack.git

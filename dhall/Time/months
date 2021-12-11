@@ -1,7 +1,0 @@
-let Time = ./Type
-
-let months
-      : Natural -> Time
-      = Time.Months
-
-in months

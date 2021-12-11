@@ -1,4 +1,3 @@
-
 module Market.Internal.IO where
 
 import Control.Exception

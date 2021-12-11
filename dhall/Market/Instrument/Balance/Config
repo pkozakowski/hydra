@@ -1,6 +1,6 @@
 let Map = https://prelude.dhall-lang.org/Map/Type
 
-let Time = ../../../Time/Type
+let Duration = ../../../Duration/Type
 
 let Share = ../../Share
 
@@ -12,7 +12,7 @@ let Config
      -> { configs : Map InstrumentName Instrument
         , target : Map InstrumentName Share
         , tolerance : Double
-        , updateEvery : Time
+        , updateEvery : Duration
         }
 
 in Config

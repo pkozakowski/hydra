@@ -4,7 +4,7 @@
 module Market.Asset where
 
 import Control.DeepSeq
-import Data.Aeson (ToJSON)
+import Data.Aeson (FromJSON)
 import Data.Functor.Contravariant
 import Data.String
 import Dhall (FromDhall, ToDhall)
@@ -14,7 +14,7 @@ import Test.QuickCheck
 
 newtype Asset = Asset { unAsset :: String }
     deriving (Eq, Generic, Ord)
-    deriving newtype (IsString, NFData)
+    deriving newtype (FromJSON, IsString, NFData)
 
 instance Show Asset where
     show = unAsset

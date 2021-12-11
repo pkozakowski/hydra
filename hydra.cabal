@@ -34,6 +34,9 @@ library
       Debug.Trace.Pretty
       Market
       Market.Asset
+      Market.Blockchain
+      Market.Blockchain.EVM
+      Market.Blockchain.EVM.UniswapV2
       Market.Deriving
       Market.Dhall
       Market.Evaluation
@@ -92,31 +95,33 @@ library
     , aeson-pretty
     , algebra
     , approx
-    , base >=4.7 && <5
+    , base >4.11 && <4.14
     , bson
     , bytestring
     , composition
     , constraints
     , containers
     , deepseq
-    , dhall
+    , dhall >=1.34
     , directory
     , either
     , free
     , hashable
     , hashmap
-    , hvega
+    , hvega >=0.11
     , ihaskell-hvega
     , lazyio
     , logging
+    , microlens
     , mongoDB
-    , optparse-applicative
+    , mtl
+    , optparse-applicative >=0.16
     , parallel
     , parsec
     , polysemy
     , polysemy-plugin
     , pretty-simple
-    , prettyprinter
+    , prettyprinter >=1.7
     , prettyprinter-ansi-terminal
     , quickcheck-classes
     , quickcheck-instances
@@ -133,6 +138,7 @@ library
     , text
     , time
     , vector
+    , web3
   default-language: Haskell2010
 
 executable hydra-exe
@@ -170,32 +176,34 @@ executable hydra-exe
     , aeson-pretty
     , algebra
     , approx
-    , base >=4.7 && <5
+    , base >4.11 && <4.14
     , bson
     , bytestring
     , composition
     , constraints
     , containers
     , deepseq
-    , dhall
+    , dhall >=1.34
     , directory
     , either
     , free
     , hashable
     , hashmap
-    , hvega
+    , hvega >=0.11
     , hydra
     , ihaskell-hvega
     , lazyio
     , logging
+    , microlens
     , mongoDB
-    , optparse-applicative
+    , mtl
+    , optparse-applicative >=0.16
     , parallel
     , parsec
     , polysemy
     , polysemy-plugin
     , pretty-simple
-    , prettyprinter
+    , prettyprinter >=1.7
     , prettyprinter-ansi-terminal
     , quickcheck-classes
     , quickcheck-instances
@@ -212,6 +220,7 @@ executable hydra-exe
     , text
     , time
     , vector
+    , web3
   default-language: Haskell2010
 
 test-suite hydra-test
@@ -257,32 +266,34 @@ test-suite hydra-test
     , aeson-pretty
     , algebra
     , approx
-    , base >=4.7 && <5
+    , base >4.11 && <4.14
     , bson
     , bytestring
     , composition
     , constraints
     , containers
     , deepseq
-    , dhall
+    , dhall >=1.34
     , directory
     , either
     , free
     , hashable
     , hashmap
-    , hvega
+    , hvega >=0.11
     , hydra
     , ihaskell-hvega
     , lazyio
     , logging
+    , microlens
     , mongoDB
-    , optparse-applicative
+    , mtl
+    , optparse-applicative >=0.16
     , parallel
     , parsec
     , polysemy
     , polysemy-plugin
     , pretty-simple
-    , prettyprinter
+    , prettyprinter >=1.7
     , prettyprinter-ansi-terminal
     , quickcheck-classes
     , quickcheck-instances
@@ -299,4 +310,5 @@ test-suite hydra-test
     , text
     , time
     , vector
+    , web3
   default-language: Haskell2010

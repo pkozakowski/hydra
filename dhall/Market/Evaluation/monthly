@@ -1,4 +1,4 @@
-let months = ../../Time/hours
+let months = ../../Duration/hours
 
 let monthly
       : ./MetricCalculator

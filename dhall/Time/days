@@ -1,7 +1,0 @@
-let Time = ./Type
-
-let days
-      : Natural -> Time
-      = Time.Days
-
-in days

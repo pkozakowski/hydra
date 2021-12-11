@@ -1,4 +1,4 @@
-let days = ../../Time/hours
+let days = ../../Duration/hours
 
 let daily
       : ./MetricCalculator

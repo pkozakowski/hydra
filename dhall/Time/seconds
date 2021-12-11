@@ -1,7 +1,0 @@
-let Time = ./Type
-
-let seconds
-      : Natural -> Time
-      = Time.Seconds
-
-in seconds
