@@ -52,19 +52,16 @@ extra-deps:
 - text-1.2.4.1@sha256:e12b468008b3c2bbc1f39bd2dcb75ba8f563c65aa5e54ee223b76463a845b6f1,7184
 - unordered-containers-0.2.13.0@sha256:6310c636f92ed4908fdd0de582b6be31c2851c7b5f2ec14e9f416eb94df7a078,4978
 - vector-0.12.2.0@sha256:6e81683c2c19b4aea58f1f453547cb03851b3cfd4031b8eb82abfa4643a13494,7953
-- github: airalab/hs-web3
-  commit: e3fc3199eca81578ee0b9b69be15c1b4d4d5a3ca
-  subdirs:
-  - packages/bignum
-  - packages/crypto
-  - packages/ethereum
-  - packages/hexstring
-  - packages/jsonrpc
-  - packages/polkadot
-  - packages/provider
-  - packages/scale
-  - packages/solidity
-  - packages/web3
+- deps/web3/packages/bignum
+- deps/web3/packages/crypto
+- deps/web3/packages/ethereum
+- deps/web3/packages/hexstring
+- deps/web3/packages/jsonrpc
+- deps/web3/packages/polkadot
+- deps/web3/packages/provider
+- deps/web3/packages/scale
+- deps/web3/packages/solidity
+- deps/web3/packages/web3
 
 # - acme-missiles-0.3
 # - git: https://github.com/commercialhaskell/stack.git
