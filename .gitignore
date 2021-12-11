@@ -1,0 +1,8 @@
+.stack-work
+*.swp
+.DS_Store
+build/
+dist/
+docs/_build
+*.cabal
+stack.yaml.lock
