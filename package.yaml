@@ -20,56 +20,61 @@ extra-source-files:
 description:         Please see the README on GitHub at <https://github.com/pkozakowski/hydra#readme>
 
 dependencies:
-- base >4.11 && <4.14
+- aeson
+- aeson-pretty >= 0.8 && < 0.8.9
+- AesonBson
 - algebra
-- template-haskell
+- approx
+- base >=4.12 && <5
+- bson
+- bytestring
+- composition
 - constraints
-- tasty
-- tasty-th
+- containers
+- deepseq
+- dhall
+- directory
+- either
+- free
+- hashable
+- hashmap
+- hvega
+- lazyio
+- logging
+- microlens
+- mongoDB
+- mtl
+- optparse-applicative
+- parallel
+- parsec
+- polysemy >= 1.6
+- polysemy-plugin >= 0.3
+- pretty-simple
+- prettyprinter
+- prettyprinter-ansi-terminal
 - QuickCheck
 - quickcheck-classes
 - quickcheck-instances
-- tasty-quickcheck
-- polysemy
-- polysemy-plugin
-- time
-- text
-- req
-- bytestring
-- aeson
-- lazyio
-- vector
-- AesonBson
-- mongoDB
-- logging
-- hashmap
-- hashable
-- bson
-- composition
-- approx
-- retry
-- pretty-simple
-- containers
-- hvega >= 0.11
-- ihaskell-hvega
-- deepseq
-- semigroupoids
-- parallel
-- free
 - random
-- optparse-applicative >= 0.16
+- req
+- retry
+- semigroupoids
 - stm
+- template-haskell
+- tasty
+- tasty-th
+- tasty-quickcheck
 - terminal-progress-bar
-- parsec
-- dhall >= 1.34
-- either
-- directory
-- aeson-pretty
-- prettyprinter >= 1.7
-- prettyprinter-ansi-terminal
-- mtl
-- microlens
+- text
+- time
+- vector
 - web3
+- web3-crypto
+- web3-ethereum
+- web3-hexstring
+- web3-jsonrpc
+- web3-provider
+- web3-solidity
 
 library:
   source-dirs: src

@@ -18,7 +18,8 @@
 # resolver: ./custom-snapshot.yaml
 # resolver: https://example.com/snapshots/2018-01-01.yaml
 resolver:
-  url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/16/31.yaml
+  #  url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/16/31.yaml
+  url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/18.yaml
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -36,28 +37,34 @@ packages:
 # forks / in-progress versions pinned to a git hash. For example:
 #
 extra-deps:
-- algebra-4.3.1@sha256:323cf20c508e0b71422b767ff3a89e4188f68aa59b2df9d0fe6e9f9bae7938fb,4129
-- Cabal-3.0.2.0@sha256:f45ee078a8529d1ad3993767345ac83304c7f2ff5eec02c455a1dc200ad22c67,26714
-- polysemy-1.6.0.0@sha256:29a73b1bf3d0049b12041016b7ee25e76bd8f6e99f9c37c2dde2b46368246697,6184
-- polysemy-plugin-0.4.0.0@sha256:456d3c22a6363a7be8b0856a40109c44bc9ad58e702fbc74679f2f0e89c3d309,3148
+- aeson-pretty-0.8.8@sha256:6fcbe24e765457c81d1fc3b89d491bc7e37f7f6e12f0cdd1a3bbb1bacd712877,2336
 - AesonBson-0.4.0@sha256:fb368ec6f750d582c0630b2eb0d562d7eecab87da4a099593746298b27184a95,1333
+- algebra-4.3.1@sha256:323cf20c508e0b71422b767ff3a89e4188f68aa59b2df9d0fe6e9f9bae7938fb,4129
+- animalcase-0.1.0.2@sha256:d7b80c3130c68d7ce8ddd9782588b2c4dd7da86461f302c54cc4acddf0902b51,1015
 - approx-0.1.0.1@sha256:fe0c176d0b07d8d282732d66a92517a5552a3b755b8d41cd2aef3bb41dc6494e,2094
+- binary-0.8.9.0@sha256:9cac9a1d86bfa3e7f75cc8bffaa256f3967ebb6d76f67a42f9679384c5c5e18a,6523
+- Cabal-3.6.2.0@sha256:e2266e14758c1f799220fad7f0d4b0b4ec567d81b7ba3faea17ff76d4c31de95,12437
+- containers-0.6.4.1@sha256:e9ca297369c207ff40ed561877c15928292b957a01c8551a7cbd50d665a03429,2520
+- ghc-boot-9.0.1@sha256:dc127d8b4b43eb54167f9befd51b2948e9084b8dfc18b88728148b719fa2287c,2347
+- ghc-boot-th-9.0.1@sha256:691c5ce694bc8ccf4683810654696192d42503e9894e574f243706436cb24f58,1343
+- parsec-3.1.15.0@sha256:a162d4cc8884014ba35192545cad293af0529fe11497aad8834bbaaa3dfffc26,4429
+- polysemy-1.6.0.0@sha256:29a73b1bf3d0049b12041016b7ee25e76bd8f6e99f9c37c2dde2b46368246697,6184
+- text-1.2.4.1@sha256:e12b468008b3c2bbc1f39bd2dcb75ba8f563c65aa5e54ee223b76463a845b6f1,7184
 - unordered-containers-0.2.13.0@sha256:6310c636f92ed4908fdd0de582b6be31c2851c7b5f2ec14e9f416eb94df7a078,4978
 - vector-0.12.2.0@sha256:6e81683c2c19b4aea58f1f453547cb03851b3cfd4031b8eb82abfa4643a13494,7953
-- ghc-parser-0.2.3.0@sha256:fd18c83cbdfb95c97b1f9eb1318c4c229e6413c7c653030e080421e526688c6c,1291
-- ipython-kernel-0.10.2.1@sha256:3a2ba95eb65be03d8c548d8afacfed52d9acc49e357065c25e77816358093c19,2834
-- ihaskell-0.10.2.1@sha256:37aeb7417576d1131fa3c0f00baa3d29d0c095d2805c6a908bf3f36799ff8d32,6589
-- ihaskell-hvega-0.3.2.0@sha256:57b749f3c14b224af6f9484b2cd531299dd740477aa6e6f300f19a8c291b5fac,1182
-- logging-3.0.5@sha256:88096d3124fce9a19af3720f751e1a354d866ed5030d2e5197238d2277cdb2f2,2374
-- vinyl-0.12.1
-- web3-0.9.1.0@sha256:6b7faac0b63e7d0aae46588dd9a42e11f54ce0fdf4c2744bdf4cc6c5cbf39aa2,20760
-- prettyprinter-1.7.1@sha256:9c43c9d8c3cd9f445596e5a2379574bba87f935a4d1fa41b5407ee3cf4edc743,6987
-- base16-bytestring-1.0.2.0@sha256:64abad7816ab8cabed8489e29f807b3a6f828e0b2cec0eae404323d69d36df9a,2541
-- haskeline-0.8.2@sha256:c3bd227d778a56c0dd0b50b286b143e547d8fb335c5be59b9e4d56dac5b8e85c,6005
-- repline-0.4.0.0@sha256:3324479e497d27c40c3d4762bffc52058f9921621d20d2947dcf9a554b94cd0d,2253
-- dhall-1.40.2
-- hvega-0.11.0.1@sha256:0631812a1f849ac3f55fe6f2d4108d023a17118f14ffec085ead2d3c35e5c057,11183
-- optparse-applicative-0.16.1.0@sha256:418c22ed6a19124d457d96bc66bd22c93ac22fad0c7100fe4972bbb4ac989731,4982
+- github: airalab/hs-web3
+  commit: e3fc3199eca81578ee0b9b69be15c1b4d4d5a3ca
+  subdirs:
+  - packages/bignum
+  - packages/crypto
+  - packages/ethereum
+  - packages/hexstring
+  - packages/jsonrpc
+  - packages/polkadot
+  - packages/provider
+  - packages/scale
+  - packages/solidity
+  - packages/web3
 
 # - acme-missiles-0.3
 # - git: https://github.com/commercialhaskell/stack.git
