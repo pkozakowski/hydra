@@ -36,6 +36,7 @@ import System.IO.Unsafe
 data EVM = EVM
     { chainId :: Integer
     , jsonRpcUrl :: String
+    , minGasPrice :: Shannon
     , baseAsset :: Asset
     , tokenListName :: String
     }
@@ -43,6 +44,8 @@ data EVM = EVM
 polygon = EVM
     { chainId = 137
     , jsonRpcUrl = "https://polygon-rpc.com/"
+    -- Technically 30, but gas is cheap on Polygon so let's speed things up.
+    , minGasPrice = 40
     , baseAsset = Asset "MATIC"
     , tokenListName = "polygon"
     }
@@ -50,11 +53,12 @@ polygon = EVM
 polygonTestnet = EVM
     { chainId = 80001
     , jsonRpcUrl = "https://matic-mumbai.chainstacklabs.com"
+    , minGasPrice = 40
     , baseAsset = Asset "MATIC"
     , tokenListName = "polygon-testnet"
     }
 
-data WalletEVM = WalletEVM 
+data WalletEVM = Wallet
     { localKey :: LocalKey
     , myAddress :: Solidity.Address
     }
@@ -67,18 +71,18 @@ instance Platform EVM where
     loadWallet platform bs = do
         hex <- fromEither $ hexString bs
         let key = importKey $ toBytes @ByteString hex
-        return WalletEVM
+        return Wallet
             { localKey = LocalKey key $ chainId platform
             , myAddress = Solidity.fromPubKey $ derivePubKey key
             }
 
 web3ToSem
-    :: Members [State JsonRpcClient, Embed IO] r
+    :: Members [State JsonRpcClient, Error String, Embed IO] r
     => Web3 a -> Sem r a
 web3ToSem action = do
     state <- get
     (result, state')
-       <- embed
+       <- ioToSem
         $ flip MTL.runStateT state
         $ unWeb3 action
     put state'

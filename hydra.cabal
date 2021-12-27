@@ -36,6 +36,7 @@ library
       Market.Asset
       Market.Blockchain
       Market.Blockchain.EVM
+      Market.Blockchain.EVM.ERC20
       Market.Blockchain.EVM.UniswapV2
       Market.Deriving
       Market.Dhall

@@ -23,10 +23,19 @@ class Platform p where
 
 class Platform p => Exchange p e | e -> p where
 
+    type SwapConfig e :: *
+
     fetchPrices
         :: Members (Error String : Effects p) r
         => [Asset] -> Sem r Prices
     
     swap
-        :: Members (Input Prices : Error String : Effects p) r
-        => e -> Wallet p -> Asset -> Asset -> Amount -> Sem r ()
+        :: Members
+            ( Input e
+            : Input (Wallet p)
+            : Input (SwapConfig e)
+            : Input Prices
+            : Error String
+            : Effects p
+            ) r
+        => Asset -> Asset -> Amount -> Sem r ()
