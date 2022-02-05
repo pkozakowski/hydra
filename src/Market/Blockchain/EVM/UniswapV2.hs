@@ -4,6 +4,7 @@
 module Market.Blockchain.EVM.UniswapV2 where
 
 import Control.Logging
+import Control.Monad
 import Data.Map.Class
 import Data.Maybe
 import qualified Data.Solidity.Prim as Solidity
@@ -36,6 +37,8 @@ import Prelude hiding (pi)
 data UniswapV2 = UniswapV2
     { platform :: EVM
     , routerAddress :: Solidity.Address
+    , providerFee :: Scalar
+    , stablecoin :: Asset
     }
 
 data SwapConfigUniswapV2 = SwapConfig
@@ -46,17 +49,29 @@ data SwapConfigUniswapV2 = SwapConfig
 quickswap = UniswapV2
     { platform = polygon
     , routerAddress = "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff"
+    , providerFee = 3 % 1000
+    , stablecoin = Asset "USDC"
     }
 
 instance Exchange EVM UniswapV2 where
 
     type SwapConfig UniswapV2 = SwapConfigUniswapV2
 
-    fetchPrices = undefined
+    fetchPrices assets = do
+        exchange <- input
+        let evm = platform exchange
+            stableAsset = stablecoin exchange
+        assetsAndPrices <- forM assets \asset
+            -> if asset == stableAsset
+                then pure (asset, Price one)
+                else do
+                    price <- fetchExchangeRate asset stableAsset $ Amount one
+                    pure $ (asset, Price price)
+        pure $ fromList assetsAndPrices
 
     swap fromAsset toAsset fromAmount = do
         estGasPrice <- web3ToSem $ fromWei <$> Eth.gasPrice
-        exchange <- input @UniswapV2
+        exchange <- input
         let evm = platform exchange
             ourGasPrice = max estGasPrice $ minGasPrice evm
 
@@ -65,8 +80,8 @@ instance Exchange EVM UniswapV2 where
                 :: Members [State JsonRpcClient, Error String, Embed IO] r
                 => String -> LocalKeyAccount Web3 TxReceipt -> Sem r ()
             run txName action = do
-                receipt <- web3ToSem
-                    $ withAccount (localKey wallet)
+                receipt
+                   <- withLocalKeyAccount wallet
                     $ withParam (gasPrice .~ ourGasPrice) action
                 case receiptStatus receipt of
                     Just 1 -> return ()
@@ -75,20 +90,21 @@ instance Exchange EVM UniswapV2 where
 
             runSwap = run "swap" . withParam (to .~ routerAddress exchange)
 
-            wrappedBaseAsset = Asset $ "W" ++ symbol where
-                Asset symbol = baseAsset evm
+            wrappedBaseAsset = wrapAsset $ baseAsset evm
 
         config <- input @SwapConfigUniswapV2
-        prices <- input @Prices
-        let toAmount = fromJust $ (prices ! fromAsset) `pi` fromAmount
-                `kappa` (prices ! toAsset)
-            toAmountMin = (one - slippage config) .* toAmount where
-                (-) = (Algebra.-)
+        exchangeRate <- fetchExchangeRate fromAsset toAsset fromAmount
+        let toAmount = exchangeRate .* fromAmount
+            toAmountMin
+                = (one - providerFee exchange)
+                * (one - slippage config)
+               .* toAmount where
+                    (-) = (Algebra.-)
+                    (*) = (Algebra.*)
 
         now <- embed getCurrentTime
-        let deadline
-                = floor $ utcTimeToPOSIXSeconds now + timeLimit config where
-                    (+) = (Prelude.+)
+        let deadline = floor $ utcTimeToPOSIXSeconds now + timeLimit config
+                where (+) = (Prelude.+)
 
         if fromAsset == baseAsset evm then do
             fromToken <- getToken evm wrappedBaseAsset
@@ -129,3 +145,35 @@ instance Exchange EVM UniswapV2 where
                         [address fromToken, address toToken]
                         (myAddress wallet)
                         deadline
+
+wrapAsset :: Asset -> Asset
+wrapAsset (Asset symbol) = Asset $ "W" ++ symbol
+
+fetchExchangeRate
+    :: Members (Input UniswapV2 : Effects EVM) r
+    => Asset -> Asset -> Amount -> Sem r Scalar
+fetchExchangeRate fromAsset toAsset fromAmount = do
+    embed
+        $ debug
+        $ "fetching exchange rate: " <> pack (show fromAsset)
+       <> " -> " <> pack (show toAsset)
+    exchange <- input
+    let evm = platform exchange
+    fromToken <- getTokenWithWrap evm fromAsset
+    toToken <- getTokenWithWrap evm toAsset
+    Amount priceWithFee
+       <- fmap (amountFromSolidity (decimals toToken) . last)
+        $ withDefaultAccount
+        $ withParam (to .~ routerAddress exchange)
+        $ getAmountsOut
+            (amountToSolidity (decimals fromToken) fromAmount)
+            [address fromToken, address toToken]
+    pure $ priceWithFee / (one - providerFee exchange)
+    where
+        getTokenWithWrap evm asset
+            = getToken evm
+            $ if asset == baseAsset evm
+                then wrapAsset asset
+                else asset
+        (-) = (Algebra.-)
+        (/) = (Algebra./)

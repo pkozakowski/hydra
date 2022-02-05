@@ -38,9 +38,12 @@ dependencies:
 - free
 - hashable
 - hashmap
+- http-client
 - hvega
+- jsonrpc-tinyclient
 - lazyio
 - logging
+- memory-hexstring
 - microlens
 - mongoDB
 - mtl
@@ -71,8 +74,6 @@ dependencies:
 - web3
 - web3-crypto
 - web3-ethereum
-- web3-hexstring
-- web3-jsonrpc
 - web3-provider
 - web3-solidity
 

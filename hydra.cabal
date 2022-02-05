@@ -109,9 +109,12 @@ library
     , free
     , hashable
     , hashmap
+    , http-client
     , hvega
+    , jsonrpc-tinyclient
     , lazyio
     , logging
+    , memory-hexstring
     , microlens
     , mongoDB
     , mtl
@@ -141,8 +144,6 @@ library
     , web3
     , web3-crypto
     , web3-ethereum
-    , web3-hexstring
-    , web3-jsonrpc
     , web3-provider
     , web3-solidity
   default-language: Haskell2010
@@ -195,10 +196,13 @@ executable hydra-exe
     , free
     , hashable
     , hashmap
+    , http-client
     , hvega
     , hydra
+    , jsonrpc-tinyclient
     , lazyio
     , logging
+    , memory-hexstring
     , microlens
     , mongoDB
     , mtl
@@ -228,8 +232,6 @@ executable hydra-exe
     , web3
     , web3-crypto
     , web3-ethereum
-    , web3-hexstring
-    , web3-jsonrpc
     , web3-provider
     , web3-solidity
   default-language: Haskell2010
@@ -290,10 +292,13 @@ test-suite hydra-test
     , free
     , hashable
     , hashmap
+    , http-client
     , hvega
     , hydra
+    , jsonrpc-tinyclient
     , lazyio
     , logging
+    , memory-hexstring
     , microlens
     , mongoDB
     , mtl
@@ -323,8 +328,6 @@ test-suite hydra-test
     , web3
     , web3-crypto
     , web3-ethereum
-    , web3-hexstring
-    , web3-jsonrpc
     , web3-provider
     , web3-solidity
   default-language: Haskell2010
