@@ -12,29 +12,71 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 
+data PlatformError
+    = CantLoadWallet String
+    | NoSuchAsset Asset
+    | TransportError String
+    | LocalError String
+    | CallTimeout
+    | UnknownPlatformError String
+    deriving Show
+
+data TransactionError
+    = OutOfGas
+    | TransactionTimeout
+    | UnknownTransactionError String
+    deriving Show
+
+type PlatformEffects p = Effects p [Error PlatformError, Embed IO]
+
+type TransactionEffects p = Effects p
+    [ Error TransactionError
+    , Error PlatformError
+    , Embed IO
+    ]
+
 class Platform p where
 
-    type Effects p :: EffectRow
+    type Effects p (r :: EffectRow) :: EffectRow
     type Wallet p :: *
 
     loadWallet
-        :: Members (Input p : Effects p) r
+        :: Members (Input p : PlatformEffects p) r
         => ByteString -> Sem r (Wallet p)
 
     fetchPortfolio
-        :: Members (Input p : Input (Wallet p) : Error String : Effects p) r
+        :: Members
+            ( Input p
+            : Input (Wallet p)
+            : PlatformEffects p
+            ) r
         => [Asset] -> Sem r Portfolio
 
     runPlatform
-        :: Members [Error String, Embed IO] r
-        => p -> Sem (Input p : Effects p) a -> Sem r a
+        :: Member (Embed IO) r
+        => p -> Sem (Input p : Effects p r) a -> Sem r a
+
+data SwapError
+    = PriceSlipped
+    deriving Show
+
+type SwapEffects p = Effects p
+    [ Error SwapError
+    , Error TransactionError
+    , Error PlatformError
+    , Embed IO
+    ]
 
 class Platform p => Exchange p e | e -> p where
 
     type SwapConfig e :: *
 
     fetchPrices
-        :: Members (Input e : Input (Wallet p) : Error String : Effects p) r
+        :: Members
+            ( Input e
+            : Input (Wallet p)
+            : PlatformEffects p
+            ) r
         => [Asset] -> Sem r Prices
     
     swap
@@ -42,8 +84,7 @@ class Platform p => Exchange p e | e -> p where
             ( Input e
             : Input (SwapConfig e)
             : Input (Wallet p)
-            : Error String
-            : Effects p
+            : SwapEffects p
             ) r
         => Asset -> Asset -> Amount -> Sem r ()
 

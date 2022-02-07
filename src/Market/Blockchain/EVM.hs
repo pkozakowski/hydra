@@ -4,6 +4,7 @@
 module Market.Blockchain.EVM where
 
 import Crypto.Ethereum
+import qualified Control.Exception
 import Control.Monad
 import qualified Control.Monad.State.Lazy as MTL
 import Data.Aeson
@@ -23,6 +24,7 @@ import Market
 import Market.Blockchain
 import qualified Market.Blockchain.EVM.ERC20 as ERC20
 import Market.Internal.IO
+import Market.Internal.Sem as Sem
 import Network.Ethereum.Account
 import Network.Ethereum.Api.Types
 import Network.Ethereum.Contract.Method
@@ -71,17 +73,19 @@ data WalletEVM = Wallet
 
 instance Platform EVM where
 
-    type Effects EVM = [State JsonRpcClient, Error String, Embed IO]
+    type Effects EVM r = State JsonRpcClient : r
     type Wallet EVM = WalletEVM
 
     loadWallet bs = do
         platform <- input
-        hex <- fromEither $ hexString bs
-        let key = importKey $ toBytes @ByteString hex
-        return Wallet
-            { localKey = LocalKey key $ chainId platform
-            , myAddress = Solidity.fromPubKey $ derivePubKey key
-            }
+        case hexString bs of
+            Left error -> throw $ CantLoadWallet error
+            Right hex -> do
+                let key = importKey $ toBytes @ByteString hex
+                return Wallet
+                    { localKey = LocalKey key $ chainId platform
+                    , myAddress = Solidity.fromPubKey $ derivePubKey key
+                    }
 
     fetchPortfolio assets = do
         wallet <- input
@@ -90,7 +94,9 @@ instance Platform EVM where
             token <- getToken evm asset
             amount
                <- fmap (amountFromSolidity $ decimals token)
-                $ withDefaultAccount
+                $ retryingCall
+                $ web3ToSem
+                $ withAccount ()
                 $ withParam (to .~ address token)
                 $ ERC20.balanceOf
                 $ myAddress wallet
@@ -104,17 +110,60 @@ instance Platform EVM where
             $ runInputConst platform
             $ action
 
+retryingCall
+    :: Members [Error PlatformError, Embed IO] r
+    => Sem r a -> Sem r a
+retryingCall = Sem.withExponentialBackoff 0.1 10 \case
+    TransportError _ -> True
+    CallTimeout -> True
+    UnknownPlatformError _ -> True
+    _ -> False
+
+retryingTransaction
+    :: Members [Error TransactionError, Error PlatformError, Embed IO] r
+    => Sem r a -> Sem r a
+retryingTransaction
+    -- TODO: Retry transaction with more gas.
+    = retryingCall
+    . Sem.withExponentialBackoff 1 10 \case
+        TransactionTimeout -> True
+        UnknownTransactionError _ -> True
+        _ -> False
+
 web3ToSem
-    :: Members [State JsonRpcClient, Error String, Embed IO] r
+    :: Members (PlatformEffects EVM) r
     => Web3 a -> Sem r a
-web3ToSem action = do
+web3ToSem = web3ToSem' $ const $ pure ()
+
+web3ToSem'
+    :: forall r a
+     . Members (PlatformEffects EVM) r
+    => (JsonRpcException -> Sem r ()) -> Web3 a -> Sem r a
+web3ToSem' handler action = do
     state <- get
     (result, state')
        <- ioToSem
         $ flip MTL.runStateT state
         $ unWeb3 action
-    put state'
+    put @JsonRpcClient state'
     return result
+    where
+        ioToSem
+            :: Members (PlatformEffects EVM) r
+            => IO b -> Sem r b
+        ioToSem action = do
+            resultOrError
+               <- embed
+                $ Control.Exception.try @HttpException
+                $ Control.Exception.try @JsonRpcException action
+            case resultOrError of
+                Right (Right result) -> pure result
+                Right (Left exc) -> do
+                    -- If the handler triggers (throws), the next line won't
+                    -- execute.
+                    handler exc
+                    throw $ UnknownPlatformError $ show exc
+                Left exc -> throw $ TransportError $ show exc
 
 amountToEther :: Amount -> Ether
 amountToEther (Amount amount) = fractionToFractional amount
@@ -138,37 +187,29 @@ tokenListCache = unsafePerformIO $ newIORef Map.empty
 {-# NOINLINE tokenListCache #-}
 
 getToken
-    :: Members [Error String, Embed IO] r
+    :: forall r
+     . Members [Error PlatformError, Embed IO] r
     => EVM -> Asset -> Sem r Token
 getToken evm asset = do
-    tokenList <- embed $ cacheF
+    tokenList <- cacheF
         tokenListCache
         readTokenList
         (\name -> "token list " <> pack name)
         (tokenListName evm)
     case Map.lookup asset tokenList of
         Just token -> return token
-        Nothing -> throw
-            $ "token " ++ show asset
-           ++ " not found on the list " ++ show (tokenListName evm)
+        Nothing -> throw $ NoSuchAsset asset
     where
+        readTokenList :: String -> Sem r (Map Asset Token)
         readTokenList name = do
-            eitherTokens <- eitherDecodeFileStrict
+            eitherTokens
+               <- embed
+                $ eitherDecodeFileStrict
                 $ "tokens/" ++ name ++ ".json"
             case eitherTokens of
-                Left error -> fail
-                    $ "error when decoding token list " ++ name ++ ": " ++ error
+                Left error -> throw
+                    $ LocalError
+                    $ "when decoding token list " ++ name ++ ": " ++ error
                 Right tokens
                     -> return $ Map.fromList $ addKey <$> tokens where
                         addKey token = (symbol token, token)
-
-withLocalKeyAccount
-    :: Members [State JsonRpcClient, Error String, Embed IO] r
-    => WalletEVM -> LocalKeyAccount Web3 a -> Sem r a
-withLocalKeyAccount wallet
-    = web3ToSem . withAccount (localKey wallet)
-
-withDefaultAccount
-    :: Members [State JsonRpcClient, Error String, Embed IO] r
-    => DefaultAccount Web3 a -> Sem r a
-withDefaultAccount = web3ToSem . withAccount ()

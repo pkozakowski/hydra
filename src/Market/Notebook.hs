@@ -82,7 +82,8 @@ evaluate
     -> c
     -> IO Evaluation
 evaluate res
-    = semToIOPure @MarketError
+    = semToIOPure
+    . mapError @MarketError show
     . runPrecision res
  .::. Evaluation.evaluate
 
@@ -101,7 +102,8 @@ evaluateOnWindows
     -> c
     -> IO EvaluationOnWindows
 evaluateOnWindows res
-        = semToIOPure @(MarketError)
+        = semToIOPure
+        . mapError @MarketError show
         . runPrecision res
     .:::. Evaluation.evaluateOnWindows
 
@@ -123,6 +125,8 @@ tune
     -> IO (c, Double)
 tune res
     = semToIO
+    . mapError @e show
+    . raiseUnder
     . runTimeIO
     . runPrecision res
     . runOutputLog

@@ -5,6 +5,7 @@ module Market.Blockchain.EVM.UniswapV2 where
 
 import Control.Logging
 import Control.Monad
+import Data.List
 import Data.Map.Class
 import Data.Maybe
 import qualified Data.Solidity.Prim as Solidity
@@ -16,6 +17,7 @@ import Market
 import Market.Blockchain
 import Market.Blockchain.EVM
 import qualified Market.Blockchain.EVM.ERC20 as ERC20
+import Market.Internal.Sem
 import Network.Ethereum.Account
 import Network.Ethereum.Api.Types
 import qualified Network.Ethereum.Api.Eth as Eth
@@ -69,24 +71,42 @@ instance Exchange EVM UniswapV2 where
                     pure $ (asset, Price price)
         pure $ fromList assetsAndPrices
 
-    swap fromAsset toAsset fromAmount = do
-        estGasPrice <- web3ToSem $ fromWei <$> Eth.gasPrice
+    swap fromAsset toAsset fromAmount = retryingSwap do
+        estGasPrice <- retryingCall $ web3ToSem $ fromWei <$> Eth.gasPrice
         exchange <- input
         let evm = platform exchange
             ourGasPrice = max estGasPrice $ minGasPrice evm
 
         wallet <- input @WalletEVM
         let run
-                :: Members [State JsonRpcClient, Error String, Embed IO] r
+                :: forall r
+                 . Members (SwapEffects EVM) r
                 => String -> LocalKeyAccount Web3 TxReceipt -> Sem r ()
             run txName action = do
                 receipt
-                   <- withLocalKeyAccount wallet
+                   <- retryingTransaction
+                    $ web3ToSem' handleJsonRpcException
+                    $ withAccount (localKey wallet)
                     $ withParam (gasPrice .~ ourGasPrice) action
                 case receiptStatus receipt of
                     Just 1 -> return ()
                     maybeStatus -> throw
+                        $ UnknownTransactionError
                         $ txName ++ " failed with status " ++ show maybeStatus
+                where
+                    handleJsonRpcException :: JsonRpcException -> Sem r ()
+                    handleJsonRpcException exc = case exc of
+                        CallException rpcError
+                         -> if rpcError `has` "INSUFFICIENT_INPUT_AMOUNT"
+                                then throw PriceSlipped
+                            else if rpcError `has` "EXPIRED"
+                                then throw TransactionTimeout
+                                else unknown
+                        _ -> unknown
+                        where
+                            has rpcError msg
+                                = msg `isInfixOf` unpack (errMessage rpcError)
+                            unknown = throw $ UnknownTransactionError $ show exc
 
             runSwap = run "swap" . withParam (to .~ routerAddress exchange)
 
@@ -145,14 +165,19 @@ instance Exchange EVM UniswapV2 where
                         [address fromToken, address toToken]
                         (myAddress wallet)
                         deadline
+        where
+            retryingSwap
+                = retryingTransaction
+                . withExponentialBackoff 1 10 \case
+                    PriceSlipped -> True
 
 wrapAsset :: Asset -> Asset
 wrapAsset (Asset symbol) = Asset $ "W" ++ symbol
 
 fetchExchangeRate
-    :: Members (Input UniswapV2 : Effects EVM) r
+    :: Members (Input UniswapV2 : PlatformEffects EVM) r
     => Asset -> Asset -> Amount -> Sem r Scalar
-fetchExchangeRate fromAsset toAsset fromAmount = do
+fetchExchangeRate fromAsset toAsset fromAmount = retryingCall do
     embed
         $ debug
         $ "fetching exchange rate: " <> pack (show fromAsset)
@@ -163,7 +188,8 @@ fetchExchangeRate fromAsset toAsset fromAmount = do
     toToken <- getTokenWithWrap evm toAsset
     Amount priceWithFee
        <- fmap (amountFromSolidity (decimals toToken) . last)
-        $ withDefaultAccount
+        $ web3ToSem
+        $ withAccount ()
         $ withParam (to .~ routerAddress exchange)
         $ getAmountsOut
             (amountToSolidity (decimals fromToken) fromAmount)

@@ -298,12 +298,11 @@ runFeedWithMongoCache hostName secondInterpreter token = interpret \case
             Nothing -> return Nothing
             Just beginTime
                -> ioToSem
-                $ withStderrLogging
                 $ cachedFeedLevel
                     @ft (level @atp) secondIOInterpreter hostName token from' to
                         where
                             secondIOInterpreter token'' from'' to''
-                                = semToIO @String
+                                = semToIO
                                 $ secondInterpreter token''
                                 $ between' @Double from'' to''
                             from' = max from beginTime
@@ -334,7 +333,7 @@ cacheCoverage
     => String
     -> String
     -> Sem r (Maybe (UTCTime, UTCTime))
-cacheCoverage hostName token = ioToSem $ withStderrLogging do
+cacheCoverage hostName token = ioToSem do
     maybeFirstBatch <- mongo hostName $ findOne query
     cov <- case maybeFirstBatch of
         Nothing -> return Nothing

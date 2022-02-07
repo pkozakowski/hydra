@@ -21,7 +21,8 @@ import qualified Data.Vector as Vector
 import GHC.Generics
 import Market
 import Market.Feed
-import Market.Internal.IO
+import Market.Internal.IO as IO
+import Market.Internal.Sem
 import Network.HTTP.Req
 import Polysemy
 import Polysemy.Error
@@ -49,7 +50,7 @@ data Symbol = Symbol
 fetchQuoteAssets :: IO (Map String QuoteAsset)
 fetchQuoteAssets = do
     info
-       <- withExponentialBackoff @HttpException
+       <- IO.withExponentialBackoff @HttpException
         $ runReq defaultHttpConfig
         $ fmap responseBody 
         $ req GET url NoReqBody jsonResponse mempty
@@ -75,12 +76,14 @@ quoteAssetCache :: IORef (Maybe (Map String QuoteAsset))
 quoteAssetCache = unsafePerformIO $ newIORef Nothing
 {-# NOINLINE quoteAssetCache #-}
 
-cachedFetchQuoteAsset :: String -> IO QuoteAsset
+cachedFetchQuoteAsset
+    :: Members [Error String, Embed IO] r
+    => String -> Sem r QuoteAsset
 cachedFetchQuoteAsset asset = do
-    quoteAssets <- cache quoteAssetCache fetchQuoteAssets "quote assets"
+    quoteAssets <- cache quoteAssetCache (embed fetchQuoteAssets) "quote assets"
     case Map.lookup asset quoteAssets of
         Just quoteAsset -> return quoteAsset
-        Nothing -> fail
+        Nothing -> throw
             $ "asset "
            ++ asset
            ++ " not found or doesn't have a quote in "
@@ -116,7 +119,7 @@ fetchSymbolPrices from to symbol
     $ forM [0, interval .. diffUTCTime to from]
     $ LazyIO.interleave
     . \offset
-   -> withExponentialBackoff @HttpException
+   -> IO.withExponentialBackoff @HttpException
     $ runReq defaultHttpConfig
     $ fmap responseBody 
     $ req GET url NoReqBody jsonResponse
@@ -132,19 +135,24 @@ fetchSymbolPrices from to symbol
         toTimestampMs = floor . (1000 *) . utcTimeToPOSIXSeconds
 
 fetchAssetPrices
-    :: UTCTime
+    :: Members [Error String, Embed IO] r
+    => UTCTime
     -> UTCTime
     -> String
-    -> IO (Maybe (TimeSeries Double))
+    -> Sem r (Maybe (TimeSeries Double))
 fetchAssetPrices from to asset = do
     quoteAsset <- cachedFetchQuoteAsset asset
-    maybeBasePrices <- fetchSymbolPrices from to
+    maybeBasePrices
+       <- embed
+        $ fetchSymbolPrices from to
         $ asset ++ show quoteAsset
     case quoteAsset of
         USDT -> return maybeBasePrices
         _ -> do
             -- Chain rule.
-            maybeQuotePrices <- fetchSymbolPrices from to
+            maybeQuotePrices
+               <- embed
+                $ fetchSymbolPrices from to
                 $ show quoteAsset ++ "USDT"
             return do
                 basePrices <- maybeBasePrices
@@ -157,5 +165,4 @@ runPriceFeedBinance
     -> Sem (Feed Double : r) a
     -> Sem r a
 runPriceFeedBinance asset = interpret \case
-    Between' from to
-        -> ioToSem $ withStderrLogging $ fetchAssetPrices from to asset
+    Between' from to -> fetchAssetPrices from to asset
