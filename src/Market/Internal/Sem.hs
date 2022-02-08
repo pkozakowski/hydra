@@ -67,14 +67,14 @@ withExponentialBackoff
     :: (Members [Error e, Embed IO] r, Show e)
     => NominalDiffTime -> Int -> (e -> Bool) -> Sem r a -> Sem r a
 withExponentialBackoff base repeats predicate action
-    = action `catch` \(exc :: e)
-   -> if predicate exc && repeats > 0
+    = action `catch` \(err :: e)
+   -> if predicate err && repeats > 0
         then do
             embed
                 $ warn
-                $ pack (show exc) <> "; waiting " <> pack (show base)
+                $ pack (show err) <> "; waiting " <> pack (show base)
                <> " before retrying (" <> pack (show repeats) <> " retries left)"
             embed $ threadDelay $ floor $ (* 1000000) $ toRational base
             withExponentialBackoff (base * 2) (repeats - 1) predicate action
         else
-            throw exc
+            throw err

@@ -3,6 +3,7 @@
 
 module Market.Blockchain.EVM.UniswapV2 where
 
+import Control.Exception hiding (throw)
 import Control.Logging
 import Control.Monad
 import Data.List
@@ -19,7 +20,8 @@ import Market.Blockchain.EVM
 import qualified Market.Blockchain.EVM.ERC20 as ERC20
 import Market.Internal.Sem
 import Network.Ethereum.Account
-import Network.Ethereum.Api.Types
+import Network.Ethereum.Api.Types hiding (TransactionTimeout)
+import qualified Network.Ethereum.Api.Types as Eth
 import qualified Network.Ethereum.Api.Eth as Eth
 import Network.Ethereum.Contract.TH
 import Network.Ethereum.Unit
@@ -29,7 +31,7 @@ import Numeric.Algebra as Algebra
 import Numeric.Field.Fraction
 import Numeric.Kappa
 import Polysemy
-import Polysemy.Error
+import Polysemy.Error hiding (fromException)
 import Polysemy.Input
 import Polysemy.State
 import Prelude hiding (pi)
@@ -67,7 +69,9 @@ instance Exchange EVM UniswapV2 where
             -> if asset == stableAsset
                 then pure (asset, Price one)
                 else do
-                    price <- fetchExchangeRate asset stableAsset $ Amount one
+                    price <- fetchExchangeRate
+                            (const @_ @SomeException $ pure ()) asset stableAsset
+                        $ Amount one
                     pure $ (asset, Price price)
         pure $ fromList assetsAndPrices
 
@@ -78,42 +82,31 @@ instance Exchange EVM UniswapV2 where
             ourGasPrice = max estGasPrice $ minGasPrice evm
 
         wallet <- input @WalletEVM
+        config <- input @SwapConfigUniswapV2
         let run
                 :: forall r
                  . Members (SwapEffects EVM) r
                 => String -> LocalKeyAccount Web3 TxReceipt -> Sem r ()
-            run txName action = do
+            run txName action = retryingTransaction do
+                let timeoutUs = floor $ timeLimit config Prelude.* 1e6
                 receipt
-                   <- retryingTransaction
-                    $ web3ToSem' handleJsonRpcException
+                   <- web3ToSem' handleUniswapException
                     $ withAccount (localKey wallet)
-                    $ withParam (gasPrice .~ ourGasPrice) action
+                    $ withParam (gasPrice .~ ourGasPrice)
+                    $ withParam (timeout .~ Just timeoutUs)
+                    $ action
                 case receiptStatus receipt of
                     Just 1 -> return ()
                     maybeStatus -> throw
                         $ UnknownTransactionError
                         $ txName ++ " failed with status " ++ show maybeStatus
-                where
-                    handleJsonRpcException :: JsonRpcException -> Sem r ()
-                    handleJsonRpcException exc = case exc of
-                        CallException rpcError
-                         -> if rpcError `has` "INSUFFICIENT_INPUT_AMOUNT"
-                                then throw PriceSlipped
-                            else if rpcError `has` "EXPIRED"
-                                then throw TransactionTimeout
-                                else unknown
-                        _ -> unknown
-                        where
-                            has rpcError msg
-                                = msg `isInfixOf` unpack (errMessage rpcError)
-                            unknown = throw $ UnknownTransactionError $ show exc
 
             runSwap = run "swap" . withParam (to .~ routerAddress exchange)
 
             wrappedBaseAsset = wrapAsset $ baseAsset evm
 
-        config <- input @SwapConfigUniswapV2
-        exchangeRate <- fetchExchangeRate fromAsset toAsset fromAmount
+        exchangeRate <- fetchExchangeRate
+            handleUniswapException fromAsset toAsset fromAmount
         let toAmount = exchangeRate .* fromAmount
             toAmountMin
                 = (one - providerFee exchange)
@@ -166,18 +159,16 @@ instance Exchange EVM UniswapV2 where
                         (myAddress wallet)
                         deadline
         where
-            retryingSwap
-                = retryingTransaction
-                . withExponentialBackoff 1 10 \case
-                    PriceSlipped -> True
+            retryingSwap = withExponentialBackoff 1 10 \case
+                PriceSlipped -> True
 
 wrapAsset :: Asset -> Asset
 wrapAsset (Asset symbol) = Asset $ "W" ++ symbol
 
 fetchExchangeRate
     :: Members (Input UniswapV2 : PlatformEffects EVM) r
-    => Asset -> Asset -> Amount -> Sem r Scalar
-fetchExchangeRate fromAsset toAsset fromAmount = retryingCall do
+    => (SomeException -> Sem r ()) -> Asset -> Asset -> Amount -> Sem r Scalar
+fetchExchangeRate handler fromAsset toAsset fromAmount = retryingCall do
     embed
         $ debug
         $ "fetching exchange rate: " <> pack (show fromAsset)
@@ -188,7 +179,7 @@ fetchExchangeRate fromAsset toAsset fromAmount = retryingCall do
     toToken <- getTokenWithWrap evm toAsset
     Amount priceWithFee
        <- fmap (amountFromSolidity (decimals toToken) . last)
-        $ web3ToSem
+        $ web3ToSem' handler
         $ withAccount ()
         $ withParam (to .~ routerAddress exchange)
         $ getAmountsOut
@@ -203,3 +194,30 @@ fetchExchangeRate fromAsset toAsset fromAmount = retryingCall do
                 else asset
         (-) = (Algebra.-)
         (/) = (Algebra./)
+
+handleUniswapException
+    :: Members [Error SwapError, Error TransactionError] r
+    => SomeException -> Sem r ()
+handleUniswapException exc = do
+    case maybeJsonRpcExc of
+        Just (CallException rpcError)
+         -> if rpcError `has` "INSUFFICIENT_INPUT_AMOUNT"
+                then throw PriceSlipped
+            else if rpcError `has` "EXPIRED"
+                then throw TransactionTimeout
+            else if rpcError `has` outOfGas
+                then throw OutOfGas
+                else unknown
+        Just _ -> unknown
+        Nothing -> case maybeTimeout of
+            Just _ -> throw TransactionTimeout
+            Nothing -> unknown
+    where
+        maybeJsonRpcExc :: Maybe JsonRpcException
+        maybeJsonRpcExc = fromException exc
+        maybeTimeout :: Maybe Eth.TransactionTimeout
+        maybeTimeout = fromException exc
+        has rpcError msg
+            = msg `isInfixOf` unpack (errMessage rpcError)
+        outOfGas = "gas required exceeds allowance"
+        unknown = throw $ UnknownTransactionError $ show exc

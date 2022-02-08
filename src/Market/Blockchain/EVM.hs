@@ -3,10 +3,10 @@
 
 module Market.Blockchain.EVM where
 
-import Crypto.Ethereum
-import qualified Control.Exception
+import Control.Exception hiding (throw)
 import Control.Monad
 import qualified Control.Monad.State.Lazy as MTL
+import Crypto.Ethereum
 import Data.Aeson
 import Data.ByteArray.HexString
 import Data.ByteString hiding (pack)
@@ -26,7 +26,7 @@ import qualified Market.Blockchain.EVM.ERC20 as ERC20
 import Market.Internal.IO
 import Market.Internal.Sem as Sem
 import Network.Ethereum.Account
-import Network.Ethereum.Api.Types
+import Network.Ethereum.Api.Types hiding (TransactionTimeout)
 import Network.Ethereum.Contract.Method
 import Network.Ethereum.Unit
 import Network.HTTP.Client
@@ -123,22 +123,22 @@ retryingTransaction
     :: Members [Error TransactionError, Error PlatformError, Embed IO] r
     => Sem r a -> Sem r a
 retryingTransaction
-    -- TODO: Retry transaction with more gas.
-    = retryingCall
-    . Sem.withExponentialBackoff 1 10 \case
+    -- TODO: Retry with more gas; add an upper limit.
+    = Sem.withExponentialBackoff 1 10 \case
         TransactionTimeout -> True
         UnknownTransactionError _ -> True
         _ -> False
+    . retryingCall
 
 web3ToSem
     :: Members (PlatformEffects EVM) r
     => Web3 a -> Sem r a
-web3ToSem = web3ToSem' $ const $ pure ()
+web3ToSem = web3ToSem' $ const @_ @SomeException $ pure ()
 
 web3ToSem'
-    :: forall r a
-     . Members (PlatformEffects EVM) r
-    => (JsonRpcException -> Sem r ()) -> Web3 a -> Sem r a
+    :: forall e r a
+     . (Exception e, Members (PlatformEffects EVM) r)
+    => (e -> Sem r ()) -> Web3 a -> Sem r a
 web3ToSem' handler action = do
     state <- get
     (result, state')
@@ -154,16 +154,17 @@ web3ToSem' handler action = do
         ioToSem action = do
             resultOrError
                <- embed
+                $ Control.Exception.try @e
                 $ Control.Exception.try @HttpException
-                $ Control.Exception.try @JsonRpcException action
+                $ action
             case resultOrError of
                 Right (Right result) -> pure result
-                Right (Left exc) -> do
+                Right (Left exc) -> throw $ TransportError $ show exc
+                Left exc -> do
                     -- If the handler triggers (throws), the next line won't
                     -- execute.
                     handler exc
-                    throw $ UnknownPlatformError $ show exc
-                Left exc -> throw $ TransportError $ show exc
+                    throw $ UnknownPlatformError $ displayException exc
 
 amountToEther :: Amount -> Ether
 amountToEther (Amount amount) = fractionToFractional amount
