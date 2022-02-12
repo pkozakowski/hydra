@@ -6,6 +6,7 @@ module Market.Blockchain.EVM.UniswapV2 where
 import Control.Exception hiding (throw)
 import Control.Logging
 import Control.Monad
+import Data.ByteArray.HexString
 import Data.List
 import Data.Map.Class
 import Data.Maybe
@@ -20,7 +21,7 @@ import Market.Blockchain.EVM
 import qualified Market.Blockchain.EVM.ERC20 as ERC20
 import Market.Internal.Sem
 import Network.Ethereum.Account
-import Network.Ethereum.Api.Types hiding (TransactionTimeout)
+import Network.Ethereum.Api.Types
 import qualified Network.Ethereum.Api.Types as Eth
 import qualified Network.Ethereum.Api.Eth as Eth
 import Network.Ethereum.Contract.TH
@@ -86,20 +87,25 @@ instance Exchange EVM UniswapV2 where
         let run
                 :: forall r
                  . Members (SwapEffects EVM) r
-                => String -> LocalKeyAccount Web3 TxReceipt -> Sem r ()
+                => String
+                -> LocalKeyAccount Web3 (Either HexString TxReceipt)
+                -> Sem r ()
             run txName action = retryingTransaction do
                 let timeoutUs = floor $ timeLimit config Prelude.* 1e6
-                receipt
+                receiptOrHash
                    <- web3ToSem' handleUniswapException
                     $ withAccount (localKey wallet)
                     $ withParam (gasPrice .~ ourGasPrice)
                     $ withParam (timeout .~ Just timeoutUs)
                     $ action
-                case receiptStatus receipt of
-                    Just 1 -> return ()
-                    maybeStatus -> throw
-                        $ UnknownTransactionError
-                        $ txName ++ " failed with status " ++ show maybeStatus
+                case receiptOrHash of
+                    Right receipt -> case receiptStatus receipt of
+                        Just 1 -> return ()
+                        maybeStatus -> throw
+                            $ UnknownTransactionError
+                            $ txName ++ " failed with status "
+                           ++ show maybeStatus
+                    Left _ -> throw TransactionTimeout
 
             runSwap = run "swap" . withParam (to .~ routerAddress exchange)
 
@@ -209,14 +215,9 @@ handleUniswapException exc = do
                 then throw OutOfGas
                 else unknown
         Just _ -> unknown
-        Nothing -> case maybeTimeout of
-            Just _ -> throw TransactionTimeout
-            Nothing -> unknown
     where
         maybeJsonRpcExc :: Maybe JsonRpcException
         maybeJsonRpcExc = fromException exc
-        maybeTimeout :: Maybe Eth.TransactionTimeout
-        maybeTimeout = fromException exc
         has rpcError msg
             = msg `isInfixOf` unpack (errMessage rpcError)
         outOfGas = "gas required exceeds allowance"
