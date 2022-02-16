@@ -4,6 +4,7 @@
 module Market.Blockchain.EVM where
 
 import Control.Exception hiding (throw)
+import Control.Logging
 import Control.Monad
 import qualified Control.Monad.State.Lazy as MTL
 import Crypto.Ethereum
@@ -37,14 +38,15 @@ import Numeric.Truncatable
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.Reader
 import Polysemy.State
-import Prelude hiding (lookup)
+import Prelude hiding (log, lookup)
 import System.IO.Unsafe
 
 data EVM = EVM
     { chainId :: Integer
     , jsonRpcUrl :: String
-    , minGasPrice :: Shannon
+    , platformMinGasPrice :: Shannon
     , baseAsset :: Asset
     , tokenListName :: String
     }
@@ -52,8 +54,7 @@ data EVM = EVM
 polygon = EVM
     { chainId = 137
     , jsonRpcUrl = "http://polygon-rpc.com/"
-    -- Technically 30, but gas is cheap on Polygon so let's speed things up.
-    , minGasPrice = 200
+    , platformMinGasPrice = 30
     , baseAsset = Asset "MATIC"
     , tokenListName = "polygon"
     }
@@ -61,7 +62,7 @@ polygon = EVM
 polygonTestnet = EVM
     { chainId = 80001
     , jsonRpcUrl = "http://matic-mumbai.chainstacklabs.com"
-    , minGasPrice = 40
+    , platformMinGasPrice = 30
     , baseAsset = Asset "MATIC"
     , tokenListName = "polygon-testnet"
     }
@@ -71,10 +72,16 @@ data WalletEVM = Wallet
     , myAddress :: Solidity.Address
     }
 
+data ConfigEVM = Config
+    { minGasPrice :: Maybe Shannon
+    , maxGasPrice :: Shannon
+    }
+
 instance Platform EVM where
 
     type Effects EVM r = State JsonRpcClient : r
     type Wallet EVM = WalletEVM
+    type PlatformConfig EVM = ConfigEVM
 
     loadWallet bs = do
         platform <- input
@@ -103,10 +110,11 @@ instance Platform EVM where
             pure (asset, amount)
         pure $ fromList assetsAndAmounts
 
-    runPlatform platform action = do
+    runPlatform platform config action = do
         manager <- embed $ newManager defaultManagerSettings
         subsume_
             $ evalState (JsonRpcHttpClient manager $ jsonRpcUrl platform)
+            $ runReader config
             $ runInputConst platform
             $ action
 
@@ -119,16 +127,44 @@ retryingCall = Sem.withExponentialBackoff 0.1 10 \case
     UnknownPlatformError _ -> True
     _ -> False
 
+askMinGasPrice :: Members [Input EVM, Reader ConfigEVM] r => Sem r Shannon
+askMinGasPrice = do
+    platformMin <- platformMinGasPrice <$> input @EVM
+    maybe platformMin (max platformMin) . minGasPrice <$> ask @ConfigEVM
+
 retryingTransaction
-    :: Members [Error TransactionError, Error PlatformError, Embed IO] r
+    :: forall r a
+     . Members (TransactionEffects EVM) r
     => Sem r a -> Sem r a
-retryingTransaction
-    -- TODO: Retry with more gas; add an upper limit.
-    = Sem.withExponentialBackoff 1 10 \case
-        TransactionTimeout -> True
-        UnknownTransactionError _ -> True
-        _ -> False
-    . retryingCall
+retryingTransaction action = do
+    platformMin <- platformMinGasPrice <$> input
+    let increaseGas
+            = local @ConfigEVM
+                ( \config -> config
+                    { minGasPrice = Just $ dbl $ calcMin (minGasPrice config) }
+                ) where
+                    dbl x = x + x  -- * 2 increases the price * 2e9 (?!)
+                    calcMin = \case
+                        Just configMin -> max platformMin configMin
+                        Nothing -> platformMin
+    origMin <- askMinGasPrice
+    Sem.withExponentialBackoff' 1 10
+        ( \case
+            TransactionTimeout -> Just . increaseGas
+            GasTooExpensive -> Just
+            UnknownTransactionError _ -> Just
+            _ -> const Nothing
+        ) do
+            minGasPrice <- askMinGasPrice
+            maxGasPrice <- maxGasPrice <$> ask
+            when (minGasPrice > maxGasPrice)
+                $ throw GasTooExpensive
+            when (minGasPrice > origMin)
+                $ embed
+                $ log
+                $ "increasing min gas price to "
+               <> pack (show minGasPrice)
+            action
 
 web3ToSem
     :: Members (PlatformEffects EVM) r

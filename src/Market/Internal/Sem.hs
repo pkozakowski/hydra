@@ -67,14 +67,28 @@ withExponentialBackoff
     :: (Members [Error e, Embed IO] r, Show e)
     => NominalDiffTime -> Int -> (e -> Bool) -> Sem r a -> Sem r a
 withExponentialBackoff base repeats predicate action
-    = action `catch` \(err :: e)
-   -> if predicate err && repeats > 0
-        then do
-            embed
-                $ warn
-                $ pack (show err) <> "; waiting " <> pack (show base)
-               <> " before retrying (" <> pack (show repeats) <> " retries left)"
-            embed $ threadDelay $ floor $ (* 1000000) $ toRational base
-            withExponentialBackoff (base * 2) (repeats - 1) predicate action
-        else
-            throw err
+    = withExponentialBackoff' base repeats loop action where
+        loop err action = if predicate err then Just action else Nothing
+
+withExponentialBackoff'
+    :: (Members [Error e, Embed IO] r, Show e)
+    => NominalDiffTime
+    -> Int
+    -> (e -> Sem r a -> Maybe (Sem r a))
+    -> Sem r a
+    -> Sem r a
+withExponentialBackoff' base repeats loop action = go action 0 where
+    go action repeat = action `catch` \(err :: e)
+        -> case loop err action of
+            Just action'
+                | repeat < repeats -> do
+                    let delay = base * 2 ^ repeat
+                    embed
+                        $ warn
+                        $ pack (show err) <> "; waiting " <> pack (show delay)
+                       <> " before retrying (" <> pack (show $ repeats - repeat)
+                       <> " retries left)"
+                    embed $ threadDelay $ floor $ (* 1000000) $ toRational delay
+                    go action' $ repeat + 1
+                | otherwise -> throw err
+            Nothing -> throw err

@@ -6,6 +6,8 @@ module Market.Blockchain.EVM.UniswapV2 where
 import Control.Exception hiding (throw)
 import Control.Logging
 import Control.Monad
+import Control.Monad.IO.Class
+import Control.Monad.Trans
 import Data.ByteArray.HexString
 import Data.List
 import Data.Map.Class
@@ -34,6 +36,7 @@ import Numeric.Kappa
 import Polysemy
 import Polysemy.Error hiding (fromException)
 import Polysemy.Input
+import Polysemy.Reader
 import Polysemy.State
 import Prelude hiding (pi)
 
@@ -77,20 +80,23 @@ instance Exchange EVM UniswapV2 where
         pure $ fromList assetsAndPrices
 
     swap fromAsset toAsset fromAmount = retryingSwap do
-        estGasPrice <- retryingCall $ web3ToSem $ fromWei <$> Eth.gasPrice
-        exchange <- input
-        let evm = platform exchange
-            ourGasPrice = max estGasPrice $ minGasPrice evm
-
         wallet <- input @WalletEVM
         config <- input @SwapConfigUniswapV2
-        let run
+        exchange <- input
+        let evm = platform exchange
+            run
                 :: forall r
-                 . Members (SwapEffects EVM) r
+                 . Members (SwapEffects EVM UniswapV2) r
                 => String
                 -> LocalKeyAccount Web3 (Either HexString TxReceipt)
                 -> Sem r ()
             run txName action = retryingTransaction do
+                estGasPrice <- retryingCall $ web3ToSem $ fromWei <$> Eth.gasPrice
+                ourGasPrice <- max estGasPrice <$> askMinGasPrice
+                maxGasPrice <- maxGasPrice <$> ask
+                when (ourGasPrice Prelude.> maxGasPrice)
+                    $ throw GasTooExpensive
+
                 let timeoutUs = floor $ timeLimit config Prelude.* 1e6
                 receiptOrHash
                    <- web3ToSem' handleUniswapException
@@ -101,7 +107,7 @@ instance Exchange EVM UniswapV2 where
                 case receiptOrHash of
                     Right receipt -> case receiptStatus receipt of
                         Just 1 -> return ()
-                        maybeStatus -> throw
+                        maybeStatus -> throw @TransactionError
                             $ UnknownTransactionError
                             $ txName ++ " failed with status "
                            ++ show maybeStatus
@@ -121,9 +127,11 @@ instance Exchange EVM UniswapV2 where
                     (-) = (Algebra.-)
                     (*) = (Algebra.*)
 
-        now <- embed getCurrentTime
-        let deadline = floor $ utcTimeToPOSIXSeconds now + timeLimit config
-                where (+) = (Prelude.+)
+        let withDeadline action = do
+                now <- lift $ liftIO getCurrentTime
+                let deadline = floor $ utcTimeToPOSIXSeconds now + timeLimit config
+                        where (+) = (Prelude.+)
+                action deadline
 
         if fromAsset == baseAsset evm then do
             fromToken <- getToken evm wrappedBaseAsset
@@ -131,11 +139,11 @@ instance Exchange EVM UniswapV2 where
             embed $ debug "swapping ETH -> token"
             runSwap
                 $ withParam (value .~ amountToEther fromAmount)
+                $ withDeadline
                 $ swapExactETHForTokens
                     (amountToSolidity (decimals toToken) toAmountMin)
                     [address fromToken, address toToken]
                     (myAddress wallet)
-                    deadline
         else do
             fromToken <- getToken evm fromAsset
             let fromAmountSol = amountToSolidity (decimals fromToken) fromAmount
@@ -148,22 +156,22 @@ instance Exchange EVM UniswapV2 where
                 toToken <- getToken evm wrappedBaseAsset
                 embed $ debug "swapping token -> ETH"
                 runSwap
+                    $ withDeadline
                     $ swapExactTokensForETH
                         fromAmountSol
                         (amountToSolidity (decimals toToken) toAmountMin)
                         [address fromToken, address toToken]
                         (myAddress wallet)
-                        deadline
             else do
                 toToken <- getToken evm toAsset
                 embed $ debug "swapping token -> token"
                 runSwap
+                    $ withDeadline
                     $ swapExactTokensForTokens
                         fromAmountSol
                         (amountToSolidity (decimals toToken) toAmountMin)
                         [address fromToken, address toToken]
                         (myAddress wallet)
-                        deadline
         where
             retryingSwap = withExponentialBackoff 1 10 \case
                 PriceSlipped -> True
@@ -202,7 +210,7 @@ fetchExchangeRate handler fromAsset toAsset fromAmount = retryingCall do
         (/) = (Algebra./)
 
 handleUniswapException
-    :: Members [Error SwapError, Error TransactionError] r
+    :: Members [Error SwapError, Error TransactionError, Embed IO] r
     => SomeException -> Sem r ()
 handleUniswapException exc = do
     case maybeJsonRpcExc of
@@ -215,6 +223,7 @@ handleUniswapException exc = do
                 then throw OutOfGas
                 else unknown
         Just _ -> unknown
+        Nothing -> unknown
     where
         maybeJsonRpcExc :: Maybe JsonRpcException
         maybeJsonRpcExc = fromException exc

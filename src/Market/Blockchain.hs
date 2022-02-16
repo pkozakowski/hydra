@@ -11,6 +11,7 @@ import Market
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.Reader
 
 data PlatformError
     = CantLoadWallet String
@@ -23,14 +24,22 @@ data PlatformError
 
 data TransactionError
     = OutOfGas
+    | GasTooExpensive
     | TransactionTimeout
     | UnknownTransactionError String
     deriving Show
 
-type PlatformEffects p = Effects p [Error PlatformError, Embed IO]
+type PlatformEffects p = Effects p
+    [ Input p
+    , Reader (PlatformConfig p)
+    , Error PlatformError
+    , Embed IO
+    ]
 
 type TransactionEffects p = Effects p
-    [ Error TransactionError
+    [ Input p
+    , Reader (PlatformConfig p)
+    , Error TransactionError
     , Error PlatformError
     , Embed IO
     ]
@@ -39,29 +48,41 @@ class Platform p where
 
     type Effects p (r :: EffectRow) :: EffectRow
     type Wallet p :: *
+    type PlatformConfig p :: *
 
     loadWallet
-        :: Members (Input p : PlatformEffects p) r
+        :: Members (PlatformEffects p) r
         => ByteString -> Sem r (Wallet p)
 
     fetchPortfolio
         :: Members
-            ( Input p
-            : Input (Wallet p)
+            ( Input (Wallet p)
             : PlatformEffects p
             ) r
         => [Asset] -> Sem r Portfolio
 
     runPlatform
         :: Member (Embed IO) r
-        => p -> Sem (Input p : Effects p r) a -> Sem r a
+        => p
+        -> PlatformConfig p
+        -> Sem
+            ( Input p
+            : Reader (PlatformConfig p)
+            : Effects p r
+            ) a
+        -> Sem r a
 
 data SwapError
     = PriceSlipped
     deriving Show
 
-type SwapEffects p = Effects p
-    [ Error SwapError
+type SwapEffects p e = Effects p
+    [ Input p
+    , Input (Wallet p)
+    , Reader (PlatformConfig p)
+    , Input e
+    , Input (SwapConfig e)
+    , Error SwapError
     , Error TransactionError
     , Error PlatformError
     , Embed IO
@@ -74,18 +95,12 @@ class Platform p => Exchange p e | e -> p where
     fetchPrices
         :: Members
             ( Input e
-            : Input (Wallet p)
             : PlatformEffects p
             ) r
         => [Asset] -> Sem r Prices
     
     swap
-        :: Members
-            ( Input e
-            : Input (SwapConfig e)
-            : Input (Wallet p)
-            : SwapEffects p
-            ) r
+        :: Members (SwapEffects p e) r
         => Asset -> Asset -> Amount -> Sem r ()
 
 runExchange
