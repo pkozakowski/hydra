@@ -150,7 +150,8 @@ retryingTransaction action = do
     origMin <- askMinGasPrice
     Sem.withExponentialBackoff' 1 10
         ( \case
-            TransactionTimeout -> Just . increaseGas
+            TransactionTimeout True -> Just . increaseGas
+            TransactionTimeout False -> const Nothing
             GasTooExpensive -> Just
             UnknownTransactionError _ -> Just
             _ -> const Nothing
@@ -158,11 +159,12 @@ retryingTransaction action = do
             minGasPrice <- askMinGasPrice
             maxGasPrice <- maxGasPrice <$> ask
             when (minGasPrice > maxGasPrice)
-                $ throw GasTooExpensive
+                -- Don't retry.
+                $ throw $ TransactionTimeout False
             when (minGasPrice > origMin)
                 $ embed
-                $ log
-                $ "increasing min gas price to "
+                $ debug
+                $ "min gas price increased to "
                <> pack (show minGasPrice)
             action
 

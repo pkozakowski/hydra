@@ -8,6 +8,7 @@ import Control.Logging
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans
+import qualified Data.Aeson as Aeson
 import Data.ByteArray.HexString
 import Data.List
 import Data.Map.Class
@@ -97,7 +98,9 @@ instance Exchange EVM UniswapV2 where
                 when (ourGasPrice Prelude.> maxGasPrice)
                     $ throw GasTooExpensive
 
-                let timeoutUs = floor $ timeLimit config Prelude.* 1e6
+                now <- embed $ getCurrentTime
+                let deadline = timeLimit config `addUTCTime` now
+                    timeoutUs = floor $ timeLimit config Prelude.* 1e6
                 receiptOrHash
                    <- web3ToSem' handleUniswapException
                     $ withAccount (localKey wallet)
@@ -107,11 +110,18 @@ instance Exchange EVM UniswapV2 where
                 case receiptOrHash of
                     Right receipt -> case receiptStatus receipt of
                         Just 1 -> return ()
-                        maybeStatus -> throw @TransactionError
-                            $ UnknownTransactionError
-                            $ txName ++ " failed with status "
-                           ++ show maybeStatus
-                    Left _ -> throw TransactionTimeout
+                        maybeStatus -> do
+                            -- Sometimes an expired transaction reverts without
+                            -- an error message before the off-chain timeout
+                            -- triggers.
+                            now' <- embed $ getCurrentTime
+                            if now' Prelude.> deadline
+                                then throw transactionTimeout
+                                else throw @TransactionError
+                                    $ UnknownTransactionError
+                                    $ txName ++ " failed with status "
+                                   ++ show maybeStatus
+                    Left _ -> throw transactionTimeout
 
             runSwap = run "swap" . withParam (to .~ routerAddress exchange)
 
@@ -218,7 +228,7 @@ handleUniswapException exc = do
          -> if rpcError `has` "INSUFFICIENT_INPUT_AMOUNT"
                 then throw PriceSlipped
             else if rpcError `has` "EXPIRED"
-                then throw TransactionTimeout
+                then throw transactionTimeout
             else if rpcError `has` outOfGas
                 then throw OutOfGas
                 else unknown

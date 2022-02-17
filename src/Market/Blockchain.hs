@@ -25,9 +25,12 @@ data PlatformError
 data TransactionError
     = OutOfGas
     | GasTooExpensive
-    | TransactionTimeout
+    | TransactionTimeout Bool -- Retryable?
     | UnknownTransactionError String
     deriving Show
+
+transactionTimeout :: TransactionError
+transactionTimeout = TransactionTimeout True
 
 type PlatformEffects p = Effects p
     [ Input p
