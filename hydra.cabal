@@ -69,6 +69,7 @@ library
       Numeric.Normed
       Numeric.Precision
       Numeric.Truncatable
+      Type.List
   other-modules:
       Paths_hydra
   hs-source-dirs:

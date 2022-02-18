@@ -79,7 +79,7 @@ data ConfigEVM = Config
 
 instance Platform EVM where
 
-    type Effects EVM r = State JsonRpcClient : r
+    type Effects EVM = '[State JsonRpcClient]
     type Wallet EVM = WalletEVM
     type PlatformConfig EVM = ConfigEVM
 
@@ -94,21 +94,17 @@ instance Platform EVM where
                     , myAddress = Solidity.fromPubKey $ derivePubKey key
                     }
 
-    fetchPortfolio assets = do
+    fetchBalance asset = do
         wallet <- input
         evm <- input
-        assetsAndAmounts <- forM assets \asset -> do
-            token <- getToken evm asset
-            amount
-               <- fmap (amountFromSolidity $ decimals token)
-                $ retryingCall
-                $ web3ToSem
-                $ withAccount ()
-                $ withParam (to .~ address token)
-                $ ERC20.balanceOf
-                $ myAddress wallet
-            pure (asset, amount)
-        pure $ fromList assetsAndAmounts
+        token <- getToken evm asset
+        fmap (amountFromSolidity $ decimals token)
+            $ retryingCall
+            $ web3ToSem
+            $ withAccount ()
+            $ withParam (to .~ address token)
+            $ ERC20.balanceOf
+            $ myAddress wallet
 
     runPlatform platform config action = do
         manager <- embed $ newManager defaultManagerSettings
