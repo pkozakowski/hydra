@@ -153,6 +153,7 @@ executable hydra-exe
   main-is: Main.hs
   other-modules:
       Command.Eval
+      Command.Run
       Command.Sync
       Command.Tune
       Help

@@ -6,8 +6,10 @@ module Main where
 
 import Control.Logging
 import Options.Applicative hiding (helper, hsubparser)
+import qualified Options.Applicative as Optparse
 
 import Command.Eval
+import Command.Run
 import Command.Sync
 import Command.Tune
 import Help
@@ -16,6 +18,7 @@ data Cmd
     = Eval EvalOptions
     | Sync SyncOptions
     | Tune TuneOptions
+    | Run  RunOptions
 
 parseCmd :: Parser Cmd
 parseCmd
@@ -23,6 +26,11 @@ parseCmd
         ( command "eval"
             $ info evalOptions
             $ progDesc "Evaluate an instrument."
+        )
+  <|> Run <$> hsubparser
+        ( command "run"
+            $ info runOptions
+            $ progDesc "Run an instrument on the blockchain."
         )
   <|> Sync <$> hsubparser
         ( command "sync"
@@ -57,22 +65,23 @@ options = Options
                 ( long "verbose"
                <> short 'v'
                <> help
-                    ( "Enable verbose mode. By default, only WARNINGs and ERRORs "
-                   <> "are shown. -v enables INFO messages, -vv enables DEBUG "
+                    ( "Verbose mode. By default, only WARNINGs and ERRORs are "
+                   <> "shown. -v enables INFO messages, -vv enables DEBUG "
                    <> "messages."
                     )
                 )
             )
         )
 
-run :: Options -> IO ()
-run opts = withStderrLogging do
+dispatch :: Options -> IO ()
+dispatch opts = withStderrLogging do
     setLogLevel $ toLogLevel $ verbosity opts
     case cmd opts of
         Eval opts' -> eval opts'
+        Run  opts' -> run  opts'
         Sync opts' -> sync opts'
         Tune opts' -> tune opts'
 
 main :: IO ()
-main = run =<< customExecParser (prefs showHelpOnEmpty) opts where
+main = dispatch =<< customExecParser (prefs showHelpOnEmpty) opts where
     opts = info (options <**> helper) idm

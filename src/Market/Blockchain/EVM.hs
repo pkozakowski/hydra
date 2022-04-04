@@ -27,6 +27,7 @@ import qualified Market.Blockchain.EVM.ERC20 as ERC20
 import Market.Internal.IO
 import Market.Internal.Sem as Sem
 import Network.Ethereum.Account
+import Network.Ethereum.Api.Eth
 import Network.Ethereum.Api.Types hiding (TransactionTimeout)
 import Network.Ethereum.Contract.Method
 import Network.Ethereum.Unit
@@ -97,14 +98,16 @@ instance Platform EVM where
     fetchBalance asset = do
         wallet <- input
         evm <- input
-        token <- getToken evm asset
-        fmap (amountFromSolidity $ decimals token)
-            $ retryingCall
-            $ web3ToSem
-            $ withAccount ()
-            $ withParam (to .~ address token)
-            $ ERC20.balanceOf
-            $ myAddress wallet
+        retryingCall
+            $ if asset == baseAsset evm
+                then web3ToSem
+                    $ amountFromQuantity
+                  <$> getBalance (myAddress wallet) Latest
+                else do
+                    token <- getToken evm asset
+                    web3ToSem $ withAccount () $ withParam (to .~ address token)
+                        $ fmap (amountFromSolidity $ decimals token)
+                        $ ERC20.balanceOf $ myAddress wallet
 
     runPlatform platform config action = do
         manager <- embed $ newManager defaultManagerSettings
@@ -210,6 +213,9 @@ amountToSolidity decimals (Amount amount)
 amountFromSolidity :: Integer -> Solidity.UIntN 256 -> Amount
 amountFromSolidity decimals amount
     = Amount $ fromIntegral amount % 10 ^ decimals
+
+amountFromQuantity :: Quantity -> Amount
+amountFromQuantity (Quantity quantity) = Amount $ quantity % 10 ^ 18
 
 data Token = Token
     { symbol :: Asset
