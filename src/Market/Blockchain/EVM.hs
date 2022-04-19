@@ -19,10 +19,13 @@ import Data.Solidity.Abi
 import qualified Data.Solidity.Prim as Solidity
 import qualified Data.Solidity.Prim.Address as Solidity
 import Data.Text
+import Dhall (FromDhall)
 import GHC.Generics hiding (to)
+import GHC.Natural
 import Lens.Micro hiding (to)
 import Market
 import Market.Blockchain
+import Market.Blockchain.Types
 import qualified Market.Blockchain.EVM.ERC20 as ERC20
 import Market.Internal.IO
 import Market.Internal.Sem as Sem
@@ -45,28 +48,12 @@ import Prelude hiding (log, lookup)
 import System.IO.Unsafe
 
 data EVM = EVM
-    { chainId :: Integer
+    { chainId :: Natural
     , jsonRpcUrl :: String
     , platformMinGasPrice :: Shannon
     , baseAsset :: Asset
     , tokenListName :: String
-    }
-
-polygon = EVM
-    { chainId = 137
-    , jsonRpcUrl = "http://polygon-rpc.com/"
-    , platformMinGasPrice = 30
-    , baseAsset = Asset "MATIC"
-    , tokenListName = "polygon"
-    }
-
-polygonTestnet = EVM
-    { chainId = 80001
-    , jsonRpcUrl = "http://matic-mumbai.chainstacklabs.com"
-    , platformMinGasPrice = 30
-    , baseAsset = Asset "MATIC"
-    , tokenListName = "polygon-testnet"
-    }
+    } deriving (Generic, FromDhall)
 
 data WalletEVM = Wallet
     { localKey :: LocalKey
@@ -76,7 +63,7 @@ data WalletEVM = Wallet
 data ConfigEVM = Config
     { minGasPrice :: Maybe Shannon
     , maxGasPrice :: Shannon
-    }
+    } deriving (Generic, FromDhall)
 
 instance Platform EVM where
 
@@ -91,7 +78,7 @@ instance Platform EVM where
             Right hex -> do
                 let key = importKey $ toBytes @ByteString hex
                 return Wallet
-                    { localKey = LocalKey key $ chainId platform
+                    { localKey = LocalKey key $ fromIntegral $ chainId platform
                     , myAddress = Solidity.fromPubKey $ derivePubKey key
                     }
 

@@ -1,3 +1,6 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE RecordWildCards #-}
+
 module Command.Run where
 
 import Control.Logging
@@ -5,7 +8,9 @@ import Data.List
 import Data.Map.Class ((!))
 import Data.String
 import Data.Text (Text, pack, strip, unpack)
-import qualified Dhall
+import Dhall (FromDhall)
+import qualified Dhall as Dh
+import GHC.Generics
 import Market
 import Market.Blockchain
 import Market.Blockchain.EVM
@@ -21,8 +26,15 @@ import Polysemy.Input
 
 data RunOptions = RunOptions
     { wallet :: String
+    , blockchainConfig :: String
     , config :: String
     }
+
+data BlockchainConfig = BlockchainConfig
+    { exchange :: UniswapV2
+    , platformConfig :: ConfigEVM
+    , swapConfig :: SwapConfigUniswapV2
+    } deriving (Generic, FromDhall)
 
 runOptions :: Parser RunOptions
 runOptions = RunOptions
@@ -34,28 +46,13 @@ runOptions = RunOptions
             )
         )
     <*> argument str
-        ( metavar "CONFIG"
+        ( metavar "BLOCKCHAIN_CONFIG"
+       <> help "Blockchain configuration script."
+        )
+    <*> argument str
+        ( metavar "INSTRUMENT_CONFIG"
        <> help "Instrument configuration script."
         )
-
--- TODO: pass through options
-platformConfig :: ConfigEVM
-platformConfig = Config
-    { minGasPrice = Nothing
-    , maxGasPrice = 1000
-    }
-
--- TODO: pass through options
-swapConfig = SwapConfig
-    { slippage = 1 % 100
-    , timeLimit = fromInteger 15
-    }
-
--- TODO: infer; in the future, adjust in runtime
-fees = Fees
-    { variable = 3 % 1000
-    , fixed = Nothing
-    }
 
 run :: RunOptions -> IO ()
 run options = do
@@ -64,9 +61,13 @@ run options = do
         $ readFile
         $ wallet options
 
+    BlockchainConfig {..}
+       <- Dh.input Dh.auto
+        $ "./" <> pack (blockchainConfig options)
+
     config
         :: SomeInstrumentConfig
-        <- Dhall.input Dhall.auto
+        <- Dh.input Dh.auto
          $ "./" <> pack (config options) <> " ./dhall/Market/Instrument/Type"
 
     withStderrLogging
@@ -75,21 +76,22 @@ run options = do
         $ mapError @TransactionError show
         $ mapError @SwapError show
         $ mapError @MarketError show
-        $ runPlatform polygon platformConfig do
+        $ runPlatform (platform exchange) platformConfig do
             wallet <- loadWallet @EVM wallet
-            runExchange quickswap swapConfig wallet
-                $ runTimeIO
-                -- -- TODO: add baseAsset to the Platform API
-                $ runInputConst (nub $ baseAsset polygon : managedAssets config)
-                $ runInputPortfolioBlockchain @EVM
-                $ runInputPricesBlockchain @EVM @UniswapV2
-                $ runMarketBlockchain @EVM @UniswapV2
-                $ runInstrument config 
-                $ runInputConst fees
-                $ do
-                    prices <- input @Prices
-                    portfolio <- input @Portfolio
-                    -- TODO: make it continue when a transaction fails
-                    execute
+            runExchange exchange swapConfig wallet do
+                fees <- estimateFees @EVM @UniswapV2
+                runTimeIO
+                    $ runInputConst
+                        (nub $ managedAssets config ++ feeAssets fees)
+                    $ runInputPortfolioBlockchain @EVM
+                    $ runInputPricesBlockchain @EVM @UniswapV2
+                    $ runMarketBlockchain @EVM @UniswapV2
+                    $ runInstrument config
+                    $ runInputConst fees
+                    $ do
+                        prices <- input @Prices
+                        portfolio <- input @Portfolio
+                        -- TODO: async
+                        execute
 
     pure ()

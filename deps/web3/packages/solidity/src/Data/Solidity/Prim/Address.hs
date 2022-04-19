@@ -17,7 +17,7 @@
 module Data.Solidity.Prim.Address
     (
     -- * The @Address@ type
-      Address
+      Address (..)
 
     -- * Hex string encoding
     , toHexString

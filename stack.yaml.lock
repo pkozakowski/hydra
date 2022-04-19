@@ -48,11 +48,11 @@ packages:
     hackage: binary-0.8.9.0@sha256:9cac9a1d86bfa3e7f75cc8bffaa256f3967ebb6d76f67a42f9679384c5c5e18a,6523
 - completed:
     pantry-tree:
-      sha256: 6650e54cbbcda6d05c4d8b8094fa61e5ffbda15a798a354d2dad5b35dc3b2859
+      sha256: b250a53bdb56844f047a2927833bb565b936a289abfa85dfc2a63148d776368a
       size: 19757
-    hackage: Cabal-3.6.2.0@sha256:e2266e14758c1f799220fad7f0d4b0b4ec567d81b7ba3faea17ff76d4c31de95,12437
+    hackage: Cabal-3.6.3.0@sha256:ff97c442b0c679c1c9876acd15f73ac4f602b973c45bde42b43ec28265ee48f4,12459
   original:
-    hackage: Cabal-3.6.2.0@sha256:e2266e14758c1f799220fad7f0d4b0b4ec567d81b7ba3faea17ff76d4c31de95,12437
+    hackage: Cabal-3.6.3.0@sha256:ff97c442b0c679c1c9876acd15f73ac4f602b973c45bde42b43ec28265ee48f4,12459
 - completed:
     pantry-tree:
       sha256: cd4689c9caa5b9774b3ec4603c3b2c06eb04b184db590afa6d107441e25cc634
@@ -60,20 +60,6 @@ packages:
     hackage: containers-0.6.4.1@sha256:e9ca297369c207ff40ed561877c15928292b957a01c8551a7cbd50d665a03429,2520
   original:
     hackage: containers-0.6.4.1@sha256:e9ca297369c207ff40ed561877c15928292b957a01c8551a7cbd50d665a03429,2520
-- completed:
-    pantry-tree:
-      sha256: adc1311e06686fa1c6a4120dc5da80b7364ee44023d521c1da739e56c6c4f26e
-      size: 876
-    hackage: ghc-boot-9.0.1@sha256:dc127d8b4b43eb54167f9befd51b2948e9084b8dfc18b88728148b719fa2287c,2347
-  original:
-    hackage: ghc-boot-9.0.1@sha256:dc127d8b4b43eb54167f9befd51b2948e9084b8dfc18b88728148b719fa2287c,2347
-- completed:
-    pantry-tree:
-      sha256: 5253e21f9e713f9945c934e6afc22f0e1bd56984b803db1a5843d8cc1cc25d2d
-      size: 351
-    hackage: ghc-boot-th-9.0.1@sha256:691c5ce694bc8ccf4683810654696192d42503e9894e574f243706436cb24f58,1343
-  original:
-    hackage: ghc-boot-th-9.0.1@sha256:691c5ce694bc8ccf4683810654696192d42503e9894e574f243706436cb24f58,1343
 - completed:
     pantry-tree:
       sha256: cbddc1e3c5ada6925354850cc0a8fadcd8643689098a504a0ed25ef9e0b932b8
@@ -111,8 +97,8 @@ packages:
     hackage: vector-0.12.2.0@sha256:6e81683c2c19b4aea58f1f453547cb03851b3cfd4031b8eb82abfa4643a13494,7953
 snapshots:
 - completed:
-    sha256: 63539429076b7ebbab6daa7656cfb079393bf644971156dc349d7c0453694ac2
-    size: 586296
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/18.yaml
+    sha256: 428ec8d5ce932190d3cbe266b9eb3c175cd81e984babf876b64019e2cbe4ea68
+    size: 590100
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/28.yaml
   original:
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/18.yaml
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/28.yaml

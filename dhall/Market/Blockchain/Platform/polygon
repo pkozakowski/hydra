@@ -1,0 +1,9 @@
+let gwei = ../gwei
+let asset = ../../asset
+
+in  { chainId = 137
+    , jsonRpcUrl = "http://polygon-rpc.com/"
+    , platformMinGasPrice = gwei 30
+    , baseAsset = asset "MATIC"
+    , tokenListName = "polygon"
+    }

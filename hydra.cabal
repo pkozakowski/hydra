@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.34.5.
 --
 -- see: https://github.com/sol/hpack
 
@@ -38,6 +38,7 @@ library
       Market.Blockchain.EVM
       Market.Blockchain.EVM.ERC20
       Market.Blockchain.EVM.UniswapV2
+      Market.Blockchain.Types
       Market.Deriving
       Market.Dhall
       Market.Evaluation
@@ -94,7 +95,7 @@ library
       AesonBson
     , QuickCheck
     , aeson
-    , aeson-pretty >=0.8 && <0.8.9
+    , aeson-pretty >=0.8 && <0.8.10
     , algebra
     , approx
     , base >=4.12 && <5
@@ -182,7 +183,7 @@ executable hydra-exe
       AesonBson
     , QuickCheck
     , aeson
-    , aeson-pretty >=0.8 && <0.8.9
+    , aeson-pretty >=0.8 && <0.8.10
     , algebra
     , approx
     , base >=4.12 && <5
@@ -278,7 +279,7 @@ test-suite hydra-test
       AesonBson
     , QuickCheck
     , aeson
-    , aeson-pretty >=0.8 && <0.8.9
+    , aeson-pretty >=0.8 && <0.8.10
     , algebra
     , approx
     , base >=4.12 && <5

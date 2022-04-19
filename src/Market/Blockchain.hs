@@ -19,6 +19,8 @@ import Polysemy.Reader
 import Prelude hiding (pi)
 import Type.List
 
+-- TODO: turn into exceptions
+
 data PlatformError
     = CantLoadWallet String
     | NoSuchAsset Asset
@@ -119,6 +121,13 @@ class Platform p => Exchange p e | e -> p where
             : PlatformEffects p
             ) r
         => [Asset] -> Sem r Prices
+
+    estimateFees
+        :: Members
+            ( Input e
+            : PlatformEffects p
+            ) r
+        => Sem r Fees
     
     swap
         :: Members (SwapEffects p e) r

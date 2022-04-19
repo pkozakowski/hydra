@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE QuasiQuotes #-}
 
@@ -17,6 +18,8 @@ import qualified Data.Solidity.Prim as Solidity
 import Data.Text (pack, unpack)
 import Data.Time
 import Data.Time.Clock.POSIX
+import Dhall (FromDhall)
+import GHC.Generics (Generic)
 import Lens.Micro hiding (to)
 import Market
 import Market.Blockchain
@@ -48,19 +51,12 @@ data UniswapV2 = UniswapV2
     , routerAddress :: Solidity.Address
     , providerFee :: Scalar
     , stablecoin :: Asset
-    }
+    } deriving (Generic, FromDhall)
 
 data SwapConfigUniswapV2 = SwapConfig
     { slippage :: Scalar
     , timeLimit :: NominalDiffTime
-    }
-
-quickswap = UniswapV2
-    { platform = polygon
-    , routerAddress = "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff"
-    , providerFee = 3 % 1000
-    , stablecoin = Asset "USDC"
-    }
+    } deriving (Generic, FromDhall)
 
 instance Exchange EVM UniswapV2 where
 
@@ -79,6 +75,15 @@ instance Exchange EVM UniswapV2 where
                         $ Amount one
                     pure $ (asset, Price price)
         pure $ fromList assetsAndPrices
+
+    estimateFees = do
+        exchange <- input @UniswapV2
+        return $ Fees
+            { variable = providerFee exchange
+            -- TODO: estimate based on the contracts, then update the estimate
+            -- based on the actual transactions
+            , fixed = Nothing
+            }
 
     swap fromAsset toAsset fromAmount = retryingSwap do
         wallet <- input @WalletEVM

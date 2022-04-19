@@ -18,7 +18,7 @@
 # resolver: ./custom-snapshot.yaml
 # resolver: https://example.com/snapshots/2018-01-01.yaml
 resolver:
-  url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/18.yaml
+  url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/28.yaml
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -42,10 +42,8 @@ extra-deps:
 - animalcase-0.1.0.2@sha256:d7b80c3130c68d7ce8ddd9782588b2c4dd7da86461f302c54cc4acddf0902b51,1015
 - approx-0.1.0.1@sha256:fe0c176d0b07d8d282732d66a92517a5552a3b755b8d41cd2aef3bb41dc6494e,2094
 - binary-0.8.9.0@sha256:9cac9a1d86bfa3e7f75cc8bffaa256f3967ebb6d76f67a42f9679384c5c5e18a,6523
-- Cabal-3.6.2.0@sha256:e2266e14758c1f799220fad7f0d4b0b4ec567d81b7ba3faea17ff76d4c31de95,12437
+- Cabal-3.6.3.0@sha256:ff97c442b0c679c1c9876acd15f73ac4f602b973c45bde42b43ec28265ee48f4,12459
 - containers-0.6.4.1@sha256:e9ca297369c207ff40ed561877c15928292b957a01c8551a7cbd50d665a03429,2520
-- ghc-boot-9.0.1@sha256:dc127d8b4b43eb54167f9befd51b2948e9084b8dfc18b88728148b719fa2287c,2347
-- ghc-boot-th-9.0.1@sha256:691c5ce694bc8ccf4683810654696192d42503e9894e574f243706436cb24f58,1343
 - parsec-3.1.15.0@sha256:a162d4cc8884014ba35192545cad293af0529fe11497aad8834bbaaa3dfffc26,4429
 - polysemy-1.6.0.0@sha256:29a73b1bf3d0049b12041016b7ee25e76bd8f6e99f9c37c2dde2b46368246697,6184
 - text-1.2.4.1@sha256:e12b468008b3c2bbc1f39bd2dcb75ba8f563c65aa5e54ee223b76463a845b6f1,7184

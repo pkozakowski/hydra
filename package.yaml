@@ -21,7 +21,7 @@ description:         Please see the README on GitHub at <https://github.com/pkoz
 
 dependencies:
 - aeson
-- aeson-pretty >= 0.8 && < 0.8.9
+- aeson-pretty >= 0.8 && < 0.8.10
 - AesonBson
 - algebra
 - approx
