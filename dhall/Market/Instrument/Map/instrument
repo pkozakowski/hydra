@@ -3,14 +3,8 @@ let Entry = https://prelude.dhall-lang.org/Map/Entry
 let entry = ../../../Map/entry
 
 let InstrumentName = ../Name
-let instrumentName = ../name
-
 let Instrument = ../Type
 
-let instrument
-      : Text -> Instrument -> Entry InstrumentName Instrument
-      = \(symbol : Text)
-     -> \(instr : Instrument)
-     -> entry InstrumentName Instrument (instrumentName symbol) instr
-
-in instrument
+in  \(name : InstrumentName)
+ -> \(instr : Instrument)
+ -> entry InstrumentName Instrument name instr

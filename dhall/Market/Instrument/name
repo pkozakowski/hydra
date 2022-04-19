@@ -1,6 +1,0 @@
-let name 
-      : Text -> ./Name
-      = \(name : Text)
-     -> { instrumentName = name }
-
-in name

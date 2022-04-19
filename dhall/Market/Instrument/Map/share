@@ -6,12 +6,7 @@ let Share = ../../Share
 let shareVal = ../../share
 
 let InstrumentName = ../Name
-let instrumentName = ../name
 
-let share
-      : Text -> Double -> Entry InstrumentName Share
-      = \(symbol : Text)
-     -> \(value : Double)
-     -> entry InstrumentName Share (instrumentName symbol) (shareVal value)
-
-in share
+in  \(name : InstrumentName)
+ -> \(value : Double)
+ -> entry InstrumentName Share name (shareVal value)

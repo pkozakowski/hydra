@@ -90,21 +90,17 @@ instance NFData Scalar where
 
 newtype InstrumentName = InstrumentName { unInstrumentName :: String }
     deriving (Eq, Generic, Ord)
-    deriving newtype (IsString, NFData, Semigroup, ToJSONKey)
+    deriving newtype
+        ( FromDhall
+        , IsString
+        , NFData
+        , Semigroup
+        , ToDhall
+        , ToJSONKey
+        )
 
 instance Show InstrumentName where
     show = show . unInstrumentName
-
-instance FromDhall InstrumentName where
-    autoWith _
-        = Dh.record
-        $ Dh.field "instrumentName"
-        $ InstrumentName <$> Dh.string
-
-instance ToDhall InstrumentName where
-    injectWith _
-        = Dh.recordEncoder
-        $ unInstrumentName >$< Dh.encodeField "instrumentName"
 
 -- | Amount of an Asset.
 newtype Amount = Amount Scalar

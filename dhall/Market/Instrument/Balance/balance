@@ -6,20 +6,16 @@ let InstrumentName = ../Name
 
 let BalanceConfig = ./Config
 
-let balance
-      : BalanceConfig Instrument -> Instrument
-      = \(config : BalanceConfig Instrument)
-     -> \(_Instrument : Type)
-     -> \(instrumentBuilder : InstrumentBuilder _Instrument)
-     -> let adapt
-              : Instrument -> _Instrument
-              = \(i : Instrument)
-             -> i _Instrument instrumentBuilder
-        in instrumentBuilder.balance
-            ( config with configs
-                = Map/map
-                    InstrumentName Instrument _Instrument
-                    adapt config.configs
-            )
-
-in balance
+in  \(config : BalanceConfig Instrument)
+ -> \(_Instrument : Type)
+ -> \(instrumentBuilder : InstrumentBuilder _Instrument)
+ -> let adapt
+          : Instrument -> _Instrument
+          = \(i : Instrument)
+         -> i _Instrument instrumentBuilder
+    in instrumentBuilder.balance
+        ( config with configs
+            = Map/map
+                InstrumentName Instrument _Instrument
+                adapt config.configs
+        )
