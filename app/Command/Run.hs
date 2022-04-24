@@ -91,7 +91,7 @@ run options = do
                     $ do
                         prices <- input @Prices
                         portfolio <- input @Portfolio
-                        -- TODO: async
+                        -- TODO: parallel trades, logging
                         execute
 
     pure ()

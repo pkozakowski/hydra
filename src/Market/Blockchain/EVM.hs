@@ -19,6 +19,7 @@ import Data.Solidity.Abi
 import qualified Data.Solidity.Prim as Solidity
 import qualified Data.Solidity.Prim.Address as Solidity
 import Data.Text
+import Data.Time.Clock.POSIX
 import Dhall (FromDhall)
 import GHC.Generics hiding (to)
 import GHC.Natural
@@ -29,9 +30,10 @@ import Market.Blockchain.Types
 import qualified Market.Blockchain.EVM.ERC20 as ERC20
 import Market.Internal.IO
 import Market.Internal.Sem as Sem
-import Network.Ethereum.Account
-import Network.Ethereum.Api.Eth
-import Network.Ethereum.Api.Types hiding (TransactionTimeout)
+import Network.Ethereum.Account as Eth
+import Network.Ethereum.Api.Eth as EthApi
+import Network.Ethereum.Api.Types hiding (Block, Earliest, Latest)
+import qualified Network.Ethereum.Api.Types as Eth
 import Network.Ethereum.Contract.Method
 import Network.Ethereum.Unit
 import Network.HTTP.Client
@@ -46,6 +48,7 @@ import Polysemy.Reader
 import Polysemy.State
 import Prelude hiding (log, lookup)
 import System.IO.Unsafe
+import Data.Maybe
 
 data EVM = EVM
     { chainId :: Natural
@@ -82,17 +85,35 @@ instance Platform EVM where
                     , myAddress = Solidity.fromPubKey $ derivePubKey key
                     }
 
-    fetchBalance asset = do
+    fetchLatestBlock
+      = web3ToSem
+      $ fromIntegral <$> EthApi.blockNumber
+
+    fetchBlockTime block
+        = web3ToSem
+        $ fmap
+            ( posixSecondsToUTCTime
+            . fromIntegral
+            . blockTimestamp
+            . fromJust
+            )
+        $ EthApi.getBlockByNumberLite
+        $ fromIntegral block
+
+    fetchBalanceAt block asset = do
         wallet <- input
         evm <- input
         retryingCall
             $ if asset == baseAsset evm
                 then web3ToSem
                     $ amountFromQuantity
-                  <$> getBalance (myAddress wallet) Latest
+                  <$> getBalance (myAddress wallet) (blockToEth block)
                 else do
                     token <- getToken evm asset
-                    web3ToSem $ withAccount () $ withParam (to .~ address token)
+                    web3ToSem
+                        $ withAccount ()
+                        $ withParam (to .~ address token)
+                        $ withParam (Eth.block .~ blockToEth block)
                         $ fmap (amountFromSolidity $ decimals token)
                         $ ERC20.balanceOf $ myAddress wallet
 
@@ -101,8 +122,7 @@ instance Platform EVM where
         subsume_
             $ evalState (JsonRpcHttpClient manager $ jsonRpcUrl platform)
             $ runReader config
-            $ runInputConst platform
-            $ action
+            $ runInputConst platform action
 
 retryingCall
     :: Members [Error PlatformError, Embed IO] r
@@ -129,15 +149,15 @@ retryingTransaction action = do
                 ( \config -> config
                     { minGasPrice = Just $ dbl $ calcMin (minGasPrice config) }
                 ) where
-                    dbl x = x + x  -- * 2 increases the price * 2e9 (?!)
+                    dbl x = x + x  --  * 2 increases the price * 2e9 (?!)
                     calcMin = \case
                         Just configMin -> max platformMin configMin
                         Nothing -> platformMin
     origMin <- askMinGasPrice
     Sem.withExponentialBackoff' 1 10
         ( \case
-            TransactionTimeout True -> Just . increaseGas
-            TransactionTimeout False -> const Nothing
+            RetryableTransactionTimeout -> Just . increaseGas
+            TransactionTimeout -> const Nothing
             GasTooExpensive -> Just
             UnknownTransactionError _ -> Just
             _ -> const Nothing
@@ -146,7 +166,7 @@ retryingTransaction action = do
             maxGasPrice <- maxGasPrice <$> ask
             when (minGasPrice > maxGasPrice)
                 -- Don't retry.
-                $ throw $ TransactionTimeout False
+                $ throw TransactionTimeout
             when (minGasPrice > origMin)
                 $ embed
                 $ debug
@@ -183,7 +203,8 @@ web3ToSem' handler action = do
                 $ action
             case resultOrError of
                 Right (Right result) -> pure result
-                Right (Left exc) -> throw $ TransportError $ show exc
+                Right (Left exc)
+                    -> throw $ TransportError $ displayException exc
                 Left exc -> do
                     -- If the handler triggers (throws), the next line won't
                     -- execute.
@@ -203,6 +224,11 @@ amountFromSolidity decimals amount
 
 amountFromQuantity :: Quantity -> Amount
 amountFromQuantity (Quantity quantity) = Amount $ quantity % 10 ^ 18
+
+blockToEth :: Block -> DefaultBlock
+blockToEth = \case
+    Latest -> Eth.Latest
+    Nth n -> BlockWithNumber $ fromIntegral n
 
 data Token = Token
     { symbol :: Asset

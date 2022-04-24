@@ -26,9 +26,9 @@ import Market.Blockchain
 import Market.Blockchain.EVM
 import qualified Market.Blockchain.EVM.ERC20 as ERC20
 import Market.Internal.Sem
-import Network.Ethereum.Account
-import Network.Ethereum.Api.Types
-import qualified Network.Ethereum.Api.Types as Eth
+import Network.Ethereum.Account as EthAcc
+import Network.Ethereum.Api.Types hiding (Block, Latest)
+import qualified Network.Ethereum.Api.Types as Eth hiding (gasPrice)
 import qualified Network.Ethereum.Api.Eth as Eth
 import Network.Ethereum.Contract.TH
 import Network.Ethereum.Unit
@@ -62,7 +62,7 @@ instance Exchange EVM UniswapV2 where
 
     type SwapConfig UniswapV2 = SwapConfigUniswapV2
 
-    fetchPrices assets = do
+    fetchPricesAt block assets = do
         exchange <- input
         let evm = platform exchange
             stableAsset = stablecoin exchange
@@ -70,8 +70,9 @@ instance Exchange EVM UniswapV2 where
             -> if asset == stableAsset
                 then pure (asset, Price one)
                 else do
-                    price <- fetchExchangeRate
-                            (const @_ @SomeException $ pure ()) asset stableAsset
+                    price <- fetchExchangeRateAt
+                            (const @_ @SomeException $ pure ())
+                            block asset stableAsset
                         $ Amount one
                     pure $ (asset, Price price)
         pure $ fromList assetsAndPrices
@@ -121,19 +122,19 @@ instance Exchange EVM UniswapV2 where
                             -- triggers.
                             now' <- embed $ getCurrentTime
                             if now' Prelude.> deadline
-                                then throw transactionTimeout
+                                then throw RetryableTransactionTimeout
                                 else throw @TransactionError
                                     $ UnknownTransactionError
                                     $ txName ++ " failed with status "
                                    ++ show maybeStatus
-                    Left _ -> throw transactionTimeout
+                    Left _ -> throw RetryableTransactionTimeout
 
             runSwap = run "swap" . withParam (to .~ routerAddress exchange)
 
             wrappedBaseAsset = wrapAsset $ baseAsset evm
 
-        exchangeRate <- fetchExchangeRate
-            handleUniswapException fromAsset toAsset fromAmount
+        exchangeRate <- fetchExchangeRateAt
+            handleUniswapException Latest fromAsset toAsset fromAmount
         let toAmount = exchangeRate .* fromAmount
             toAmountMin
                 = (one - providerFee exchange)
@@ -194,10 +195,15 @@ instance Exchange EVM UniswapV2 where
 wrapAsset :: Asset -> Asset
 wrapAsset (Asset symbol) = Asset $ "W" ++ symbol
 
-fetchExchangeRate
+fetchExchangeRateAt
     :: Members (Input UniswapV2 : PlatformEffects EVM) r
-    => (SomeException -> Sem r ()) -> Asset -> Asset -> Amount -> Sem r Scalar
-fetchExchangeRate handler fromAsset toAsset fromAmount = retryingCall do
+    => (SomeException -> Sem r ())
+    -> Block
+    -> Asset
+    -> Asset
+    -> Amount
+    -> Sem r Scalar
+fetchExchangeRateAt handler block fromAsset toAsset fromAmount = retryingCall do
     embed
         $ debug
         $ "fetching exchange rate: " <> pack (show fromAsset)
@@ -211,6 +217,7 @@ fetchExchangeRate handler fromAsset toAsset fromAmount = retryingCall do
         $ web3ToSem' handler
         $ withAccount ()
         $ withParam (to .~ routerAddress exchange)
+        $ withParam (EthAcc.block .~ blockToEth block)
         $ getAmountsOut
             (amountToSolidity (decimals fromToken) fromAmount)
             [address fromToken, address toToken]
@@ -233,7 +240,7 @@ handleUniswapException exc = do
          -> if rpcError `has` "INSUFFICIENT_INPUT_AMOUNT"
                 then throw PriceSlipped
             else if rpcError `has` "EXPIRED"
-                then throw transactionTimeout
+                then throw RetryableTransactionTimeout
             else if rpcError `has` outOfGas
                 then throw OutOfGas
                 else unknown
@@ -245,4 +252,4 @@ handleUniswapException exc = do
         has rpcError msg
             = msg `isInfixOf` unpack (errMessage rpcError)
         outOfGas = "gas required exceeds allowance"
-        unknown = throw $ UnknownTransactionError $ show exc
+        unknown = throw $ UnknownTransactionError $ displayException exc

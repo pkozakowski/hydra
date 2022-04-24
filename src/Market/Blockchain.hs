@@ -1,15 +1,16 @@
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Market.Blockchain where
 
 import Control.Monad
-import Data.ByteString
+import Data.ByteString (ByteString)
 import Data.Constraint
 import Data.Fixed
 import Data.Map.Class
+import Data.Time
+import GHC.Natural
 import Market
 import Numeric.Kappa
 import Polysemy
@@ -18,8 +19,6 @@ import Polysemy.Input
 import Polysemy.Reader
 import Prelude hiding (pi)
 import Type.List
-
--- TODO: turn into exceptions
 
 data PlatformError
     = CantLoadWallet String
@@ -33,12 +32,10 @@ data PlatformError
 data TransactionError
     = OutOfGas
     | GasTooExpensive
-    | TransactionTimeout Bool -- Retryable?
+    | RetryableTransactionTimeout
+    | TransactionTimeout
     | UnknownTransactionError String
     deriving Show
-
-transactionTimeout :: TransactionError
-transactionTimeout = TransactionTimeout True
 
 type PlatformEffects p =
     [ Input p
@@ -55,6 +52,10 @@ type TransactionEffects p =
     , Embed IO
     ] ++ Effects p
 
+type BlockNumber = Natural
+
+data Block = Latest | Nth BlockNumber
+
 class Platform p where
 
     type Effects p :: EffectRow
@@ -65,22 +66,30 @@ class Platform p where
         :: Members (PlatformEffects p) r
         => ByteString -> Sem r (Wallet p)
 
-    fetchBalance
-        :: Members
-            ( Input (Wallet p)
-            : PlatformEffects p
-            ) r
-        => Asset -> Sem r Amount
+    fetchLatestBlock
+        :: Members (PlatformEffects p) r
+        => Sem r BlockNumber
 
-    fetchPortfolio
+    fetchBlockTime
+        :: Members (PlatformEffects p) r
+        => BlockNumber -> Sem r UTCTime
+
+    fetchBalanceAt
         :: Members
             ( Input (Wallet p)
             : PlatformEffects p
             ) r
-        => [Asset] -> Sem r Portfolio
-    fetchPortfolio assets = do
+        => Block -> Asset -> Sem r Amount
+
+    fetchPortfolioAt
+        :: Members
+            ( Input (Wallet p)
+            : PlatformEffects p
+            ) r
+        => Block -> [Asset] -> Sem r Portfolio
+    fetchPortfolioAt block assets = do
         assetsAndAmounts <- forM assets \asset
-            -> (asset,) <$> fetchBalance @p asset
+            -> (asset,) <$> fetchBalanceAt @p block asset
         pure $ fromList assetsAndAmounts
 
     runPlatform
@@ -115,12 +124,12 @@ class Platform p => Exchange p e | e -> p where
 
     type SwapConfig e :: *
 
-    fetchPrices
+    fetchPricesAt
         :: Members
             ( Input e
             : PlatformEffects p
             ) r
-        => [Asset] -> Sem r Prices
+        => Block -> [Asset] -> Sem r Prices
 
     estimateFees
         :: Members
@@ -128,7 +137,7 @@ class Platform p => Exchange p e | e -> p where
             : PlatformEffects p
             ) r
         => Sem r Fees
-    
+
     swap
         :: Members (SwapEffects p e) r
         => Asset -> Asset -> Amount -> Sem r ()
@@ -186,3 +195,119 @@ runInputPricesBlockchain
 runInputPricesBlockchain action = do
     assets <- input @[Asset] @r
     runInputSem (fetchPrices @p @e assets) action
+
+fetchBalance
+    :: forall p r
+     .  ( Platform p
+        , Members
+             ( Input (Wallet p)
+             : PlatformEffects p
+             ) r
+        )
+
+    => Asset -> Sem r Amount
+fetchBalance = fetchBalanceAt @p @r Latest
+
+fetchPortfolio
+    :: forall p r
+     .  ( Platform p
+        , Members
+            ( Input (Wallet p)
+            : PlatformEffects p
+            ) r
+        )
+    => [Asset] -> Sem r Portfolio
+fetchPortfolio = fetchPortfolioAt @p @r Latest
+
+fetchPrices
+    :: forall p e r
+     .  ( Exchange p e
+        , Members
+            ( Input e
+            : PlatformEffects p
+            ) r
+        )
+    => [Asset] -> Sem r Prices
+fetchPrices = fetchPricesAt @p @e @r Latest
+
+-- Interpolation search! TODO: Move to Ops and test.
+findBlock
+    :: forall p r
+     .  ( Platform p
+        , Members (PlatformEffects p) r
+        )
+    => UTCTime -> BlockNumber
+    -> UTCTime -> BlockNumber
+    -> UTCTime
+    -> Sem r BlockNumber
+findBlock beginTime beginBlock endTime endBlock time
+    | min time endTime <= beginTime || endBlock - beginBlock <= 1
+        = pure beginBlock
+    | time >= endTime = pure endBlock
+    | otherwise = do
+        midTime <- fetchBlockTime @p @r midBlock
+        if midTime < time
+            then findBlock @p @r midTime midBlock endTime endBlock time
+            else findBlock @p @r beginTime beginBlock midTime midBlock time
+        where
+            midBlock
+              = correct $ round $ fromIntegral beginBlock + offset * slope
+            offset = time `diffUTCTime` beginTime
+            slope
+              = fromIntegral (endBlock - beginBlock)
+                  / (endTime `diffUTCTime` beginTime)
+            correct midBlock
+              | midBlock <= beginBlock =
+                beginBlock + 1
+              | midBlock >= endBlock = endBlock - 1
+              | otherwise = midBlock
+
+findBlocks
+    :: forall p r
+     .  ( Platform p
+        , Members
+            (PlatformEffects p) r
+        )
+    => [UTCTime] -> Sem r [BlockNumber]
+findBlocks times = do
+    earliestTime <- fetchBlockTime @p @r 0
+    latestBlock <- fetchLatestBlock @p @r
+    latestTime <- fetchBlockTime @p @r latestBlock
+    headBlock <- findBlock @p @r
+        earliestTime earliestBlock latestTime latestBlock headTime
+    lastBlock <- findBlock @p @r
+        headTime headBlock latestTime latestBlock lastTime
+    let find ((time, block), blocks) time' = do
+            block' <- findBlock @p @r time block lastTime lastBlock time'
+            pure ((time', block'), block' : blocks)
+    middleBlocks
+       <- fmap (reverse . snd)
+        $ foldM find ((headTime, headBlock), [])
+        $ tail $ init times
+    pure $ headBlock : middleBlocks ++ [lastBlock]
+    where
+        earliestBlock = 0
+        headTime = head times
+        lastTime = last times
+
+fetchPortfoliosOver
+    :: forall p r
+     .  ( Platform p
+        , Members
+            ( Input (Wallet p)
+            : PlatformEffects p
+            ) r
+        )
+    => [UTCTime] -> [Asset] -> Sem r Portfolio
+fetchPortfoliosOver = error "TODO"
+
+fetchPricesOver
+    :: forall p e r
+     .  ( Exchange p e
+        , Members
+            ( Input e
+            : PlatformEffects p
+            ) r
+        )
+    => [UTCTime] -> [Asset] -> Sem r Prices
+fetchPricesOver = error "TODO"
