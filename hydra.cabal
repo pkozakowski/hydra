@@ -10,8 +10,8 @@ description:    Please see the README on GitHub at <https://github.com/pkozakows
 homepage:       https://github.com/pkozakowski/hydra#readme
 bug-reports:    https://github.com/pkozakowski/hydra/issues
 author:         Piotr Kozakowski
-maintainer:     p.kozakowski@mimuw.edu.pl
-copyright:      2021 Piotr Kozakowski
+maintainer:     piotr@kozakow.ski
+copyright:      2021-2023 Piotr Kozakowski
 license:        MIT
 license-file:   LICENSE
 build-type:     Simple
