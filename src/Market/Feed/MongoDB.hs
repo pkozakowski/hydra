@@ -37,7 +37,7 @@ import Polysemy.Error hiding (throw, catch)
 import qualified System.IO.Lazy as LazyIO
 
 db :: Text
-db = "hydra"
+db = "squid"
 
 class FeedType t where
     feedName :: Text

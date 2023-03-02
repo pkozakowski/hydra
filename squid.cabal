@@ -4,11 +4,11 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 
-name:           hydra
+name:           squid
 version:        0.1.0.0
-description:    Please see the README on GitHub at <https://github.com/pkozakowski/hydra#readme>
-homepage:       https://github.com/pkozakowski/hydra#readme
-bug-reports:    https://github.com/pkozakowski/hydra/issues
+description:    Please see the README on GitHub at <https://github.com/pkozakowski/squid#readme>
+homepage:       https://github.com/pkozakowski/squid#readme
+bug-reports:    https://github.com/pkozakowski/squid/issues
 author:         Piotr Kozakowski
 maintainer:     piotr@kozakow.ski
 copyright:      2021-2023 Piotr Kozakowski
@@ -21,7 +21,7 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/pkozakowski/hydra
+  location: https://github.com/pkozakowski/squid
 
 library
   exposed-modules:
@@ -72,7 +72,7 @@ library
       Numeric.Truncatable
       Type.List
   other-modules:
-      Paths_hydra
+      Paths_squid
   hs-source-dirs:
       src
   default-extensions:
@@ -150,7 +150,7 @@ library
     , web3-solidity
   default-language: Haskell2010
 
-executable hydra-exe
+executable squid-exe
   main-is: Main.hs
   other-modules:
       Command.Eval
@@ -159,7 +159,7 @@ executable hydra-exe
       Command.Tune
       Help
       Parser
-      Paths_hydra
+      Paths_squid
   hs-source-dirs:
       app
   default-extensions:
@@ -201,7 +201,7 @@ executable hydra-exe
     , hashmap
     , http-client
     , hvega
-    , hydra
+    , squid
     , jsonrpc-tinyclient
     , lazyio
     , logging
@@ -239,7 +239,7 @@ executable hydra-exe
     , web3-solidity
   default-language: Haskell2010
 
-test-suite hydra-test
+test-suite squid-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
@@ -255,7 +255,7 @@ test-suite hydra-test
       Spec.Market.Types
       Test.QuickCheck.Pretty
       Test.Tasty.QuickCheck.Laws
-      Paths_hydra
+      Paths_squid
   hs-source-dirs:
       test
   default-extensions:
@@ -297,7 +297,7 @@ test-suite hydra-test
     , hashmap
     , http-client
     , hvega
-    , hydra
+    , squid
     , jsonrpc-tinyclient
     , lazyio
     , logging

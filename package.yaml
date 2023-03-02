@@ -1,6 +1,6 @@
-name:                hydra
+name:                squid
 version:             0.1.0.0
-github:              "pkozakowski/hydra"
+github:              "pkozakowski/squid"
 license:             MIT
 author:              "Piotr Kozakowski"
 maintainer:          "piotr@kozakow.ski"
@@ -17,7 +17,7 @@ extra-source-files:
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
 # common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/pkozakowski/hydra#readme>
+description:         Please see the README on GitHub at <https://github.com/pkozakowski/squid#readme>
 
 dependencies:
 - aeson
@@ -81,7 +81,7 @@ library:
   source-dirs: src
 
 executables:
-  hydra-exe:
+  squid-exe:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
@@ -93,10 +93,10 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - hydra
+    - squid
 
 tests:
-  hydra-test:
+  squid-test:
     main:                Spec.hs
     source-dirs:         test
     ghc-options:
@@ -107,7 +107,7 @@ tests:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - hydra
+    - squid
 
 default-extensions:
 - AllowAmbiguousTypes

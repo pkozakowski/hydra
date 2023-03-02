@@ -1,3 +1,3 @@
-# Changelog for hydra
+# Changelog for squid
 
 ## Unreleased changes
