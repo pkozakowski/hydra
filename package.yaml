@@ -71,11 +71,6 @@ dependencies:
 - text
 - time
 - vector
-- web3
-- web3-crypto
-- web3-ethereum
-- web3-provider
-- web3-solidity
 
 library:
   source-dirs: src

@@ -12,9 +12,6 @@ import Dhall (FromDhall)
 import qualified Dhall as Dh
 import GHC.Generics
 import Market
-import Market.Blockchain
-import Market.Blockchain.EVM
-import Market.Blockchain.EVM.UniswapV2
 import Market.Instrument
 import Market.Internal.IO
 import Market.Time

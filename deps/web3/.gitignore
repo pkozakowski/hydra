@@ -1,7 +1,0 @@
-.stack-work
-*.swp
-.DS_Store
-build/
-dist/
-docs/_build
-stack.yaml.lock
