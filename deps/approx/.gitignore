@@ -1,0 +1,6 @@
+.stack-work
+.vscode
+*.exe
+*.hi
+*.o
+*.prof
