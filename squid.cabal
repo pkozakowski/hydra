@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.5.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -34,11 +34,7 @@ library
       Debug.Trace.Pretty
       Market
       Market.Asset
-      Market.Blockchain
-      Market.Blockchain.EVM
-      Market.Blockchain.EVM.ERC20
-      Market.Blockchain.EVM.UniswapV2
-      Market.Blockchain.Types
+      Market.Broker
       Market.Deriving
       Market.Dhall
       Market.Evaluation
@@ -113,10 +109,8 @@ library
     , hashmap
     , http-client
     , hvega
-    , jsonrpc-tinyclient
     , lazyio
     , logging
-    , memory-hexstring
     , microlens
     , mongoDB
     , mtl
@@ -143,11 +137,6 @@ library
     , text
     , time
     , vector
-    , web3
-    , web3-crypto
-    , web3-ethereum
-    , web3-provider
-    , web3-solidity
   default-language: Haskell2010
 
 executable squid-exe
@@ -201,11 +190,8 @@ executable squid-exe
     , hashmap
     , http-client
     , hvega
-    , squid
-    , jsonrpc-tinyclient
     , lazyio
     , logging
-    , memory-hexstring
     , microlens
     , mongoDB
     , mtl
@@ -223,6 +209,7 @@ executable squid-exe
     , req
     , retry
     , semigroupoids
+    , squid
     , stm
     , tasty
     , tasty-quickcheck
@@ -232,11 +219,6 @@ executable squid-exe
     , text
     , time
     , vector
-    , web3
-    , web3-crypto
-    , web3-ethereum
-    , web3-provider
-    , web3-solidity
   default-language: Haskell2010
 
 test-suite squid-test
@@ -297,11 +279,8 @@ test-suite squid-test
     , hashmap
     , http-client
     , hvega
-    , squid
-    , jsonrpc-tinyclient
     , lazyio
     , logging
-    , memory-hexstring
     , microlens
     , mongoDB
     , mtl
@@ -319,6 +298,7 @@ test-suite squid-test
     , req
     , retry
     , semigroupoids
+    , squid
     , stm
     , tasty
     , tasty-quickcheck
@@ -328,9 +308,4 @@ test-suite squid-test
     , text
     , time
     , vector
-    , web3
-    , web3-crypto
-    , web3-ethereum
-    , web3-provider
-    , web3-solidity
   default-language: Haskell2010

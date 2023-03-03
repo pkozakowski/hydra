@@ -12,6 +12,7 @@ import Dhall (FromDhall)
 import qualified Dhall as Dh
 import GHC.Generics
 import Market
+import Market.Broker
 import Market.Instrument
 import Market.Internal.IO
 import Market.Time
@@ -22,29 +23,15 @@ import Polysemy.Error
 import Polysemy.Input
 
 data RunOptions = RunOptions
-    { wallet :: String
-    , blockchainConfig :: String
-    , config :: String
+    { brokerConfig :: String
+    , instrumentConfig :: String
     }
-
-data BlockchainConfig = BlockchainConfig
-    { exchange :: UniswapV2
-    , platformConfig :: ConfigEVM
-    , swapConfig :: SwapConfigUniswapV2
-    } deriving (Generic, FromDhall)
 
 runOptions :: Parser RunOptions
 runOptions = RunOptions
     <$> argument str
-        ( metavar "WALLET"
-       <> help
-            ( "The wallet file. It should contain the private key as a "
-           <> "hexadecimal string."
-            )
-        )
-    <*> argument str
-        ( metavar "BLOCKCHAIN_CONFIG"
-       <> help "Blockchain configuration script."
+        ( metavar "BROKER_CONFIG"
+       <> help "Broker configuration script."
         )
     <*> argument str
         ( metavar "INSTRUMENT_CONFIG"
@@ -53,42 +40,34 @@ runOptions = RunOptions
 
 run :: RunOptions -> IO ()
 run options = do
-    wallet
-       <- fmap (fromString . unpack . strip . pack)
-        $ readFile
-        $ wallet options
+    broker
+        :: DummyBroker
+        <- Dh.input Dh.auto
+         $ "./" <> pack (brokerConfig options)
 
-    BlockchainConfig {..}
-       <- Dh.input Dh.auto
-        $ "./" <> pack (blockchainConfig options)
-
-    config
+    instrument
         :: SomeInstrumentConfig
         <- Dh.input Dh.auto
-         $ "./" <> pack (config options) <> " ./dhall/Market/Instrument/Type"
+         $ "./" <> pack (instrumentConfig options) <> " ./dhall/Market/Instrument/Type"
 
     withStderrLogging
         $ semToIO
-        $ mapError @PlatformError show
-        $ mapError @TransactionError show
-        $ mapError @SwapError show
+        $ mapError @BrokerError show
         $ mapError @MarketError show
-        $ runPlatform (platform exchange) platformConfig do
-            wallet <- loadWallet @EVM wallet
-            runExchange exchange swapConfig wallet do
-                fees <- estimateFees @EVM @UniswapV2
-                runTimeIO
-                    $ runInputConst
-                        (nub $ managedAssets config ++ feeAssets fees)
-                    $ runInputPortfolioBlockchain @EVM
-                    $ runInputPricesBlockchain @EVM @UniswapV2
-                    $ runMarketBlockchain @EVM @UniswapV2
-                    $ runInstrument config
-                    $ runInputConst fees
-                    $ do
-                        prices <- input @Prices
-                        portfolio <- input @Portfolio
-                        -- TODO: parallel trades, logging
-                        execute
+        $ runBroker broker do
+            fees <- estimateFees
+            runTimeIO
+                $ runInputConst
+                    (nub $ managedAssets instrument ++ feeAssets fees)
+                $ runInputPortfolioBroker
+                $ runInputPricesBroker
+                $ runMarketBroker @DummyBroker
+                $ runInstrument instrument
+                $ runInputConst fees
+                $ do
+                    prices <- input @Prices
+                    portfolio <- input @Portfolio
+                    -- TODO: parallel trades, logging
+                    execute
 
     pure ()
