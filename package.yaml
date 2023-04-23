@@ -43,11 +43,14 @@ dependencies:
 - lazyio
 - logging
 - microlens
+- monad-logger
 - mongoDB
 - mtl
 - optparse-applicative
 - parallel
 - parsec
+- persistent
+- persistent-sqlite
 - polysemy >= 1.6
 - polysemy-plugin >= 0.3
 - pretty-simple
@@ -110,6 +113,7 @@ default-extensions:
 - FlexibleContexts
 - FlexibleInstances
 - GADTs
+- ImportQualifiedPost
 - LambdaCase
 - MultiParamTypeClasses
 - OverloadedStrings

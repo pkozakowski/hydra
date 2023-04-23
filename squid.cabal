@@ -39,10 +39,12 @@ library
       Market.Dhall
       Market.Evaluation
       Market.Feed
-      Market.Feed.Binance
-      Market.Feed.MongoDB
-      Market.Feed.Price
+      Market.Feed.DB
+      Market.Feed.DB.Types
+      Market.Feed.Dummy
+      Market.Feed.Ops
       Market.Feed.TH
+      Market.Feed.Types
       Market.Instrument
       Market.Instrument.Balance
       Market.Instrument.Dhall
@@ -79,6 +81,7 @@ library
       FlexibleContexts
       FlexibleInstances
       GADTs
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       OverloadedStrings
@@ -112,11 +115,14 @@ library
     , lazyio
     , logging
     , microlens
+    , monad-logger
     , mongoDB
     , mtl
     , optparse-applicative
     , parallel
     , parsec
+    , persistent
+    , persistent-sqlite
     , polysemy >=1.6
     , polysemy-plugin >=0.3
     , pretty-simple
@@ -159,6 +165,7 @@ executable squid-exe
       FlexibleContexts
       FlexibleInstances
       GADTs
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       OverloadedStrings
@@ -193,11 +200,14 @@ executable squid-exe
     , lazyio
     , logging
     , microlens
+    , monad-logger
     , mongoDB
     , mtl
     , optparse-applicative
     , parallel
     , parsec
+    , persistent
+    , persistent-sqlite
     , polysemy >=1.6
     , polysemy-plugin >=0.3
     , pretty-simple
@@ -229,6 +239,7 @@ test-suite squid-test
       Spec.Data.Map.Default
       Spec.Data.Map.Sparse
       Spec.Data.Map.Static
+      Spec.Market.Feed.Dummy
       Spec.Market.Instrument.Balance
       Spec.Market.Instrument.Hold
       Spec.Market.Instrument.Ops
@@ -248,6 +259,7 @@ test-suite squid-test
       FlexibleContexts
       FlexibleInstances
       GADTs
+      ImportQualifiedPost
       LambdaCase
       MultiParamTypeClasses
       OverloadedStrings
@@ -282,11 +294,14 @@ test-suite squid-test
     , lazyio
     , logging
     , microlens
+    , monad-logger
     , mongoDB
     , mtl
     , optparse-applicative
     , parallel
     , parsec
+    , persistent
+    , persistent-sqlite
     , polysemy >=1.6
     , polysemy-plugin >=0.3
     , pretty-simple
