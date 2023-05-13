@@ -70,12 +70,12 @@ Database.Persist.TH.share
       deriving Show
  |]
 
-runFeedWithDBCache ::
-  forall f r a.
-  Members [Error String, Embed IO] r =>
-  (forall a. Sem (Feed f : r) a -> Sem r a) ->
-  Sem (Feed f : r) a ->
-  Sem r a
+runFeedWithDBCache
+  :: forall f r a
+   . Members [Error String, Embed IO] r
+  => (forall a. Sem (Feed f : r) a -> Sem r a)
+  -> Sem (Feed f : r) a
+  -> Sem r a
 runFeedWithDBCache lowerFeed = interpret \case
   Between1_ key period from to ->
     between1_UsingBetween_ (runFeedWithDBCache lowerFeed) key period from to
@@ -92,25 +92,31 @@ runFeedWithDBCache lowerFeed = interpret \case
       runFeedForBatches lowerFeed period $
         missingBatchstampKeys ++ incompleteBatchstampKeys
     upsertBatches newBatches
-    return $ seriesFromList $ batchesToTimeSteps $ completeBatches ++ newBatches
+    return
+      . seriesFromList
+      . filter (isInRange . fst)
+      . batchesToTimeSteps
+      $ completeBatches ++ newBatches
+    where
+      isInRange t = from <= t && t <= to
 
-selectBatchRange ::
-  Members [Error String, Embed IO] r =>
-  ResourceType ->
-  [ResourceKey] ->
-  Period ->
-  Batchstamp ->
-  Batchstamp ->
-  Sem r [FeedBatch]
+selectBatchRange
+  :: Members [Error String, Embed IO] r
+  => ResourceType
+  -> [ResourceKey]
+  -> Period
+  -> Batchstamp
+  -> Batchstamp
+  -> Sem r [FeedBatch]
 selectBatchRange type_ keys period fromBS toBS = do
   batches <-
     runQuery $
       selectList
-        [ FeedBatchType_ ==. type_,
-          FeedBatchKey <-. keys,
-          FeedBatchPeriod ==. period,
-          FeedBatchBatchstamp >=. fromBS,
-          FeedBatchBatchstamp <=. toBS
+        [ FeedBatchType_ ==. type_
+        , FeedBatchKey <-. keys
+        , FeedBatchPeriod ==. period
+        , FeedBatchBatchstamp >=. fromBS
+        , FeedBatchBatchstamp <=. toBS
         ]
         []
   return $ entityVal <$> batches
@@ -124,35 +130,36 @@ runQuery query =
       withSqliteConn "squid.db" $
         \conn -> runSqlConn query conn
 
-determineMissingBatches ::
-  [ResourceKey] ->
-  Period ->
-  Batchstamp ->
-  Batchstamp ->
-  [FeedBatch] ->
-  [(Batchstamp, ResourceKey)]
+determineMissingBatches
+  :: [ResourceKey]
+  -> Period
+  -> Batchstamp
+  -> Batchstamp
+  -> [FeedBatch]
+  -> [(Batchstamp, ResourceKey)]
 determineMissingBatches keys period fromBS toBS batches =
   let existingBatches =
         Set.fromList $
           [ (feedBatchBatchstamp, feedBatchKey)
-            | FeedBatch {..} <- batches,
-              feedBatchKey `elem` keys
+          | FeedBatch {..} <- batches
+          , feedBatchKey `elem` keys
           ]
       requestedKeys = Set.fromList keys
       requestedBatches = [(bs, k) | bs <- [fromBS .. toBS], k <- keys]
    in filter (\batch -> not $ Set.member batch existingBatches) requestedBatches
 
--- | Splits the input batches into 2 groups:
---   * complete batches, i.e. ones that have all of the moments falling into the given
---     (Batchstamp, Moment) interval
---   * incomplete batches, which are returned as (Batchstamp, ResourceKey) pairs.
-partitionCompleteBatches ::
-  Batchstamp ->
-  Moment ->
-  Batchstamp ->
-  Moment ->
-  [FeedBatch] ->
-  ([FeedBatch], [(Batchstamp, ResourceKey)])
+{- | Splits the input batches into 2 groups:
+  * complete batches, i.e. ones that have all of the moments falling into the given
+    (Batchstamp, Moment) interval
+  * incomplete batches, which are returned as (Batchstamp, ResourceKey) pairs.
+-}
+partitionCompleteBatches
+  :: Batchstamp
+  -> Moment
+  -> Batchstamp
+  -> Moment
+  -> [FeedBatch]
+  -> ([FeedBatch], [(Batchstamp, ResourceKey)])
 partitionCompleteBatches fromBS fromMoment toBS toMoment batches =
   (complete, strip <$> incomplete)
   where
@@ -165,20 +172,20 @@ partitionCompleteBatches fromBS fromMoment toBS toMoment batches =
         high = if feedBatchBatchstamp batch == toBS then toMoment else batchSize - 1
     strip FeedBatch {..} = (feedBatchBatchstamp, feedBatchKey)
 
-selectBatches ::
-  Members [Error String, Embed IO] r =>
-  ResourceType ->
-  Period ->
-  [(Batchstamp, ResourceKey)] ->
-  Sem r [FeedBatch]
+selectBatches
+  :: Members [Error String, Embed IO] r
+  => ResourceType
+  -> Period
+  -> [(Batchstamp, ResourceKey)]
+  -> Sem r [FeedBatch]
 selectBatches type_ period batchstampKeys = do
   let batchFilters =
         map
           ( \(bs, k) ->
-              [ FeedBatchPeriod ==. period,
-                FeedBatchBatchstamp ==. bs,
-                FeedBatchType_ ==. type_,
-                FeedBatchKey ==. k
+              [ FeedBatchPeriod ==. period
+              , FeedBatchBatchstamp ==. bs
+              , FeedBatchType_ ==. type_
+              , FeedBatchKey ==. k
               ]
           )
           batchstampKeys
@@ -186,27 +193,27 @@ selectBatches type_ period batchstampKeys = do
   batches <- runQuery $ selectList orFilters []
   return $ map entityVal batches
 
-runFeedForBatches ::
-  forall f k v r a.
-  ( FeedMap k v f,
-    Members [Error String, Embed IO] r
-  ) =>
-  (forall a. Sem (Feed f : r) a -> Sem r a) ->
-  Period ->
-  [(Batchstamp, ResourceKey)] ->
-  Sem r [FeedBatch]
+runFeedForBatches
+  :: forall f k v r a
+   . ( FeedMap k v f
+     , Members [Error String, Embed IO] r
+     )
+  => (forall a. Sem (Feed f : r) a -> Sem r a)
+  -> Period
+  -> [(Batchstamp, ResourceKey)]
+  -> Sem r [FeedBatch]
 runFeedForBatches lowerFeed period =
   fmap catMaybes . mapM (runFeedForBatch lowerFeed period)
 
-runFeedForBatch ::
-  forall f k v r a.
-  ( FeedMap k v f,
-    Members [Error String, Embed IO] r
-  ) =>
-  (forall a. Sem (Feed f : r) a -> Sem r a) ->
-  Period ->
-  (Batchstamp, ResourceKey) ->
-  Sem r (Maybe FeedBatch)
+runFeedForBatch
+  :: forall f k v r a
+   . ( FeedMap k v f
+     , Members [Error String, Embed IO] r
+     )
+  => (forall a. Sem (Feed f : r) a -> Sem r a)
+  -> Period
+  -> (Batchstamp, ResourceKey)
+  -> Sem r (Maybe FeedBatch)
 runFeedForBatch lowerFeed period (batchstamp, key) = do
   let from = joinTime period batchstamp 0
       to = joinTime period (batchstamp + 1) 0
@@ -233,10 +240,10 @@ runFeedForBatch lowerFeed period (batchstamp, key) = do
               moments
               values
 
-upsertBatches ::
-  Members [Error String, Embed IO] r =>
-  [FeedBatch] ->
-  Sem r ()
+upsertBatches
+  :: Members [Error String, Embed IO] r
+  => [FeedBatch]
+  -> Sem r ()
 upsertBatches = mapM_ upsertBatch
   where
     upsertBatch batch = do
@@ -249,27 +256,27 @@ upsertBatches = mapM_ upsertBatch
       runQuery $
         upsert
           batch
-          [ FeedBatchMoments =. feedBatchMoments batch,
-            FeedBatchValues =. feedBatchValues batch
+          [ FeedBatchMoments =. feedBatchMoments batch
+          , FeedBatchValues =. feedBatchValues batch
           ]
 
-batchesToTimeSteps ::
-  ( Read k,
-    Coercible PersistScalar v,
-    BuildMap k v f
-  ) =>
-  [FeedBatch] ->
-  [TimeStep f]
+batchesToTimeSteps
+  :: ( Read k
+     , Coercible PersistScalar v
+     , BuildMap k v f
+     )
+  => [FeedBatch]
+  -> [TimeStep f]
 batchesToTimeSteps batches =
   let batchstampMomentKeys =
         Map.fromListWith
           (++)
           [ (feedBatchBatchstamp b, [(feedBatchKey b, m, v)])
-            | b <- batches,
-              (m, v) <-
-                zip
-                  (V.toList $ feedBatchMoments b)
-                  (V.toList $ feedBatchValues b)
+          | b <- batches
+          , (m, v) <-
+              zip
+                (V.toList $ feedBatchMoments b)
+                (V.toList $ feedBatchValues b)
           ]
       batchstampToFs batchstamp keyMomentValues =
         Map.toList $
@@ -277,7 +284,7 @@ batchesToTimeSteps batches =
             <$> Map.fromListWith
               (++)
               [ (joinTime period batchstamp m, [(read k, coerce v)])
-                | (k, m, v) <- keyMomentValues
+              | (k, m, v) <- keyMomentValues
               ]
       period = feedBatchPeriod (head batches)
    in concatMap (uncurry batchstampToFs) (Map.toList batchstampMomentKeys)

@@ -66,6 +66,7 @@ dependencies:
 - stm
 - template-haskell
 - tasty
+- tasty-hunit
 - tasty-th
 - tasty-quickcheck
 - terminal-progress-bar

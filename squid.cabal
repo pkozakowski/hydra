@@ -136,6 +136,7 @@ library
     , semigroupoids
     , stm
     , tasty
+    , tasty-hunit
     , tasty-quickcheck
     , tasty-th
     , template-haskell
@@ -222,6 +223,7 @@ executable squid-exe
     , squid
     , stm
     , tasty
+    , tasty-hunit
     , tasty-quickcheck
     , tasty-th
     , template-haskell
@@ -239,6 +241,7 @@ test-suite squid-test
       Spec.Data.Map.Default
       Spec.Data.Map.Sparse
       Spec.Data.Map.Static
+      Spec.Market.Feed.DB
       Spec.Market.Feed.Dummy
       Spec.Market.Instrument.Balance
       Spec.Market.Instrument.Hold
@@ -316,6 +319,7 @@ test-suite squid-test
     , squid
     , stm
     , tasty
+    , tasty-hunit
     , tasty-quickcheck
     , tasty-th
     , template-haskell
