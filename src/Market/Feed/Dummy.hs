@@ -30,7 +30,13 @@ generateArithmeticSequence
 generateArithmeticSequence start modulo period from to =
   let periodSeconds = realToFrac $ periodToSeconds period
       fromCeil =
-        posixSecondsToUTCTime $ fromIntegral $ ceiling $ utcTimeToPOSIXSeconds from
+        posixSecondsToUTCTime
+          . fromIntegral
+          $ periodToSeconds period
+            * ceiling
+              ( utcTimeToPOSIXSeconds from
+                  / fromIntegral (periodToSeconds period)
+              )
       timeRange = takeWhile (<= to) $ iterate (addUTCTime periodSeconds) fromCeil
-      valueAtTime t = start + (floor (utcTimeToPOSIXSeconds t) `mod` modulo)
+      valueAtTime t = (start + floor (utcTimeToPOSIXSeconds t)) `mod` modulo
    in [(t, valueAtTime t) | t <- timeRange]
