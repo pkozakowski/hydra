@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE QuasiQuotes #-}
@@ -9,7 +10,6 @@
 
 module Market.Feed.DB where
 
-import Control.Arrow (Arrow (first))
 import Control.Monad
 import Control.Monad.Logger
 import Control.Monad.Reader
@@ -36,6 +36,7 @@ import Market.Feed
 import Market.Feed.DB.Types
 import Market.Feed.Ops
 import Market.Feed.Types
+import Market.Log
 import Market.Time
 import Market.Types
 import Polysemy
@@ -77,39 +78,41 @@ Database.Persist.TH.share
 
 runFeedWithDBCache
   :: forall f r a
-   . Members [Error String, Final IO] r
+   . Members [Error String, Log, Final IO] r
   => DBPath
   -> (forall a. Sem (Feed f : r) a -> Sem r a)
   -> Sem (Feed f : r) a
   -> Sem r a
-runFeedWithDBCache dbPath lowerFeed action = withSqlite dbPath \backend -> do
-  sqliteToSem backend $ runMigration migrateAll
-  interpret (interpreter backend) action
-  where
-    interpreter :: forall rInitial x. SqlBackend -> Feed f (Sem rInitial) x -> Sem r x
-    interpreter backend = \case
-      Between1_ key period from to ->
-        between1_UsingBetween_ (runFeedWithDBCache dbPath lowerFeed) key period from to
-      Between_ (keys :: [k]) period from to -> do
-        let type_ = show $ typeRep $ Proxy @f
-            (fromBS, fromMoment) = splitTime period from
-            (toBS, toMoment) = splitTime period to
-        existingBatches <- selectBatchRange backend type_ (show <$> keys) period fromBS toBS
-        let missingBatchstampKeys =
-              determineMissingBatches (show <$> keys) period fromBS toBS existingBatches
-            (completeBatches, incompleteBatchstampKeys) =
-              partitionCompleteBatches fromBS fromMoment toBS toMoment existingBatches
-        newBatches <-
-          runFeedForBatches lowerFeed period $
-            missingBatchstampKeys ++ incompleteBatchstampKeys
-        upsertBatches backend newBatches
-        return
-          . seriesFromList
-          . filter (isInRange . fst)
-          . batchesToTimeSteps
-          $ completeBatches ++ newBatches
-        where
-          isInRange t = from <= t && t <= to
+runFeedWithDBCache dbPath lowerFeed action =
+  push "runFeedWithDBCache" $
+  withSqlite dbPath \backend -> do
+    sqliteToSem backend $ runMigrationQuiet migrateAll
+    interpret (interpreter backend) action
+    where
+      interpreter :: forall rInitial x. SqlBackend -> Feed f (Sem rInitial) x -> Sem r x
+      interpreter backend = \case
+        Between1_ key period from to ->
+          between1_UsingBetween_ (runFeedWithDBCache dbPath lowerFeed) key period from to
+        Between_ (keys :: [k]) period from to -> do
+          let type_ = show $ typeRep $ Proxy @f
+              (fromBS, fromMoment) = splitTime period from
+              (toBS, toMoment) = splitTime period to
+          existingBatches <- selectBatchRange backend type_ (show <$> keys) period fromBS toBS
+          let missingBatchstampKeys =
+                determineMissingBatches (show <$> keys) period fromBS toBS existingBatches
+              (completeBatches, incompleteBatchstampKeys) =
+                partitionCompleteBatches fromBS fromMoment toBS toMoment existingBatches
+          newBatches <-
+            runFeedForBatches lowerFeed period $
+              missingBatchstampKeys ++ incompleteBatchstampKeys
+          upsertBatches backend newBatches
+          return
+            . seriesFromList
+            . filter (isInRange . fst)
+            . batchesToTimeSteps
+            $ completeBatches ++ newBatches
+          where
+            isInRange t = from <= t && t <= to
 
 selectBatchRange
   :: Members [Error String, Final IO] r
@@ -136,19 +139,8 @@ selectBatchRange backend type_ keys period fromBS toBS = do
 sqliteToSem :: Members '[Final IO] r => SqlBackend -> SqlPersistT IO a -> Sem r a
 sqliteToSem backend = embedFinal . flip runSqlConn backend
 
-withSqlite :: Members '[Final IO] r => DBPath -> (SqlBackend -> Sem r a) -> Sem r a
-withSqlite dbPath cont = withStrategicToFinal @IO do
-  stateIO <- pureS ()
-  contIO <- bindS cont
-  pure do
-    state <- stateIO
-    -- TODO: forward to our own logging
-    -- withSqliteConn calls askLoggerIO
-    runNoLoggingT $ withSqliteConn dbPath \backend -> lift $ contIO $ state $> backend
-
--- pure $ runS $ undefined
-
--- withSqliteConn dbPath \backend -> undefined
+withSqlite :: Members [Log, Final IO] r => DBPath -> (SqlBackend -> Sem r a) -> Sem r a
+withSqlite dbPath cont = runLoggingToSem $ withSqliteConn dbPath $ LoggingToSem . cont
 
 determineMissingBatches
   :: [ResourceKey]

@@ -19,6 +19,7 @@ import Market.Feed
 import Market.Feed.DB
 import Market.Feed.Dummy
 import Market.Feed.Types
+import Market.Log
 import Market.Time
 import Polysemy
 import Polysemy.Error
@@ -55,6 +56,7 @@ test_runFeedWithDBCache =
       let runCachedTwice =
             fmap distribute
               . runFinal
+              . runLog
               . errorToIOFinal
               . embedToFinal
               . runTimeConst time

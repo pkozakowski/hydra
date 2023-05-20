@@ -5,12 +5,12 @@
 
 packages:
 - completed:
-    hackage: AesonBson-0.4.1@sha256:30a4ecb39e8da94dc1e1e8945eb0d4e33a833ae4342841b3c87c56b5918a90a1,1398
+    hackage: di-polysemy-0.2.0.0@sha256:9da81102b7e5b2782e4f7194189cde552f042c94ac875ef8f542f6620035f885,2160
     pantry-tree:
-      sha256: 10c7444de357f7fc1473542d8b3307811420889be32d5a2033d0dbc2d32a375d
-      size: 378
+      sha256: 103285358a5c2430e3fadd2c35ab285536c05164db1b78ed7155e9ef2e3fae42
+      size: 320
   original:
-    hackage: AesonBson-0.4.1@sha256:30a4ecb39e8da94dc1e1e8945eb0d4e33a833ae4342841b3c87c56b5918a90a1,1398
+    hackage: di-polysemy-0.2.0.0
 snapshots:
 - completed:
     sha256: 9fa4bece7acfac1fc7930c5d6e24606004b09e80aa0e52e9f68b148201008db9

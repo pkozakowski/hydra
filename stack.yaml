@@ -36,7 +36,7 @@ packages:
 # forks / in-progress versions pinned to a git hash. For example:
 #
 extra-deps:
-- AesonBson-0.4.1@sha256:30a4ecb39e8da94dc1e1e8945eb0d4e33a833ae4342841b3c87c56b5918a90a1,1398
+- di-polysemy-0.2.0.0
 - deps/approx
 
 # - acme-missiles-0.3

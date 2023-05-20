@@ -54,6 +54,7 @@ library
       Market.Instrument.Test
       Market.Internal.IO
       Market.Internal.Sem
+      Market.Log
       Market.Notebook
       Market.Ops
       Market.Plot
@@ -91,22 +92,24 @@ library
       TypeApplications
       TypeOperators
   build-depends:
-      AesonBson
-    , QuickCheck
+      QuickCheck
     , aeson
     , aeson-pretty >=0.8 && <0.8.10
     , algebra
     , approx
     , base >=4.12 && <5
-    , bson
     , bytestring
     , composition
     , constraints
     , containers
     , deepseq
+    , df1
     , dhall
+    , di
+    , di-polysemy
     , directory
     , either
+    , exceptions
     , free
     , hashable
     , hashmap
@@ -114,9 +117,7 @@ library
     , hvega
     , lazyio
     , logging
-    , microlens
     , monad-logger
-    , mongoDB
     , mtl
     , optparse-applicative
     , parallel
@@ -143,6 +144,7 @@ library
     , terminal-progress-bar
     , text
     , time
+    , unliftio
     , vector
   default-language: Haskell2010
 
@@ -177,22 +179,24 @@ executable squid-exe
       TypeOperators
   ghc-options: -O2 -fplugin=Polysemy.Plugin -flate-specialise -fspecialise-aggressively -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      AesonBson
-    , QuickCheck
+      QuickCheck
     , aeson
     , aeson-pretty >=0.8 && <0.8.10
     , algebra
     , approx
     , base >=4.12 && <5
-    , bson
     , bytestring
     , composition
     , constraints
     , containers
     , deepseq
+    , df1
     , dhall
+    , di
+    , di-polysemy
     , directory
     , either
+    , exceptions
     , free
     , hashable
     , hashmap
@@ -200,9 +204,7 @@ executable squid-exe
     , hvega
     , lazyio
     , logging
-    , microlens
     , monad-logger
-    , mongoDB
     , mtl
     , optparse-applicative
     , parallel
@@ -230,6 +232,7 @@ executable squid-exe
     , terminal-progress-bar
     , text
     , time
+    , unliftio
     , vector
   default-language: Haskell2010
 
@@ -273,22 +276,24 @@ test-suite squid-test
       TypeOperators
   ghc-options: -fplugin=Polysemy.Plugin -flate-specialise -fspecialise-aggressively -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      AesonBson
-    , QuickCheck
+      QuickCheck
     , aeson
     , aeson-pretty >=0.8 && <0.8.10
     , algebra
     , approx
     , base >=4.12 && <5
-    , bson
     , bytestring
     , composition
     , constraints
     , containers
     , deepseq
+    , df1
     , dhall
+    , di
+    , di-polysemy
     , directory
     , either
+    , exceptions
     , free
     , hashable
     , hashmap
@@ -296,9 +301,7 @@ test-suite squid-test
     , hvega
     , lazyio
     , logging
-    , microlens
     , monad-logger
-    , mongoDB
     , mtl
     , optparse-applicative
     , parallel
@@ -326,5 +329,6 @@ test-suite squid-test
     , terminal-progress-bar
     , text
     , time
+    , unliftio
     , vector
   default-language: Haskell2010

@@ -22,19 +22,21 @@ description:         Please see the README on GitHub at <https://github.com/pkoz
 dependencies:
 - aeson
 - aeson-pretty >= 0.8 && < 0.8.10
-- AesonBson
 - algebra
 - approx
 - base >=4.12 && <5
-- bson
 - bytestring
 - composition
 - constraints
 - containers
 - deepseq
+- df1
 - dhall
+- di
+- di-polysemy
 - directory
 - either
+- exceptions
 - free
 - hashable
 - hashmap
@@ -42,9 +44,7 @@ dependencies:
 - hvega
 - lazyio
 - logging
-- microlens
 - monad-logger
-- mongoDB
 - mtl
 - optparse-applicative
 - parallel
@@ -72,6 +72,7 @@ dependencies:
 - terminal-progress-bar
 - text
 - time
+- unliftio
 - vector
 
 library:
