@@ -14,6 +14,7 @@ import Control.Monad
 import Control.Monad.Logger
 import Control.Monad.Reader
 import Data.Coerce
+import Data.Fixed
 import Data.Functor
 import Data.List
 import Data.Map qualified as Map
@@ -27,9 +28,9 @@ import Data.Time.Clock.POSIX
 import Data.Typeable
 import Data.Vector (Vector)
 import Data.Vector qualified as V
-import Database.Persist
-import Database.Persist.Sql
-import Database.Persist.Sqlite
+import Database.Persist hiding (Key)
+import Database.Persist.Sql hiding (Key)
+import Database.Persist.Sqlite hiding (Key)
 import Database.Persist.TH
 import Dhall (function)
 import Market.Feed
@@ -38,7 +39,8 @@ import Market.Feed.Ops
 import Market.Feed.Types
 import Market.Log
 import Market.Time
-import Market.Types
+import Market.Types hiding (Value)
+import Numeric.Truncatable
 import Polysemy
 import Polysemy.Error
 import Polysemy.Final
@@ -76,43 +78,94 @@ Database.Persist.TH.share
       deriving Show
  |]
 
-runFeedWithDBCache
+runFeedWithDBCacheFixedScalar
   :: forall f r a
-   . Members [Error String, Log, Final IO] r
+   . ( Coercible (Value f) FixedScalar
+     , FeedMap f
+     , Members [Error String, Log, Final IO] r
+     )
   => DBPath
   -> (forall a. Sem (Feed f : r) a -> Sem r a)
   -> Sem (Feed f : r) a
   -> Sem r a
-runFeedWithDBCache dbPath lowerFeed action =
+runFeedWithDBCacheFixedScalar dbPath lowerFeed action =
   push "runFeedWithDBCache" $
-  withSqlite dbPath \backend -> do
-    sqliteToSem backend $ runMigrationQuiet migrateAll
-    interpret (interpreter backend) action
-    where
-      interpreter :: forall rInitial x. SqlBackend -> Feed f (Sem rInitial) x -> Sem r x
-      interpreter backend = \case
-        Between1_ key period from to ->
-          between1_UsingBetween_ (runFeedWithDBCache dbPath lowerFeed) key period from to
-        Between_ (keys :: [k]) period from to -> do
-          let type_ = show $ typeRep $ Proxy @f
-              (fromBS, fromMoment) = splitTime period from
-              (toBS, toMoment) = splitTime period to
-          existingBatches <- selectBatchRange backend type_ (show <$> keys) period fromBS toBS
-          let missingBatchstampKeys =
-                determineMissingBatches (show <$> keys) period fromBS toBS existingBatches
-              (completeBatches, incompleteBatchstampKeys) =
-                partitionCompleteBatches fromBS fromMoment toBS toMoment existingBatches
-          newBatches <-
-            runFeedForBatches lowerFeed period $
-              missingBatchstampKeys ++ incompleteBatchstampKeys
-          upsertBatches backend newBatches
-          return
-            . seriesFromList
-            . filter (isInRange . fst)
-            . batchesToTimeSteps
-            $ completeBatches ++ newBatches
-          where
-            isInRange t = from <= t && t <= to
+    withSqlite dbPath \backend -> do
+      sqliteToSem backend $ runMigrationQuiet migrateAll
+      interpret (interpreter backend) action
+  where
+    interpreter :: forall rInitial x. SqlBackend -> Feed f (Sem rInitial) x -> Sem r x
+    interpreter backend = \case
+      Between1_ key period from to ->
+        between1_UsingBetween_ @f
+          (runFeedWithDBCacheFixedScalar @f dbPath lowerFeed)
+          key
+          period
+          from
+          to
+      Between_ (keys :: [k]) period from to -> do
+        let type_ = show $ typeRep $ Proxy @f
+            (fromBS, fromMoment) = splitTime period from
+            (toBS, toMoment) = splitTime period to
+        existingBatches <- selectBatchRange backend type_ (show <$> keys) period fromBS toBS
+        let missingBatchstampKeys =
+              determineMissingBatches (show <$> keys) period fromBS toBS existingBatches
+            (completeBatches, incompleteBatchstampKeys) =
+              partitionCompleteBatches fromBS fromMoment toBS toMoment existingBatches
+        newBatches <-
+          runFeedForBatches lowerFeed period $
+            missingBatchstampKeys ++ incompleteBatchstampKeys
+        upsertBatches backend newBatches
+        return
+          . seriesFromList
+          . filter (isInRange . fst)
+          . batchesToTimeSteps
+          $ completeBatches ++ newBatches
+        where
+          isInRange t = from <= t && t <= to
+
+runFeedWithDBCache
+  :: forall f f' r a
+   . ( Coercible (Value f') FixedScalar
+     , Coercible Scalar (Value f)
+     , Key f ~ Key f'
+     , FeedMap f
+     , FeedMap f'
+     , Members [Error String, Log, Final IO] r
+     )
+  => DBPath
+  -> (forall a. Sem (Feed f' : r) a -> Sem r a)
+  -> Sem (Feed f : r) a
+  -> Sem r a
+runFeedWithDBCache dbPath lowerFeed = interpret interpreter
+  where
+    interpreter :: forall rInitial x. Feed f (Sem rInitial) x -> Sem r x
+    interpreter = \case
+      Between1_ key period from to ->
+        refeed_ unpersistScalar $
+          runFeedWithDBCacheFixedScalar dbPath lowerFeed $
+            between1_ @f' key period from to
+      Between_ (keys :: [k]) period from to ->
+        refeed_ (remap unpersistScalar) $
+          runFeedWithDBCacheFixedScalar dbPath lowerFeed $
+            between_ @f' keys period from to
+
+unpersistScalar :: forall a b. (Coercible a FixedScalar, Coercible Scalar b) => a -> b
+unpersistScalar = coerce . fixedToFraction . coerce @a @FixedScalar
+
+refeed
+  :: forall a b r
+   . (a -> b)
+  -> Sem r (TimeSeries a)
+  -> Sem r (TimeSeries b)
+refeed = fmap . fmap
+
+refeed_
+  :: forall a b r
+   . (a -> b)
+  -> Sem r (Maybe (TimeSeries a))
+  -> Sem r (Maybe (TimeSeries b))
+refeed_ = fmap . fmap . fmap
 
 selectBatchRange
   :: Members [Error String, Final IO] r
@@ -185,8 +238,9 @@ partitionCompleteBatches fromBS fromMoment toBS toMoment batches =
     strip FeedBatch {..} = (feedBatchBatchstamp, feedBatchKey)
 
 runFeedForBatches
-  :: forall f k v r a
-   . ( FeedMap k v f
+  :: forall f r a
+   . ( FeedMap f
+     , Coercible (Value f) PersistScalar
      , Members [Error String, Final IO] r
      )
   => (forall a. Sem (Feed f : r) a -> Sem r a)
@@ -197,8 +251,9 @@ runFeedForBatches lowerFeed period =
   fmap catMaybes . mapM (runFeedForBatch lowerFeed period)
 
 runFeedForBatch
-  :: forall f k v r a
-   . ( FeedMap k v f
+  :: forall f r a
+   . ( FeedMap f
+     , Coercible (Value f) PersistScalar
      , Members [Error String, Final IO] r
      )
   => (forall a. Sem (Feed f : r) a -> Sem r a)
@@ -208,14 +263,14 @@ runFeedForBatch
 runFeedForBatch lowerFeed period (batchstamp, key) = do
   let from = joinTime period batchstamp 0
       to = joinTime period (batchstamp + 1) 0
-  mTimeSeries <- lowerFeed $ between1_ @f @k (read key) period from to
+  mTimeSeries <- lowerFeed $ between1_ @f (read key) period from to
   let momentsValues = case mTimeSeries of
         Nothing -> []
         Just timeSeries ->
           let timeSteps = filter ((< to) . fst) $ seriesToList timeSeries
            in map
                 ( \(t, v) ->
-                    (snd $ splitTime period t, coerce @v @PersistScalar v)
+                    (snd $ splitTime period t, coerce @(Value f) @PersistScalar v)
                 )
                 timeSteps
   return case momentsValues of

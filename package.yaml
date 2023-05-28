@@ -40,7 +40,6 @@ dependencies:
 - free
 - hashable
 - hashmap
-- http-client
 - hvega
 - lazyio
 - logging

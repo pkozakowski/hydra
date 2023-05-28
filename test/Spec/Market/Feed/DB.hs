@@ -12,11 +12,11 @@ import Data.Maybe
 import Data.Time (diffUTCTime)
 import Data.Time.Clock
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
-import Database.Persist.Sql
-import Database.Persist.Sqlite
+import Database.Persist.Sql hiding (Key)
+import Database.Persist.Sqlite hiding (Key)
 import Market
 import Market.Feed
-import Market.Feed.DB
+import Market.Feed.DB hiding (Key)
 import Market.Feed.Dummy
 import Market.Feed.Types
 import Market.Log
@@ -29,7 +29,8 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.TH
 
-type F = StaticMap String Scalar
+type FixedF = StaticMap String FixedScalar
+type ScalarF = StaticMap String Scalar
 
 test_runFeedWithDBCache :: [TestTree]
 test_runFeedWithDBCache =
@@ -39,8 +40,16 @@ test_runFeedWithDBCache =
   where
     transparency period secs = do
       time <- runM $ runTimeIO now
-      let runFeed = runFeedDummy 2 7
-          feed :: Members [Feed F, Time, Error String] r => Sem r (TimeSeries F)
+      let runFeedToScalar
+            :: Members [Time, Error String] r
+            => Sem (Feed FixedF : r) (TimeSeries FixedF)
+            -> Sem r (TimeSeries ScalarF)
+          runFeedToScalar =
+            refeed (fmap (unpersistScalar @FixedScalar @Scalar)) . runFeedToFixed
+          runFeedToFixed = runFeedDummy 2 7
+          feed
+            :: (FeedMap f, Key f ~ String, Members [Feed f, Time, Error String] r)
+            => Sem r (TimeSeries f)
           feed =
             between
               ["abc", "def"]
@@ -51,7 +60,7 @@ test_runFeedWithDBCache =
             run
               . runError
               . runTimeConst time
-              . runFeed
+              . runFeedToScalar
               $ feed
       let runCachedTwice =
             fmap distribute
@@ -60,7 +69,7 @@ test_runFeedWithDBCache =
               . errorToIOFinal
               . embedToFinal
               . runTimeConst time
-              . runFeedWithDBCache ":memory:" runFeed
+              . runFeedWithDBCache ":memory:" runFeedToFixed
               $ (,) <$> feed <*> feed
       -- first call populates the cache, second reads from it
       (resultCached1, resultCached2) <- runCachedTwice

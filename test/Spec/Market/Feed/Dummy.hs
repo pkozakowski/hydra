@@ -107,10 +107,10 @@ test_runFeedDummy =
     periodDelta period = fromInteger (periodToSeconds period)
     runFeedBetween start modulo keys period from to =
       runFeed start modulo to $
-        between @(StaticMap String Scalar) keys period from to
+        between @(StaticMap String FixedScalar) keys period from to
     runFeedBetween1 start modulo key period from to =
       runFeed start modulo to $
-        between1 @(StaticMap String Scalar) key period from to
+        between1 @(StaticMap String FixedScalar) key period from to
     runFeed start modulo at =
       fromRight undefined
         . run

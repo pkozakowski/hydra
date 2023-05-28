@@ -8,13 +8,14 @@ import Data.Time.Clock.POSIX
 import Market.Feed
 import Market.Feed.Ops
 import Market.Feed.Types
-import Market.Types
+import Market.Types hiding (Value)
 import Numeric.Field.Fraction
 import Polysemy
 
 runFeedDummy
   :: forall f r a
-   . Integer
+   . Value f ~ FixedScalar
+  => Integer
   -> Integer
   -> Sem (Feed f : r) a
   -> Sem r a
@@ -23,7 +24,7 @@ runFeedDummy start modulo = interpret \case
     between_UsingBetween1_ (runFeedDummy start modulo) keys period from to
   Between1_ _ period from to -> do
     let values = generateArithmeticSequence start modulo period from to
-    return $ seriesFromList $ second (coerce . (% 1)) <$> values
+    return $ seriesFromList $ second (coerce . fromInteger @FixedScalar) <$> values
 
 generateArithmeticSequence
   :: Integer -> Integer -> Period -> UTCTime -> UTCTime -> [(UTCTime, Integer)]
