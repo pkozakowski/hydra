@@ -42,7 +42,6 @@ dependencies:
 - hashmap
 - hvega
 - lazyio
-- logging
 - monad-logger
 - mtl
 - optparse-applicative

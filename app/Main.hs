@@ -1,6 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Main where
 
@@ -8,10 +6,13 @@ import Command.Eval
 import Command.Run
 import Command.Sync
 import Command.Tune
-import Control.Logging
+import Df1 qualified
 import Help
+import Market.Log
 import Options.Applicative hiding (helper, hsubparser)
-import qualified Options.Applicative as Optparse
+import Options.Applicative qualified as Optparse
+import Polysemy.Error (errorToIOFinal)
+import Polysemy.Final
 
 data Cmd
   = Eval EvalOptions
@@ -31,7 +32,7 @@ parseCmd =
   Run
     <$> hsubparser
       ( command "run" $
-          info runOptions $
+          Optparse.info runOptions $
             progDesc "Run an instrument on the blockchain."
       )
 
@@ -50,15 +51,15 @@ parseCmd =
 data Verbosity = Warning | Info | Debug
   deriving (Enum)
 
-toLogLevel :: Verbosity -> LogLevel
+toLogLevel :: Verbosity -> Df1.Level
 toLogLevel = \case
-  Warning -> LevelWarn
-  Info -> LevelInfo
-  Debug -> LevelDebug
+  Warning -> Df1.Warning
+  Info -> Df1.Info
+  Debug -> Df1.Debug
 
 data Options = Options
-  { cmd :: Cmd,
-    verbosity :: Verbosity
+  { cmd :: Cmd
+  , verbosity :: Verbosity
   }
 
 options :: Parser Options
@@ -81,11 +82,15 @@ options =
         )
 
 dispatch :: Options -> IO ()
-dispatch opts = withStderrLogging do
-  setLogLevel $ toLogLevel $ verbosity opts
-  case cmd opts of
-    -- Eval opts' -> eval opts'
-    Run opts' -> run opts'
+dispatch opts = runFinal $ runLog do
+  unitOrError <- errorToIOFinal $ embedToFinal do
+    -- TODO: filter based on verbosity
+    case cmd opts of
+      -- Eval opts' -> eval opts'
+      Run opts' -> run opts'
+  case unitOrError of
+    Right () -> pure ()
+    Left err -> Prelude.error err
 
 -- Sync opts' -> sync opts'
 -- Tune opts' -> tune opts'
@@ -93,4 +98,4 @@ dispatch opts = withStderrLogging do
 main :: IO ()
 main = dispatch =<< customExecParser (prefs showHelpOnEmpty) opts
   where
-    opts = info (options <**> helper) idm
+    opts = Optparse.info (options <**> helper) idm

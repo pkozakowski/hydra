@@ -42,6 +42,7 @@ library
       Market.Feed.DB
       Market.Feed.DB.Types
       Market.Feed.Dummy
+      Market.Feed.IBKR
       Market.Feed.Ops
       Market.Feed.TH
       Market.Feed.Types
@@ -52,10 +53,8 @@ library
       Market.Instrument.Ops
       Market.Instrument.Some
       Market.Instrument.Test
-      Market.Internal.IO
       Market.Internal.Sem
       Market.Log
-      Market.Notebook
       Market.Ops
       Market.Plot
       Market.Simulation
@@ -115,7 +114,6 @@ library
     , hashmap
     , hvega
     , lazyio
-    , logging
     , monad-logger
     , mtl
     , optparse-applicative
@@ -201,7 +199,6 @@ executable squid-exe
     , hashmap
     , hvega
     , lazyio
-    , logging
     , monad-logger
     , mtl
     , optparse-applicative
@@ -297,7 +294,6 @@ test-suite squid-test
     , hashmap
     , hvega
     , lazyio
-    , logging
     , monad-logger
     , mtl
     , optparse-applicative

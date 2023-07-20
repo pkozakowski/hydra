@@ -10,8 +10,6 @@ import qualified Dhall.Pretty as Dh
 import Market
 import Market.Dhall
 import Market.Instrument
-import Market.Notebook hiding (duration)
-import qualified Market.Notebook as Notebook
 import Market.Tuning hiding (tune)
 import Options.Applicative
 import Parser hiding (Parser, fees, metrics)
@@ -20,10 +18,10 @@ import System.Random
 import Text.Pretty.Simple
 
 data TuneOptions = TuneOptions
-  { grid :: String,
-    metric :: String,
-    stopWhen :: StopWhen,
-    core :: CoreEvalOptions
+  { grid :: String
+  , metric :: String
+  , stopWhen :: StopWhen
+  , core :: CoreEvalOptions
   }
 
 tuneOptions :: Parser TuneOptions

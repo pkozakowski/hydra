@@ -11,12 +11,11 @@ import Data.Time
 import Data.Time.Clock.POSIX
 import Market
 import Market.Feed
-import Market.Internal.IO
 import Market.Ops
 import Market.Time
 import Numeric.Precision
 import Options.Applicative
-import qualified System.IO.Lazy as LazyIO
+import System.IO.Lazy qualified as LazyIO
 import System.ProgressBar
 
 data SyncOptions = SyncOptions
@@ -69,8 +68,8 @@ listFromTQueue queue = do
 deriving instance Show a => Show (Progress a)
 
 -- -- | Synchronizes price data, parallelizing over assets.
---sync :: SyncOptions -> IO ()
---sync options = do
+-- sync :: SyncOptions -> IO ()
+-- sync options = do
 --  -- Determine the time we're synced up to.
 --  coverages <-
 --    semToIO $

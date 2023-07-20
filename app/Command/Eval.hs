@@ -25,7 +25,6 @@ import qualified Dhall
 import Graphics.Vega.VegaLite hiding (name, window)
 import Market
 import Market.Instrument
-import Market.Notebook hiding (duration)
 import Market.Plot
 import Market.Types
 import Numeric.Field.Fraction
@@ -36,19 +35,19 @@ import System.Directory
 import System.IO.Error
 
 data EvalOptions = EvalOptions
-  { config :: String,
-    metrics :: String,
-    plot :: Maybe String,
-    core :: CoreEvalOptions
+  { config :: String
+  , metrics :: String
+  , plot :: Maybe String
+  , core :: CoreEvalOptions
   }
 
 data CoreEvalOptions = CoreEvalOptions
-  { initPortfolio :: Portfolio,
-    begin :: Maybe UTCTime,
-    end :: Maybe UTCTime,
-    window :: Maybe NominalDiffTime,
-    stride :: Double,
-    fees :: Fees
+  { initPortfolio :: Portfolio
+  , begin :: Maybe UTCTime
+  , end :: Maybe UTCTime
+  , window :: Maybe NominalDiffTime
+  , stride :: Double
+  , fees :: Fees
   }
 
 defaultBeginTime :: UTCTime
@@ -57,8 +56,8 @@ defaultBeginTime = posixSecondsToUTCTime 0
 defaultFees :: Fees
 defaultFees =
   Fees
-    { variable = 25 % 100_000,
-      fixed = Just ("BNB", Amount $ 15 % 10_000)
+    { variable = 25 % 100_000
+    , fixed = Just ("BNB", Amount $ 15 % 10_000)
     }
 
 evalOptions :: Parser EvalOptions

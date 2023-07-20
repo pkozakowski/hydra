@@ -11,8 +11,10 @@ module Market.Log
   , LoggingToSem (..)
   , attr
   , debug
+  , error
   , info
   , push
+  , warning
   , runLog
   ) where
 
@@ -26,14 +28,14 @@ import Data.Text
 import Data.Text.Encoding
 import Data.Text.IO
 import Df1 qualified
-import Di qualified as Di
+import Di qualified
 import DiPolysemy qualified as DiP
 import GHC.StaticPtr qualified as Df1
 import Polysemy
 import Polysemy.Final
 import UnliftIO (MonadIO (..), MonadUnliftIO, UnliftIO (..))
 import UnliftIO qualified
-import Prelude hiding (log)
+import Prelude hiding (error, log)
 
 type Log = DiP.Di Df1.Level Df1.Path Df1.Message
 
@@ -69,6 +71,12 @@ debug = log Df1.Debug
 
 info :: (Df1.ToMessage a, Member Log r) => a -> Sem r ()
 info = log Df1.Info
+
+warning :: (Df1.ToMessage a, Member Log r) => a -> Sem r ()
+warning = log Df1.Warning
+
+error :: (Df1.ToMessage a, Member Log r) => a -> Sem r ()
+error = log Df1.Error
 
 newtype SemUnliftIO (r :: [Effect]) a = SemUnliftIO {runSemUnliftIO :: Sem r a}
   deriving (Functor, Applicative, Monad)
