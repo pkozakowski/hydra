@@ -1,36 +1,63 @@
+{-# LANGUAGE TupleSections #-}
+
 module Market.Feed.IBKR where
 
+import Control.Exception (assert)
+import Control.Monad
+import Data.Function
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Class
+import Data.Map.Static
 import Data.Time
 import Market.Feed
+import Market.Feed.Types
 import Market.Log
-import Market.Types
+import Market.Types hiding (Value)
 import Polysemy
 import Polysemy.Embed
 import Polysemy.Error
 
 data BarField = BidAvg | BidMin | AskAvg | AskMax
+  deriving (Eq, Ord)
+
 data Contract = Cash {symbol :: String, currency :: String}
+  deriving (Eq, Ord)
+
 data FeedKey = FeedKey {contract :: Contract, barField :: BarField}
 
 runFeedIBKR
   :: forall f r a
-   . (Key f ~ FeedKey, Members [Error String, Log, Embed IO] r)
+   . (Key f ~ FeedKey, Value f ~ FixedScalar, Members [Error String, Log, Embed IO] r)
   => Sem (Feed f : r) a
   -> Sem r a
 runFeedIBKR = interpret \case
   Between_ keys period from to -> do
-    -- between_UsingBetween1_ runFeedIBKR keys period from to
-
-    pure undefined
+    -- TODO: open RPC session here, pass to betweenForContract
+    when (period /= Minute) $ throw "runFeedIBKR only works on minute periods"
+    let groups = NonEmpty.groupBy ((==) `on` contract) keys
+        contracts = contract . NonEmpty.head <$> groups
+    contractToMaybeSeries
+      :: StaticMap Contract (Maybe (TimeSeries (StaticMap BarField FixedScalar))) <-
+      fromList <$> forM contracts \ctr ->
+        (ctr,) <$> betweenForContract ctr from to
+    let keyToMaybeSeries =
+          fromList $
+            ( \key ->
+                ( key
+                , fmap (! barField key)
+                    <$> (contractToMaybeSeries ! contract key)
+                )
+            )
+              <$> NonEmpty.toList keys
+    pure $ fmap (remap id) <$> mergeFeeds keyToMaybeSeries
   Between1_ key period from to -> do
-    pure undefined
+    between1_UsingBetween_ @f runFeedIBKR key period from to
 
 betweenForContract
-  :: forall f r
-   . (Key f ~ BarField, Members [Error String, Log, Embed IO] r)
+  :: forall r
+   . (Members [Error String, Log, Embed IO] r)
   => Contract
   -> UTCTime
   -> UTCTime
-  -> Sem r (Maybe (TimeSeries f))
+  -> Sem r (Maybe (TimeSeries (StaticMap BarField FixedScalar)))
 betweenForContract = undefined

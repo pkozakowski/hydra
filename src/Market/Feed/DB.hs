@@ -17,6 +17,8 @@ import Data.Coerce
 import Data.Fixed
 import Data.Functor
 import Data.List
+import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Map.Class
 import Data.Maybe
@@ -103,13 +105,13 @@ runFeedWithDBCacheFixedScalar dbPath lowerFeed action =
           period
           from
           to
-      Between_ (keys :: [k]) period from to -> do
+      Between_ (keys :: NonEmpty k) period from to -> do
         let type_ = show $ typeRep $ Proxy @f
             (fromBS, fromMoment) = splitTime period from
             (toBS, toMoment) = splitTime period to
-        existingBatches <- selectBatchRange backend type_ (show <$> keys) period fromBS toBS
+        existingBatches <- selectBatchRange backend type_ (show <$> NonEmpty.toList keys) period fromBS toBS
         let missingBatchstampKeys =
-              determineMissingBatches (show <$> keys) period fromBS toBS existingBatches
+              determineMissingBatches (show <$> NonEmpty.toList keys) period fromBS toBS existingBatches
             (completeBatches, incompleteBatchstampKeys) =
               partitionCompleteBatches fromBS fromMoment toBS toMoment existingBatches
         newBatches <-
@@ -145,7 +147,7 @@ runFeedWithDBCache dbPath lowerFeed = interpret interpreter
         refeed_ unpersistScalar $
           runFeedWithDBCacheFixedScalar dbPath lowerFeed $
             between1_ @f' key period from to
-      Between_ (keys :: [k]) period from to ->
+      Between_ (keys :: NonEmpty k) period from to ->
         refeed_ (remap unpersistScalar) $
           runFeedWithDBCacheFixedScalar dbPath lowerFeed $
             between_ @f' keys period from to

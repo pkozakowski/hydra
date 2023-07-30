@@ -1,5 +1,4 @@
 {-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -9,7 +8,7 @@ import Control.Monad
 import Data.Bifunctor
 import Data.Coerce
 import Data.Constraint
-import Data.List.NonEmpty
+import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Class
 import Data.Map.Static
@@ -24,16 +23,18 @@ import Market.Types hiding (Value)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Internal
+import Polysemy.Law (NonEmptyList (NonEmpty))
 import Prelude hiding (until)
 
 type FeedMap f =
   (Read (Key f), Show (Key f), Ord (Key f), Typeable f, BuildMap (Key f) (Value f) f)
 
-data Feed k m a where
+-- Polymorphic in f to allow newtypes.
+data Feed f m a where
   Between_
     :: forall f m a
      . FeedMap f
-    => [Key f]
+    => NonEmpty (Key f)
     -> Period
     -> UTCTime
     -> UTCTime
@@ -52,7 +53,7 @@ between_
    . ( FeedMap f
      , Member (Feed f) r
      )
-  => [Key f]
+  => NonEmpty (Key f)
   -> Period
   -> UTCTime
   -> UTCTime
@@ -71,46 +72,52 @@ between1_
   -> Sem r (Maybe (TimeSeries (Value f)))
 between1_ key period from to = send $ Between1_ @f key period from to
 
+mergeFeeds :: forall k v. Ord k => StaticMap k (Maybe (TimeSeries v)) -> Maybe (TimeSeries (StaticMap k v))
+mergeFeeds keyToMaybeSeries =
+  fmap TimeSeries $
+    nonEmpty $
+      mapMaybe
+        buildTimeStep
+        ( Prelude.scanl
+            update
+            ( Nothing
+            , Data.Map.Static.fromList $
+                fmap (second $ const Nothing) (toList keyToMaybeSeries)
+            )
+            $ sweep
+            $ maybe [] seriesToList <$> keyToMaybeSeries
+        )
+  where
+    buildTimeStep
+      :: (Maybe UTCTime, StaticMap k (Maybe v))
+      -> Maybe (UTCTime, StaticMap k v)
+    buildTimeStep (maybeTime, currentValues) =
+      (,) <$> maybeTime <*> (remap id <$> sequenceA currentValues)
+    update
+      :: (Maybe UTCTime, StaticMap k (Maybe v))
+      -> (UTCTime, Event k v)
+      -> (Maybe UTCTime, StaticMap k (Maybe v))
+    update (_, currentPrices) (time, Event changes) =
+      (Just time, updates currentPrices)
+      where
+        updates =
+          foldl (.) id $ uncurry set . second Just <$> changes
+
 between_UsingBetween1_
   :: forall f r
    . FeedMap f
   => (forall a. Sem (Feed f : r) a -> Sem r a)
-  -> [Key f]
+  -> NonEmpty (Key f)
   -> Period
   -> UTCTime
   -> UTCTime
   -> Sem r (Maybe (TimeSeries f))
 between_UsingBetween1_ interpreter keys period from to = do
   keyToMaybeSeries :: StaticMap k (Maybe (TimeSeries v)) <-
-    Data.Map.Static.fromList <$> forM keys \key -> do
+    Data.Map.Static.fromList <$> forM (NonEmpty.toList keys) \key -> do
       maybeSeries <- interpreter $ between1_ @f key period from to
       return (key, maybeSeries)
-  return $
-    fmap TimeSeries $
-      nonEmpty $
-        mapMaybe
-          buildTimeStep
-          ( Prelude.scanl
-              update
-              (Nothing, Data.Map.Static.fromList $ fmap (,Nothing) keys)
-              $ sweep
-              $ maybe [] seriesToList <$> keyToMaybeSeries
-          )
-  where
-    buildTimeStep
-      :: (Maybe UTCTime, StaticMap (Key f) (Maybe (Value f)))
-      -> Maybe (UTCTime, f)
-    buildTimeStep (maybeTime, currentValues) =
-      (,) <$> maybeTime <*> (remap id <$> sequenceA currentValues)
-    update
-      :: (Maybe UTCTime, StaticMap (Key f) (Maybe (Value f)))
-      -> (UTCTime, Event (Key f) (Value f))
-      -> (Maybe UTCTime, StaticMap (Key f) (Maybe (Value f)))
-    update (_, currentPrices) (time, Event changes) =
-      (Just time, updates currentPrices)
-      where
-        updates =
-          foldl (.) id $ uncurry set . second Just <$> changes
+  return $ fmap (remap id) <$> mergeFeeds keyToMaybeSeries
 
 between1_UsingBetween_
   :: forall f r
@@ -122,7 +129,7 @@ between1_UsingBetween_
   -> UTCTime
   -> Sem r (Maybe (TimeSeries (Value f)))
 between1_UsingBetween_ interpreter key period from to = do
-  maybeSeries <- interpreter $ between_ @f [key] period from to
+  maybeSeries <- interpreter $ between_ @f (NonEmpty.singleton key) period from to
   return $ fmap (! key) <$> maybeSeries
 
 betweenImpl
@@ -151,7 +158,7 @@ between
    . ( FeedMap f
      , Members [Feed f, Time, Error String] r
      )
-  => [Key f]
+  => NonEmpty (Key f)
   -> Period
   -> UTCTime
   -> UTCTime
@@ -175,7 +182,7 @@ since
    . ( FeedMap f
      , Members [Feed f, Time, Error String] r
      )
-  => [Key f]
+  => NonEmpty (Key f)
   -> Period
   -> UTCTime
   -> Sem r (TimeSeries f)
@@ -201,7 +208,7 @@ until
    . ( FeedMap f
      , Members [Feed f, Time, Error String] r
      )
-  => [Key f]
+  => NonEmpty (Key f)
   -> Period
   -> UTCTime
   -> Sem r (TimeSeries f)
@@ -229,7 +236,7 @@ ever
    . ( FeedMap f
      , Members [Feed f, Time, Error String] r
      )
-  => [Key f]
+  => NonEmpty (Key f)
   -> Period
   -> Sem r (TimeSeries f)
 ever keys period = until keys period =<< now

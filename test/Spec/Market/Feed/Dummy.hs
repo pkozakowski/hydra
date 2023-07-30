@@ -4,6 +4,8 @@ module Spec.Market.Feed.Dummy where
 
 import Data.Either
 import Data.List
+import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Static
 import Data.Set qualified as Set
 import Data.Time
@@ -91,9 +93,9 @@ test_runFeedDummy =
         periodHigh = succ periodLow
 
     betweenConsistentWithBetween1 ::
-      Integer -> Integer -> [String] -> Period -> UTCTime -> Integer -> Property
+      Integer -> Integer -> NonEmpty String -> Period -> UTCTime -> Integer -> Property
     betweenConsistentWithBetween1 start modulo keys period from numPeriods =
-      preconditions ==> conjoin (keyConsistent <$> keys)
+      preconditions ==> conjoin (keyConsistent <$> NonEmpty.toList keys)
       where
         preconditions = modulo /= 0 && numPeriodsOk numPeriods
         mapSeries = runFeedBetween start modulo keys period from to
