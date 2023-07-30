@@ -29,7 +29,7 @@ import Prelude hiding (until)
 type FeedMap f =
   (Read (Key f), Show (Key f), Ord (Key f), Typeable f, BuildMap (Key f) (Value f) f)
 
-data Feed f m a where
+data Feed k m a where
   Between_
     :: forall f m a
      . FeedMap f

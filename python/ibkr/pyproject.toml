@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "ibkr"
+version = "0.1.0"
+description = ""
+authors = ["Piotr Kozakowski <pkozakowski@duck.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "ibkr"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+msgpack-rpc-python = "^0.4.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
