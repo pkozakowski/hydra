@@ -1,0 +1,15 @@
+*~
+*#
+*.o
+*.hi
+*.a
+*.exe
+cabal-dev/
+/dist/
+attic/
+tmp/
+*.aes
+/.stack-work/
+/dist-newstyle/
+/.ghc.environment.*
+/cabal.project.local

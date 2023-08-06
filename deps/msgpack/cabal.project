@@ -1,0 +1,8 @@
+tests: True
+
+packages:
+    msgpack
+    msgpack-aeson
+    msgpack-rpc
+--  msgpack-idl
+--  msgpack-idl-web
