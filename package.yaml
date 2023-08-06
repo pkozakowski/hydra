@@ -43,6 +43,8 @@ dependencies:
 - hvega
 - lazyio
 - monad-logger
+- msgpack
+- msgpack-rpc
 - mtl
 - optparse-applicative
 - parallel
@@ -54,9 +56,11 @@ dependencies:
 - pretty-simple
 - prettyprinter
 - prettyprinter-ansi-terminal
+- process
 - QuickCheck
 - quickcheck-classes
 - quickcheck-instances
+- port-utils
 - random
 - req
 - retry

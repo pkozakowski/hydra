@@ -32,6 +32,7 @@ library
       Data.Map.Static
       Data.Traversable.Constrained
       Debug.Trace.Pretty
+      Foreign.RPC.Outgoing
       Market
       Market.Asset
       Market.Broker
@@ -115,6 +116,8 @@ library
     , hvega
     , lazyio
     , monad-logger
+    , msgpack
+    , msgpack-rpc
     , mtl
     , optparse-applicative
     , parallel
@@ -123,9 +126,11 @@ library
     , persistent-sqlite
     , polysemy >=1.6
     , polysemy-plugin >=0.3
+    , port-utils
     , pretty-simple
     , prettyprinter
     , prettyprinter-ansi-terminal
+    , process
     , quickcheck-classes
     , quickcheck-instances
     , random
@@ -200,6 +205,8 @@ executable squid-exe
     , hvega
     , lazyio
     , monad-logger
+    , msgpack
+    , msgpack-rpc
     , mtl
     , optparse-applicative
     , parallel
@@ -208,9 +215,11 @@ executable squid-exe
     , persistent-sqlite
     , polysemy >=1.6
     , polysemy-plugin >=0.3
+    , port-utils
     , pretty-simple
     , prettyprinter
     , prettyprinter-ansi-terminal
+    , process
     , quickcheck-classes
     , quickcheck-instances
     , random
@@ -295,6 +304,8 @@ test-suite squid-test
     , hvega
     , lazyio
     , monad-logger
+    , msgpack
+    , msgpack-rpc
     , mtl
     , optparse-applicative
     , parallel
@@ -303,9 +314,11 @@ test-suite squid-test
     , persistent-sqlite
     , polysemy >=1.6
     , polysemy-plugin >=0.3
+    , port-utils
     , pretty-simple
     , prettyprinter
     , prettyprinter-ansi-terminal
+    , process
     , quickcheck-classes
     , quickcheck-instances
     , random

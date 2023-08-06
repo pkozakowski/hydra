@@ -11,6 +11,20 @@ packages:
       size: 320
   original:
     hackage: di-polysemy-0.2.0.0
+- completed:
+    hackage: msgpack-1.0.1.0@sha256:a87b663fc28d661b41552331d22e10b34028cad8a592ae758ac47e363933b6bd,3004
+    pantry-tree:
+      sha256: 9b6a847c24cc11e6cf83582ad02740142c9cd0e80c88aa718895fd31fb401482
+      size: 595
+  original:
+    hackage: msgpack-1.0.1.0
+- completed:
+    hackage: msgpack-rpc-1.0.0@sha256:17d81c5fe62c12473dbc89338cc046b42681faf97fc7fdfa13616e6320db7083,2111
+    pantry-tree:
+      sha256: fb63e3b0c6b7fa5a13ba2c53b56608b043fbaab9d3a19b875e99b005191e6518
+      size: 356
+  original:
+    hackage: msgpack-rpc-1.0.0
 snapshots:
 - completed:
     sha256: 9fa4bece7acfac1fc7930c5d6e24606004b09e80aa0e52e9f68b148201008db9
