@@ -32,10 +32,11 @@ A simple example:
 module Network.MessagePack.Client
   ( -- * MessagePack Client type
     Client
-  , execClient
+  , runClient
 
     -- * Call RPC method
   , call
+  , rpcCall
 
     -- * RPC error
   , RpcError (..)
@@ -56,7 +57,7 @@ import Data.MessagePack
 import Data.Typeable
 import System.IO
 
-newtype Client a = ClientT {runClient :: StateT Connection IO a}
+newtype Client a = ClientT {unClient :: StateT Connection IO a}
   deriving (Functor, Applicative, Monad, MonadIO, MonadThrow)
 
 -- | RPC connection type
@@ -66,11 +67,11 @@ data Connection
       !(Sink S.ByteString IO ())
       !Int
 
-execClient :: S.ByteString -> Int -> Client a -> IO ()
-execClient host port m =
+runClient :: S.ByteString -> Int -> Client a -> IO a
+runClient host port m =
   runTCPClient (clientSettings port host) $ \ad -> do
     (rsrc, _) <- appSource ad $$+ return ()
-    void $ evalStateT (runClient m) (Connection rsrc (appSink ad) 0)
+    evalStateT (unClient m) (Connection rsrc (appSink ad) 0)
 
 -- | RPC error type
 data RpcError

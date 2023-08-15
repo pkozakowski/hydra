@@ -7,9 +7,9 @@ import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Text
 import Data.Time
-import Market.Log
 import Polysemy
 import Polysemy.Error
+import Polysemy.Logging
 
 {- | A version of forM for Sem, evaluating elements in parallel. Requires an
 interpreter-deinterpreter pair.
@@ -29,7 +29,7 @@ pforSem interpreter deinterpreter series action = do
   mapM deinterpreter results
 
 cache
-  :: Members [Log, Embed IO] r
+  :: Members [Logging, Embed IO] r
   => IORef (Maybe a)
   -> Sem r a
   -> Text
@@ -47,7 +47,7 @@ cache cch fetch description = do
       return value
 
 cacheF
-  :: (Members [Log, Embed IO] r, Ord k)
+  :: (Members [Logging, Embed IO] r, Ord k)
   => IORef (Map k v)
   -> (k -> Sem r v)
   -> (k -> Text)
@@ -66,7 +66,7 @@ cacheF cache fetch describe key = do
       return value
 
 withExponentialBackoff
-  :: (Members [Error e, Log, Embed IO] r, Show e)
+  :: (Members [Error e, Logging, Embed IO] r, Show e)
   => NominalDiffTime
   -> Int
   -> (e -> Bool)
@@ -78,7 +78,7 @@ withExponentialBackoff base repeats predicate action =
     loop err action = if predicate err then Just action else Nothing
 
 withExponentialBackoff'
-  :: (Members [Error e, Log, Embed IO] r, Show e)
+  :: (Members [Error e, Logging, Embed IO] r, Show e)
   => NominalDiffTime
   -> Int
   -> (e -> Sem r a -> Maybe (Sem r a))

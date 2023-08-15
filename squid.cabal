@@ -55,7 +55,6 @@ library
       Market.Instrument.Some
       Market.Instrument.Test
       Market.Internal.Sem
-      Market.Log
       Market.Ops
       Market.Plot
       Market.Simulation
@@ -69,6 +68,7 @@ library
       Numeric.Normed
       Numeric.Precision
       Numeric.Truncatable
+      Polysemy.Logging
       Type.List
   other-modules:
       Paths_squid
@@ -179,7 +179,7 @@ executable squid-exe
       ScopedTypeVariables
       TypeApplications
       TypeOperators
-  ghc-options: -O2 -fplugin=Polysemy.Plugin -flate-specialise -fspecialise-aggressively -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -g -fplugin=Polysemy.Plugin -flate-specialise -fspecialise-aggressively -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       QuickCheck
     , aeson

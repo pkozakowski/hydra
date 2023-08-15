@@ -6,16 +6,16 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Market.Log
-  ( Log
-  , LoggingToSem (..)
+module Polysemy.Logging
+  ( Logging
+  , MonadLoggerToSem (..)
   , attr
   , debug
   , error
   , info
   , push
   , warning
-  , runLog
+  , runLogging
   ) where
 
 import Control.Monad
@@ -37,10 +37,10 @@ import UnliftIO (MonadIO (..), MonadUnliftIO, UnliftIO (..))
 import UnliftIO qualified
 import Prelude hiding (error, log)
 
-type Log = DiP.Di Df1.Level Df1.Path Df1.Message
+type Logging = DiP.Di Df1.Level Df1.Path Df1.Message
 
-runLog :: Member (Final IO) r => Sem (Log : r) a -> Sem r a
-runLog action =
+runLogging :: Member (Final IO) r => Sem (Logging : r) a -> Sem r a
+runLogging action =
   runSemUnliftIO $
     Di.new \di ->
       SemUnliftIO
@@ -49,33 +49,33 @@ runLog action =
         $ raiseUnder @(Embed IO) action
 
 push
-  :: Member Log r
+  :: Member Logging r
   => Df1.Segment
   -> Sem r a
   -> Sem r a
 push = DiP.push @Df1.Level @Df1.Message
 
 attr
-  :: (Df1.ToValue v, Member Log r)
+  :: (Df1.ToValue v, Member Logging r)
   => Df1.Key
   -> v
   -> Sem r a
   -> Sem r a
 attr key value = DiP.attr_ @Df1.Level @Df1.Message key $ Df1.value value
 
-log :: (Df1.ToMessage a, Member Log r) => Df1.Level -> a -> Sem r ()
+log :: (Df1.ToMessage a, Member Logging r) => Df1.Level -> a -> Sem r ()
 log level = DiP.log @_ @Df1.Path level . Df1.message
 
-debug :: (Df1.ToMessage a, Member Log r) => a -> Sem r ()
+debug :: (Df1.ToMessage a, Member Logging r) => a -> Sem r ()
 debug = log Df1.Debug
 
-info :: (Df1.ToMessage a, Member Log r) => a -> Sem r ()
+info :: (Df1.ToMessage a, Member Logging r) => a -> Sem r ()
 info = log Df1.Info
 
-warning :: (Df1.ToMessage a, Member Log r) => a -> Sem r ()
+warning :: (Df1.ToMessage a, Member Logging r) => a -> Sem r ()
 warning = log Df1.Warning
 
-error :: (Df1.ToMessage a, Member Log r) => a -> Sem r ()
+error :: (Df1.ToMessage a, Member Logging r) => a -> Sem r ()
 error = log Df1.Error
 
 newtype SemUnliftIO (r :: [Effect]) a = SemUnliftIO {runSemUnliftIO :: Sem r a}
@@ -130,22 +130,22 @@ instance Member (Final IO) r => MonadMask (SemUnliftIO r) where
         (unliftIO u .: release)
         (unliftIO u . use)
 
-newtype LoggingToSem (r :: [Effect]) a = LoggingToSem {runLoggingToSem :: Sem r a}
+newtype MonadLoggerToSem (r :: [Effect]) a = MonadLoggerToSem {runMonadLoggerToSem :: Sem r a}
   deriving (Functor, Applicative, Monad)
 
 deriving via
   SemUnliftIO r
   instance
-    Member (Final IO) r => MonadIO (LoggingToSem r)
+    Member (Final IO) r => MonadIO (MonadLoggerToSem r)
 
 deriving via
   SemUnliftIO r
   instance
-    Member (Final IO) r => MonadUnliftIO (LoggingToSem r)
+    Member (Final IO) r => MonadUnliftIO (MonadLoggerToSem r)
 
-instance Member Log r => MonadLogger (LoggingToSem r) where
+instance Member Logging r => MonadLogger (MonadLoggerToSem r) where
   monadLoggerLog loc src level msg =
-    LoggingToSem
+    MonadLoggerToSem
       . attr "src" src
       . log level'
       . decodeUtf8
@@ -159,8 +159,8 @@ instance Member Log r => MonadLogger (LoggingToSem r) where
         LevelError -> Df1.Error
         LevelOther _ -> Df1.Warning
 
-instance Members [Log, Final IO] r => MonadLoggerIO (LoggingToSem r) where
-  askLoggerIO = LoggingToSem $ withStrategicToFinal strategy
+instance Members [Logging, Final IO] r => MonadLoggerIO (MonadLoggerToSem r) where
+  askLoggerIO = MonadLoggerToSem $ withStrategicToFinal strategy
     where
       strategy
         :: forall f
@@ -172,7 +172,7 @@ instance Members [Log, Final IO] r => MonadLoggerIO (LoggingToSem r) where
         let uncurry4 f (a, b, c, d) = f a b c d
         stateIO :: IO (f ()) <- pureS ()
         monadLoggerLogIO :: f (Loc, LogSource, LogLevel, LogStr) -> IO (f ()) <-
-          bindS $ runLoggingToSem . uncurry4 monadLoggerLog
+          bindS $ runMonadLoggerToSem . uncurry4 monadLoggerLog
         pure do
           state <- stateIO
           pure $

@@ -8,11 +8,11 @@ import Command.Sync
 import Command.Tune
 import Df1 qualified
 import Help
-import Market.Log
 import Options.Applicative hiding (helper, hsubparser)
 import Options.Applicative qualified as Optparse
 import Polysemy.Error (errorToIOFinal)
 import Polysemy.Final
+import Polysemy.Logging
 
 data Cmd
   = Eval EvalOptions
@@ -35,13 +35,12 @@ parseCmd =
           Optparse.info runOptions $
             progDesc "Run an instrument on the blockchain."
       )
-
---    <|> Sync
---      <$> hsubparser
---        ( command "sync" $
---            info syncOptions $
---              progDesc "Synchronize the price data."
---        )
+   <|> Sync
+     <$> hsubparser
+       ( command "sync" $
+           Optparse.info syncOptions $
+             progDesc "Synchronize price data."
+       )
 --  <|> Tune <$> hsubparser
 --        ( command "tune"
 --            $ info tuneOptions
@@ -82,17 +81,17 @@ options =
         )
 
 dispatch :: Options -> IO ()
-dispatch opts = runFinal $ runLog do
+dispatch opts = runFinal $ runLogging do
   unitOrError <- errorToIOFinal $ embedToFinal do
     -- TODO: filter based on verbosity
     case cmd opts of
       -- Eval opts' -> eval opts'
       Run opts' -> run opts'
+      Sync opts' -> sync opts'
   case unitOrError of
     Right () -> pure ()
     Left err -> Prelude.error err
 
--- Sync opts' -> sync opts'
 -- Tune opts' -> tune opts'
 
 main :: IO ()

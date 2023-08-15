@@ -39,13 +39,13 @@ import Market.Feed
 import Market.Feed.DB.Types
 import Market.Feed.Ops
 import Market.Feed.Types
-import Market.Log
 import Market.Time
 import Market.Types hiding (Value)
 import Numeric.Truncatable
 import Polysemy
 import Polysemy.Error
 import Polysemy.Final
+import Polysemy.Logging
 
 type DBPath = Text
 
@@ -84,7 +84,7 @@ runFeedWithDBCacheFixedScalar
   :: forall f r a
    . ( Coercible (Value f) FixedScalar
      , FeedMap f
-     , Members [Error String, Log, Final IO] r
+     , Members [Error String, Logging, Final IO] r
      )
   => DBPath
   -> (forall a. Sem (Feed f : r) a -> Sem r a)
@@ -133,7 +133,7 @@ runFeedWithDBCache
      , Key f ~ Key f'
      , FeedMap f
      , FeedMap f'
-     , Members [Error String, Log, Final IO] r
+     , Members [Error String, Logging, Final IO] r
      )
   => DBPath
   -> (forall a. Sem (Feed f' : r) a -> Sem r a)
@@ -194,8 +194,8 @@ selectBatchRange backend type_ keys period fromBS toBS = do
 sqliteToSem :: Members '[Final IO] r => SqlBackend -> SqlPersistT IO a -> Sem r a
 sqliteToSem backend = embedFinal . flip runSqlConn backend
 
-withSqlite :: Members [Log, Final IO] r => DBPath -> (SqlBackend -> Sem r a) -> Sem r a
-withSqlite dbPath cont = runLoggingToSem $ withSqliteConn dbPath $ LoggingToSem . cont
+withSqlite :: Members [Logging, Final IO] r => DBPath -> (SqlBackend -> Sem r a) -> Sem r a
+withSqlite dbPath cont = runMonadLoggerToSem $ withSqliteConn dbPath $ MonadLoggerToSem . cont
 
 determineMissingBatches
   :: [ResourceKey]

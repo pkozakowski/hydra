@@ -27,11 +27,13 @@ import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Sparse hiding (Value)
 import Data.Map.Static hiding (Value)
 import Data.Maybe
+import Data.MessagePack
 import Data.Proxy
 import Data.Semigroup.Foldable
 import Data.Semigroup.Traversable
 import Data.String
 import Data.Time
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Dhall (FromDhall, ToDhall)
 import Dhall qualified as Dh
 import GHC.Generics
@@ -326,6 +328,10 @@ everything = Relative $ share one
 
 type TimeStep a = (UTCTime, a)
 
+instance MessagePack UTCTime where
+  toObject = ObjectInt . floor . utcTimeToPOSIXSeconds
+  fromObject = withInt "malformed UTCTime" $ pure . posixSecondsToUTCTime . fromIntegral
+
 newtype TimeSeries a = TimeSeries {unTimeSeries :: NonEmpty (TimeStep a)}
   deriving (Eq, Functor, Foldable, Generic, Show, Traversable)
   deriving newtype (Semigroup)
@@ -438,7 +444,7 @@ deriving newtype instance Arbitrary ShareDelta
 instance (Arbitrary k, Ord k) => Arbitrary (Distribution k) where
   arbitrary = Distribution . normalize <$> ensureNonzero arbitraryPosMap
     where
-      normalize r = Share <$> (/ sum r) <$> r
+      normalize r = Share . (/ sum r) <$> r
       ensureNonzero gen = gen `suchThat` \dist -> sum dist /= zero
       sum = foldl (+) zero
       arbitraryPosMap :: Gen (SparseMap k Scalar)
@@ -491,7 +497,7 @@ instance Arbitrary a => Arbitrary (TimeSeries a) where
     return $ TimeSeries $ NonEmpty.zip times values
 
   shrink (TimeSeries srs) =
-    TimeSeries <$> NonEmpty.zip times <$> shrink values
+    TimeSeries . NonEmpty.zip times <$> shrink values
     where
       (times, values) = NonEmpty.unzip srs
 
@@ -502,12 +508,11 @@ instance Arbitrary Fees where
       <*> fmap decrease arbitrary `suchThat` positiveIfJust
     where
       decrease =
-        fmap \(asset, amount) ->
-          (asset, ((1 % 100) :: Fraction Integer) .* amount)
+        fmap (second (((1 % 100) :: Fraction Integer) .*))
 
   shrink fees =
     Fees
-      <$> validShare `filter` (shrink $ variable fees)
+      <$> validShare `filter` shrink (variable fees)
       <*> positiveIfJust `filter` shrink (fixed fees)
 
 positiveIfJust :: Maybe SomeAmount -> Bool

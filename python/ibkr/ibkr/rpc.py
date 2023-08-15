@@ -8,7 +8,7 @@ import typing
 
 from ibapi import contract as ibcontract
 
-from ibkr import ibkr, types
+from ibkr import client, types
 
 
 DEFAULT_CASH_EXCHANGE = "IDEALPRO"
@@ -17,7 +17,7 @@ DEFAULT_TIMEOUT = 60
 DAY = 24 * 3600
 
 
-class Server:
+class Dispatcher:
     def __init__(self, wait: int = DEFAULT_WAIT):
         self._symbol_cache: dict[str, list[types.Contract]] = {}
         self._wait = wait
@@ -79,7 +79,7 @@ class Server:
         to_timestamp: int,
         exchange: str = DEFAULT_CASH_EXCHANGE,
         timeout: int = DEFAULT_TIMEOUT,
-    ) -> list[types.Bar]:
+    ) -> list[types.TimeStep]:
         print(
             f"fetch_orders_from_day_by_minute({contract_id}, {to_timestamp}, "
             f"{repr(exchange)})"
@@ -102,14 +102,16 @@ class Server:
             ],
             timeout=timeout,
         )
-        res: list[types.Bar] = [
-            {
-                "timestamp": int(bar.date),
-                "bid_avg": bar.open,
-                "bid_min": bar.low,
-                "ask_avg": bar.close,
-                "ask_max": bar.high,
-            }
+        res: list[types.TimeStep] = [
+            (
+                int(bar.date),
+                {
+                    "bid_avg": bar.open,
+                    "bid_min": bar.low,
+                    "ask_avg": bar.close,
+                    "ask_max": bar.high,
+                },
+            )
             for bar in bars
         ]
         print(f"fetch_orders_from_day_by_minute -> {len(res)} results")
@@ -123,7 +125,7 @@ class Server:
         exchange: str = DEFAULT_CASH_EXCHANGE,
         increment: int = 3 * 3600,
         timeout: int = DEFAULT_TIMEOUT,
-    ) -> list[types.Bar]:
+    ) -> list[types.TimeStep]:
         print(
             f"fetch_orders_by_minute({contract_id}, {from_timestamp}, {to_timestamp}, "
             f"{repr(exchange)}, {increment})"
@@ -145,16 +147,14 @@ class Server:
                 return not self.bars_by_timestamp
 
         def probe(probe_to_timestamp: int, knowledge: Knowledge) -> None:
-            response_bars = self.fetch_orders_from_day_by_minute(
+            response_timesteps = self.fetch_orders_from_day_by_minute(
                 contract_id, probe_to_timestamp, exchange=exchange, timeout=timeout
             )
 
-            for bar in response_bars:
-                knowledge.bars_by_timestamp[bar["timestamp"]] = bar
-                knowledge.from_timestamp = min(
-                    bar["timestamp"], knowledge.from_timestamp
-                )
-                knowledge.to_timestamp = max(bar["timestamp"], knowledge.to_timestamp)
+            for timestamp, bar in response_timesteps:
+                knowledge.bars_by_timestamp[timestamp] = bar
+                knowledge.from_timestamp = min(timestamp, knowledge.from_timestamp)
+                knowledge.to_timestamp = max(timestamp, knowledge.to_timestamp)
 
         knowledge = Knowledge()
 
@@ -177,7 +177,7 @@ class Server:
                 )
 
         res = [
-            knowledge.bars_by_timestamp[timestamp]
+            (timestamp, knowledge.bars_by_timestamp[timestamp])
             for timestamp in sorted(knowledge.bars_by_timestamp.keys())
             if from_timestamp <= timestamp <= to_timestamp
         ]
@@ -200,7 +200,7 @@ class Server:
             proc.start()
             while True:
                 result = response.get(timeout=timeout)
-                if result is ibkr.EndOfResponse:
+                if result is client.EndOfResponse:
                     break
                 results.append(result)
         except queue.Empty:
@@ -213,7 +213,7 @@ class Server:
 
 def target(output: mp.Queue, method: str, args: list[typing.Any]) -> None:
     id = random.randrange(1000000)
-    ibkr_client = ibkr.Client("127.0.0.1", 4002, id, output)
+    ibkr_client = client.Client("127.0.0.1", 4002, id, output)
     getattr(ibkr_client, method)(0, *args)
     ibkr_client.run()
 

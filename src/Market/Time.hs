@@ -6,14 +6,18 @@ import Data.Time
 import Polysemy
 
 data Time m a where
-    Now :: Time m UTCTime
+  Now :: Time m UTCTime
 
 makeSem ''Time
 
 runTimeConst :: UTCTime -> Sem (Time : r) a -> Sem r a
 runTimeConst time = interpret \case
-    Now -> return time
+  Now -> return time
 
 runTimeIO :: Member (Embed IO) r => Sem (Time : r) a -> Sem r a
 runTimeIO = interpret \case
-    Now -> embed getCurrentTime
+  Now -> embed getCurrentTime
+
+runTimeIOFinal :: Member (Final IO) r => Sem (Time : r) a -> Sem r a
+runTimeIOFinal = interpret \case
+  Now -> embedFinal getCurrentTime

@@ -10,13 +10,13 @@ import GHC.Generics
 import Market
 import Market.Broker
 import Market.Instrument
-import Market.Log (Log)
 import Market.Time
 import Numeric.Field.Fraction
 import Options.Applicative
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.Logging
 
 data RunOptions = RunOptions
   { brokerConfig :: String
@@ -37,7 +37,7 @@ runOptions =
           <> help "Instrument configuration script."
       )
 
-run :: Members [Error String, Log, Embed IO] r => RunOptions -> Sem r ()
+run :: Members [Error String, Logging, Embed IO] r => RunOptions -> Sem r ()
 run options = do
   broker
     :: DummyBroker <-

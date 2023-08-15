@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
 module Command.Sync where
@@ -9,16 +10,22 @@ import Data.Map.Static
 import Data.Maybe
 import Data.Time
 import Data.Time.Clock.POSIX
+import GHC.Stack (getCurrentCCS)
 import Market
 import Market.Feed
+import Market.Feed.IBKR
+import Market.Feed.Types (Period (Minute))
 import Market.Ops
 import Market.Time
 import Numeric.Precision
 import Options.Applicative
-import System.IO.Lazy qualified as LazyIO
+import Polysemy
+import Polysemy.Error
+import Polysemy.Logging
+import System.IO
 import System.ProgressBar
 
-data SyncOptions = SyncOptions
+newtype SyncOptions = SyncOptions
   { assets :: [String]
   }
 
@@ -27,8 +34,31 @@ syncOptions =
   SyncOptions
     <$> some (argument str $ metavar "ASSETS...")
 
-hostName :: String
-hostName = "127.0.0.1"
+deriving instance Show a => Show (Progress a)
+
+sync :: Members [Error String, Logging, Final IO] r => SyncOptions -> Sem r ()
+sync options = do
+  let SyncOptions {..} = options
+  time <- embedFinal getCurrentTime
+  runFeedIBKR $
+    runTimeIOFinal $
+      since
+        ( ( \field ->
+              FeedKey
+                { contract = Cash {symbol = "USD", currency = "PLN"}
+                , barField = field
+                }
+          )
+            <$> allBarFields
+        )
+        Minute
+        (negate nominalDay `addUTCTime` time)
+  embedFinal $ hFlush stdout
+  embedFinal $ hFlush stderr
+  pure ()
+
+-- hostName :: String
+-- hostName = "127.0.0.1"
 
 -- syncAsset :: UTCTime -> String -> IO (TimeSeries Price)
 -- syncAsset from asset =
@@ -45,27 +75,25 @@ hostName = "127.0.0.1"
 --        hostName
 --        $ runPriceFeedBinance
 
-listToTQueue :: TQueue (Maybe a) -> [a] -> IO ()
-listToTQueue queue xs = do
-  forM_ xs $
-    atomically
-      . writeTQueue queue
-      . Just
-  atomically $
-    writeTQueue queue Nothing
-
-listFromTQueue :: TQueue (Maybe a) -> IO [a]
-listFromTQueue queue = do
-  maybeElements <-
-    LazyIO.run $
-      forM (repeat ()) $
-        const $
-          LazyIO.interleave $
-            atomically $
-              readTQueue queue
-  return $ fromJust <$> takeWhile isJust maybeElements
-
-deriving instance Show a => Show (Progress a)
+-- listToTQueue :: TQueue (Maybe a) -> [a] -> IO ()
+-- listToTQueue queue xs = do
+--   forM_ xs $
+--     atomically
+--       . writeTQueue queue
+--       . Just
+--   atomically $
+--     writeTQueue queue Nothing
+--
+-- listFromTQueue :: TQueue (Maybe a) -> IO [a]
+-- listFromTQueue queue = do
+--   maybeElements <-
+--     LazyIO.run $
+--       forM (repeat ()) $
+--         const $
+--           LazyIO.interleave $
+--             atomically $
+--               readTQueue queue
+--   return $ fromJust <$> takeWhile isJust maybeElements
 
 -- -- | Synchronizes price data, parallelizing over assets.
 -- sync :: SyncOptions -> IO ()

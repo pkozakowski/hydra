@@ -10,8 +10,10 @@ class Contract(typing.TypedDict):
     description: str
 
 
+TimeStep = tuple[int, "Bar"]
+
+
 class Bar(typing.TypedDict):
-    timestamp: int
     bid_avg: float
     bid_min: float
     ask_avg: float
