@@ -44,7 +44,6 @@ newSession
   -> Sem r SessionData
 newSession cmd buildArgs = embedFinal do
   port <- getFreePort
-  putStrLn $ "port: " ++ show port
   let args = buildArgs port
   (_, _, _, processH) <-
     createProcess
@@ -52,7 +51,7 @@ newSession cmd buildArgs = embedFinal do
         { std_out = Inherit
         , std_err = Inherit
         }
-  threadDelay 2000000
+  threadDelay 3000000
   return SessionData {..}
 
 closeSession :: Member (Final IO) r => SessionData -> Sem r ()

@@ -42,6 +42,7 @@ library
       Market.Feed
       Market.Feed.DB
       Market.Feed.DB.Types
+      Market.Feed.Dispatch
       Market.Feed.Dummy
       Market.Feed.IBKR
       Market.Feed.Ops

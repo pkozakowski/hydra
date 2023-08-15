@@ -13,7 +13,8 @@ from ibkr import client, types
 
 DEFAULT_CASH_EXCHANGE = "IDEALPRO"
 DEFAULT_WAIT = 10
-DEFAULT_TIMEOUT = 60
+START_TIMEOUT = 15
+TIMEOUT_MUL = 1.5
 DAY = 24 * 3600
 
 
@@ -24,14 +25,16 @@ class Dispatcher:
         self._last_request_timestamp: int = 0
 
     def search_symbol(
-        self, symbol: str, timeout: int = DEFAULT_TIMEOUT
+        self,
+        symbol: str,
     ) -> list[types.Contract]:
         print(f"search_symbol({repr(symbol)})")
         if symbol in self._symbol_cache:
             res = self._symbol_cache[symbol]
         else:
             [results] = self._call_method(
-                "reqMatchingSymbols", [symbol], timeout=timeout
+                "reqMatchingSymbols",
+                [symbol],
             )
             res: list[types.Contract] = [
                 {
@@ -54,14 +57,13 @@ class Dispatcher:
         symbol: str,
         currency: str,
         exchange: str = DEFAULT_CASH_EXCHANGE,
-        timeout: int = DEFAULT_TIMEOUT,
     ) -> int | None:
         print(
             f"fetch_cash_contract_id({repr(symbol)}, {repr(currency)}, "
             f"{repr(exchange)})"
         )
         res = None
-        for contract in self.search_symbol(symbol, timeout=timeout):
+        for contract in self.search_symbol(symbol):
             if (
                 contract["symbol"] == symbol
                 and contract["currency"] == currency
@@ -78,7 +80,6 @@ class Dispatcher:
         contract_id: int,
         to_timestamp: int,
         exchange: str = DEFAULT_CASH_EXCHANGE,
-        timeout: int = DEFAULT_TIMEOUT,
     ) -> list[types.TimeStep]:
         print(
             f"fetch_orders_from_day_by_minute({contract_id}, {to_timestamp}, "
@@ -100,7 +101,6 @@ class Dispatcher:
                 False,
                 [],
             ],
-            timeout=timeout,
         )
         res: list[types.TimeStep] = [
             (
@@ -124,7 +124,6 @@ class Dispatcher:
         to_timestamp: int,
         exchange: str = DEFAULT_CASH_EXCHANGE,
         increment: int = 3 * 3600,
-        timeout: int = DEFAULT_TIMEOUT,
     ) -> list[types.TimeStep]:
         print(
             f"fetch_orders_by_minute({contract_id}, {from_timestamp}, {to_timestamp}, "
@@ -148,7 +147,9 @@ class Dispatcher:
 
         def probe(probe_to_timestamp: int, knowledge: Knowledge) -> None:
             response_timesteps = self.fetch_orders_from_day_by_minute(
-                contract_id, probe_to_timestamp, exchange=exchange, timeout=timeout
+                contract_id,
+                probe_to_timestamp,
+                exchange=exchange,
             )
 
             for timestamp, bar in response_timesteps:
@@ -176,16 +177,37 @@ class Dispatcher:
                     knowledge.from_timestamp, probe_to_timestamp - increment
                 )
 
-        res = [
+        timestamps_and_bars = [
             (timestamp, knowledge.bars_by_timestamp[timestamp])
             for timestamp in sorted(knowledge.bars_by_timestamp.keys())
-            if from_timestamp <= timestamp <= to_timestamp
         ]
-        print(f"fetch_orders_by_minute -> {len(res)} results")
-        return res
+
+        filled = []
+        try:
+            if not timestamps_and_bars:
+                return []
+            (last_timestamp, last_bar) = timestamps_and_bars[0]
+            for timestamp, bar in timestamps_and_bars[1:]:
+                while last_timestamp < timestamp:
+                    filled.append((last_timestamp, last_bar))
+                    last_timestamp += 60
+                assert last_timestamp == timestamp
+                last_bar = bar
+        finally:
+            filtered = [
+                (timestamp, bar)
+                for (timestamp, bar) in filled
+                if from_timestamp <= timestamp <= to_timestamp
+            ]
+            print(f"fetch_orders_by_minute -> {len(filtered)} results")
+            return filtered
 
     def _call_method(
-        self, method: str, args: list[typing.Any], timeout: float
+        self,
+        method: str,
+        args: list[typing.Any],
+        timeout: float = START_TIMEOUT,
+        timeout_mul: float = TIMEOUT_MUL,
     ) -> typing.Any:
         now_timestamp = datetime.datetime.utcnow().timestamp()
         wait_time = self._wait - (now_timestamp - self._last_request_timestamp)
@@ -204,7 +226,8 @@ class Dispatcher:
                     break
                 results.append(result)
         except queue.Empty:
-            raise TimeoutError
+            print(f"timeout after {timeout}s; retrying with {timeout_mul}x more time")
+            return self._call_method(method, args, timeout=(timeout * timeout_mul))
         finally:
             proc.terminate()
             proc.join(timeout=timeout)

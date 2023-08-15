@@ -6,15 +6,17 @@ module Command.Sync where
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Monad
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Static
 import Data.Maybe
 import Data.Time
 import Data.Time.Clock.POSIX
-import GHC.Stack (getCurrentCCS)
+import Debug.Trace.Pretty
 import Market
 import Market.Feed
+import Market.Feed.Dispatch
 import Market.Feed.IBKR
-import Market.Feed.Types (Period (Minute))
+import Market.Feed.Types
 import Market.Ops
 import Market.Time
 import Numeric.Precision
@@ -36,26 +38,18 @@ syncOptions =
 
 deriving instance Show a => Show (Progress a)
 
-sync :: Members [Error String, Logging, Final IO] r => SyncOptions -> Sem r ()
-sync options = do
-  let SyncOptions {..} = options
+sync :: forall r. Members [Error String, Logging, Final IO] r => SyncOptions -> Sem r ()
+sync SyncOptions {..} = do
   time <- embedFinal getCurrentTime
-  runFeedIBKR $
-    runTimeIOFinal $
-      since
-        ( ( \field ->
-              FeedKey
-                { contract = Cash {symbol = "USD", currency = "PLN"}
-                , barField = field
-                }
-          )
-            <$> allBarFields
-        )
-        Minute
-        (negate nominalDay `addUTCTime` time)
-  embedFinal $ hFlush stdout
-  embedFinal $ hFlush stderr
-  pure ()
+  prices :: TimeSeries SpreadPrices <-
+    runSpreadPriceFeed @r "db" "USD" $
+      runTimeIOFinal $
+        since @SpreadPrices
+          (NonEmpty.fromList $ Asset <$> assets)
+          Minute
+          (negate nominalDay `addUTCTime` time)
+  traceM "prices:"
+  traceShowM prices
 
 -- hostName :: String
 -- hostName = "127.0.0.1"

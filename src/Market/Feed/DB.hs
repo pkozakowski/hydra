@@ -5,6 +5,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -15,8 +16,9 @@ import Control.Monad.Logger
 import Control.Monad.Reader
 import Data.Coerce
 import Data.Fixed
+import Data.Function
 import Data.Functor
-import Data.List
+import Data.List hiding (lookup)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
@@ -46,6 +48,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Final
 import Polysemy.Logging
+import Prelude hiding (lookup)
 
 type DBPath = Text
 
@@ -53,7 +56,7 @@ type DBPath = Text
 -- periodstamp = batchstamp * batchSize + moment
 
 batchSize :: Int
-batchSize = 100
+batchSize = 1000
 
 type Batchstamp = Int
 
@@ -114,6 +117,8 @@ runFeedWithDBCacheFixedScalar dbPath lowerFeed action =
               determineMissingBatches (show <$> NonEmpty.toList keys) period fromBS toBS existingBatches
             (completeBatches, incompleteBatchstampKeys) =
               partitionCompleteBatches fromBS fromMoment toBS toMoment existingBatches
+        debug $ "missing batches: " <> show missingBatchstampKeys
+        debug $ "incomplete batches: " <> show incompleteBatchstampKeys
         newBatches <-
           runFeedForBatches lowerFeed period $
             missingBatchstampKeys ++ incompleteBatchstampKeys
@@ -139,35 +144,48 @@ runFeedWithDBCache
   -> (forall a. Sem (Feed f' : r) a -> Sem r a)
   -> Sem (Feed f : r) a
   -> Sem r a
-runFeedWithDBCache dbPath lowerFeed = interpret interpreter
+runFeedWithDBCache dbPath lowerFeed =
+  refeed id (remap unpersistScalar) $
+    runFeedWithDBCacheFixedScalar dbPath lowerFeed
+
+refeed
+  :: forall f f' r a
+   . ( FeedMap f
+     , FeedMap f'
+     , Members [Error String, Logging, Final IO] r
+     )
+  => (NonEmpty (Key f) -> NonEmpty (Key f'))
+  -> (f' -> f)
+  -> (forall a. Sem (Feed f' : r) a -> Sem r a)
+  -> Sem (Feed f : r) a
+  -> Sem r a
+refeed fk ff lowerFeed = interpret interpreter
   where
     interpreter :: forall rInitial x. Feed f (Sem rInitial) x -> Sem r x
     interpreter = \case
       Between1_ key period from to ->
-        refeed_ unpersistScalar $
-          runFeedWithDBCacheFixedScalar dbPath lowerFeed $
-            between1_ @f' key period from to
-      Between_ (keys :: NonEmpty k) period from to ->
-        refeed_ (remap unpersistScalar) $
-          runFeedWithDBCacheFixedScalar dbPath lowerFeed $
-            between_ @f' keys period from to
+        between1_UsingBetween_ (refeed fk ff lowerFeed) key period from to
+      Between_ (keys :: NonEmpty k) period from to -> do
+        mapFeedSeries_ ff $
+          lowerFeed $
+            between_ @f' (fk keys) period from to
 
 unpersistScalar :: forall a b. (Coercible a FixedScalar, Coercible Scalar b) => a -> b
 unpersistScalar = coerce . fixedToFraction . coerce @a @FixedScalar
 
-refeed
+mapFeedSeries
   :: forall a b r
    . (a -> b)
   -> Sem r (TimeSeries a)
   -> Sem r (TimeSeries b)
-refeed = fmap . fmap
+mapFeedSeries = fmap . fmap
 
-refeed_
+mapFeedSeries_
   :: forall a b r
    . (a -> b)
   -> Sem r (Maybe (TimeSeries a))
   -> Sem r (Maybe (TimeSeries b))
-refeed_ = fmap . fmap . fmap
+mapFeedSeries_ = fmap . fmap . fmap
 
 selectBatchRange
   :: Members [Error String, Final IO] r
@@ -249,8 +267,13 @@ runFeedForBatches
   -> Period
   -> [(Batchstamp, ResourceKey)]
   -> Sem r [FeedBatch]
-runFeedForBatches lowerFeed period =
-  fmap catMaybes . mapM (runFeedForBatch lowerFeed period)
+-- TODO: run lowerFeed for longer durations
+runFeedForBatches lowerFeed period batchstampsAndKeys =
+  concat <$> mapM (runFeedForBatch lowerFeed period) batchstampKeys
+  where
+    batchstampKeys =
+      (\group -> (fst $ NonEmpty.head group, snd <$> group))
+        <$> NonEmpty.groupBy ((==) `on` fst) batchstampsAndKeys
 
 runFeedForBatch
   :: forall f r a
@@ -260,33 +283,43 @@ runFeedForBatch
      )
   => (forall a. Sem (Feed f : r) a -> Sem r a)
   -> Period
-  -> (Batchstamp, ResourceKey)
-  -> Sem r (Maybe FeedBatch)
-runFeedForBatch lowerFeed period (batchstamp, key) = do
-  let from = joinTime period batchstamp 0
-      to = joinTime period (batchstamp + 1) 0
-  mTimeSeries <- lowerFeed $ between1_ @f (read key) period from to
-  let momentsValues = case mTimeSeries of
-        Nothing -> []
-        Just timeSeries ->
-          let timeSteps = filter ((< to) . fst) $ seriesToList timeSeries
-           in map
-                ( \(t, v) ->
-                    (snd $ splitTime period t, coerce @(Value f) @PersistScalar v)
-                )
-                timeSteps
-  return case momentsValues of
-    [] -> Nothing
-    _ ->
-      let (moments, values) = V.unzip $ V.fromList momentsValues
-       in Just $
-            FeedBatch
-              period
-              batchstamp
-              (show $ typeRep $ Proxy @f)
-              key
-              moments
-              values
+  -> (Batchstamp, NonEmpty ResourceKey)
+  -> Sem r [FeedBatch]
+runFeedForBatch lowerFeed period (batchstamp, keys) =
+  do
+    let from = joinTime period batchstamp 0
+        to = joinTime period (batchstamp + 1) 0
+    mTimeSeries <- lowerFeed $ between_ @f (read <$> keys) period from to
+    let momentsAndMaps :: [(Moment, f)]
+        momentsAndMaps = case mTimeSeries of
+          Nothing -> []
+          Just timeSeries ->
+            let timeSteps = filter ((< to) . fst) $ seriesToList timeSeries
+             in map
+                  ( \(t, m) ->
+                      (snd $ splitTime period t, m)
+                  )
+                  timeSteps
+    let buildBatch key = case extractKey key momentsAndMaps of
+          [] -> Nothing
+          momentsAndValues ->
+            let
+              (moments, values) = V.unzip $ V.fromList momentsAndValues
+             in
+              Just $
+                FeedBatch
+                  period
+                  batchstamp
+                  (show $ typeRep $ Proxy @f)
+                  key
+                  moments
+                  (coerce @(Value f) @PersistScalar <$> values)
+    pure $
+      catMaybes $
+        NonEmpty.toList $
+          buildBatch <$> keys
+  where
+    extractKey key = mapMaybe (\(moment, map) -> (moment,) <$> lookup (read key) map)
 
 upsertBatches
   :: Members [Error String, Final IO] r

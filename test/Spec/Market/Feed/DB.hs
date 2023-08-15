@@ -20,10 +20,10 @@ import Market.Feed
 import Market.Feed.DB hiding (Key)
 import Market.Feed.Dummy
 import Market.Feed.Types
-import Polysemy.Logging
 import Market.Time
 import Polysemy
 import Polysemy.Error
+import Polysemy.Logging
 import System.Directory
 import System.IO.Error
 import Test.Tasty
@@ -46,7 +46,7 @@ test_runFeedWithDBCache =
             => Sem (Feed FixedF : r) (TimeSeries FixedF)
             -> Sem r (TimeSeries ScalarF)
           runFeedToScalar =
-            refeed (fmap (unpersistScalar @FixedScalar @Scalar)) . runFeedToFixed
+            mapFeedSeries (fmap (unpersistScalar @FixedScalar @Scalar)) . runFeedToFixed
           runFeedToFixed = runFeedDummy 2 7
           feed
             :: (FeedMap f, Key f ~ String, Members [Feed f, Time, Error String] r)

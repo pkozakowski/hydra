@@ -2,7 +2,13 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
 
-module Market.Feed.IBKR where
+module Market.Feed.IBKR
+  ( BarField (..)
+  , Contract (..)
+  , ContractBarField (..)
+  , allBarFields
+  , runFeedIBKR
+  ) where
 
 import Control.Exception (assert)
 import Control.Monad
@@ -49,57 +55,50 @@ allBarFields = [BidAvg, BidMin, AskAvg, AskMax]
 data Contract = Cash {symbol :: String, currency :: String}
   deriving (Show, Eq, Ord, Read)
 
-data FeedKey = FeedKey {contract :: Contract, barField :: BarField}
+data ContractBarField = ContractBarField {contract :: Contract, barField :: BarField}
   deriving (Show, Read, Eq, Ord)
 
 runFeedIBKR
   :: forall r a
    . Members [Error String, Logging, Final IO] r
-  => Sem (Feed (StaticMap FeedKey FixedScalar) : r) a
+  => Sem (Feed (StaticMap ContractBarField FixedScalar) : r) a
   -> Sem r a
 runFeedIBKR = interpret \case
   Between_ keys period from to ->
-    push
-      "runFeedIBKR"
-      $ RPC.session
-        "poetry"
-        ( \port ->
-            [ "-C"
-            , "python/ibkr"
-            , "run"
-            , "python"
-            , "python/ibkr/ibkr/run.py"
-            , "/home/koz4k/dev/tws-api/" -- TODO: parametrize
-            , show port
-            ]
-        )
-        do
-          when (period /= Minute) $ throw "runFeedIBKR only works on minute periods"
-          let groups = NonEmpty.groupBy ((==) `on` contract) keys
-              contracts = contract . NonEmpty.head <$> groups
-          traceM "groups:"
-          traceShowM groups
-          traceM "contracts:"
-          traceShowM contracts
-          contractToMaybeSeries
-            :: StaticMap Contract (Maybe (TimeSeries (StaticMap BarField FixedScalar))) <-
-            fromList <$> forM contracts \ctr ->
-              (ctr,) <$> betweenForContract ctr from to
-          traceM "contractToMaybeSeries:"
-          traceShowM contractToMaybeSeries
-          let keyToMaybeSeries =
-                fromList $
-                  ( \key ->
-                      ( key
-                      , fmap (! barField key)
-                          <$> (contractToMaybeSeries ! contract key)
+    push "runFeedIBKR" $
+      attr "from" from $
+        attr "to" to $
+          RPC.session
+            "poetry"
+            ( \port ->
+                [ "-C"
+                , "python/ibkr"
+                , "run"
+                , "python"
+                , "python/ibkr/ibkr/run.py"
+                , "/home/koz4k/dev/tws-api/" -- TODO: parametrize
+                , show port
+                ]
+            )
+            do
+              when (period /= Minute) $ throw "runFeedIBKR only works on minute periods"
+              let groups = NonEmpty.groupBy ((==) `on` contract) keys
+                  contracts = contract . NonEmpty.head <$> groups
+              contractToMaybeSeries
+                :: StaticMap Contract (Maybe (TimeSeries (StaticMap BarField FixedScalar))) <-
+                fromList <$> forM contracts \ctr ->
+                  (ctr,) <$> betweenForContract ctr from to
+              let keyToMaybeSeries =
+                    fromList $
+                      ( \key ->
+                          ( key
+                          , fmap (! barField key)
+                              <$> (contractToMaybeSeries ! contract key)
+                          )
                       )
-                  )
-                    <$> NonEmpty.toList keys
-          traceM "keyToMaybeSeries:"
-          traceShowM keyToMaybeSeries
-          let merged = mergeFeeds keyToMaybeSeries
-          pure $ fmap (remap id) <$> merged
+                        <$> NonEmpty.toList keys
+              let merged = mergeFeeds keyToMaybeSeries
+              pure $ fmap (remap id) <$> merged
   Between1_ key period from to -> do
     between1_UsingBetween_ runFeedIBKR key period from to
 
