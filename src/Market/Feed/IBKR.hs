@@ -31,6 +31,7 @@ import Polysemy
 import Polysemy.Embed
 import Polysemy.Error
 import Polysemy.Logging
+import Data.Time.Format.ISO8601 qualified as Time
 
 data BarField = BidAvg | BidMin | AskAvg | AskMax
   deriving (Show, Eq, Ord, Read)
@@ -66,8 +67,8 @@ runFeedIBKR
 runFeedIBKR = interpret \case
   Between_ keys period from to ->
     push "runFeedIBKR" $
-      attr "from" from $
-        attr "to" to $
+      attr "from" (formatMinute from) $
+        attr "to" (formatMinute to) $
           RPC.session
             "poetry"
             ( \port ->
@@ -111,6 +112,7 @@ betweenForContract
   -> Sem r (Maybe (TimeSeries (StaticMap BarField FixedScalar)))
 betweenForContract contract from to = do
   let Cash {..} = contract
+  -- TODO: handle when there's no such contract
   attr "contract" (symbol <> "/" <> currency) do
     contractId :: Int <-
       handleResult . RPC.result
@@ -136,3 +138,7 @@ handleResult :: Member (Error String) r => RPC.RemoteResult a -> Sem r a
 handleResult = \case
   Right res -> pure res
   Left err -> throw $ T.unpack $ "RPC error: " <> RPC.type_ err <> ": " <> RPC.message err
+
+formatMinute :: UTCTime -> String
+formatMinute
+  = Time.formatShow $ Time.utcTimeFormat (Time.calendarFormat Time.ExtendedFormat) (Time.hourMinuteFormat Time.ExtendedFormat)

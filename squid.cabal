@@ -107,6 +107,7 @@ library
     , df1
     , dhall
     , di
+    , di-core
     , di-polysemy
     , directory
     , either
@@ -196,6 +197,7 @@ executable squid-exe
     , df1
     , dhall
     , di
+    , di-core
     , di-polysemy
     , directory
     , either
@@ -295,6 +297,7 @@ test-suite squid-test
     , df1
     , dhall
     , di
+    , di-core
     , di-polysemy
     , directory
     , either

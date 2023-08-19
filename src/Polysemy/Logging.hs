@@ -13,6 +13,7 @@ module Polysemy.Logging
   , debug
   , error
   , info
+  , log
   , push
   , warning
   , runLogging
@@ -29,9 +30,11 @@ import Data.Text.Encoding
 import Data.Text.IO
 import Df1 qualified
 import Di qualified
+import Di.Core qualified
 import DiPolysemy qualified as DiP
 import GHC.StaticPtr qualified as Df1
 import Polysemy
+import Polysemy.Error
 import Polysemy.Final
 import UnliftIO (MonadIO (..), MonadUnliftIO, UnliftIO (..))
 import UnliftIO qualified
@@ -39,14 +42,32 @@ import Prelude hiding (error, log)
 
 type Logging = DiP.Di Df1.Level Df1.Path Df1.Message
 
-runLogging :: Member (Final IO) r => Sem (Logging : r) a -> Sem r a
-runLogging action =
+runLogging :: forall r a. Members [Error String, Final IO] r => Df1.Level -> Sem (Logging : r) a -> Sem r a
+runLogging verbosityLevel action =
   runSemUnliftIO $
     Di.new \di ->
       SemUnliftIO
         . embedToFinal
-        . DiP.runDiToIO di
-        $ raiseUnder @(Embed IO) action
+        . DiP.runDiToIO (Di.Core.filter (\logLevel _ _ -> logLevel >= verbosityLevel) di)
+        $ raiseUnder @(Embed IO)
+        $ interceptH logCallSite action
+  where
+    logCallSite
+      :: forall x r'. Error String (Sem r') x -> Tactical (Error String) (Sem r') (Logging : r) x
+    logCallSite = \case
+      Throw err -> do
+        warning err
+        Polysemy.Error.throw err
+      Catch try except -> do
+        tryT <- runT try
+        exceptT <- bindT except
+        either <- raise $ runError tryT
+        case either of
+          Right x -> pure x
+          Left e -> do
+            state <- getInitialStateT
+            either' <- raise $ runError $ exceptT $ e <$ state
+            fromEither either'
 
 push
   :: Member Logging r

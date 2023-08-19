@@ -37,8 +37,8 @@ runOptions =
           <> help "Instrument configuration script."
       )
 
-run :: Members [Error String, Logging, Embed IO] r => RunOptions -> Sem r ()
-run options = do
+run :: Members [Error String, Logging, Final IO] r => RunOptions -> Sem r ()
+run options = embedToFinal do
   broker
     :: DummyBroker <-
     embed

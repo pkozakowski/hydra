@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Main where
 
@@ -35,12 +36,13 @@ parseCmd =
           Optparse.info runOptions $
             progDesc "Run an instrument on the blockchain."
       )
-   <|> Sync
-     <$> hsubparser
-       ( command "sync" $
-           Optparse.info syncOptions $
-             progDesc "Synchronize price data."
-       )
+    <|> Sync
+      <$> hsubparser
+        ( command "sync" $
+            Optparse.info syncOptions $
+              progDesc "Synchronize price data."
+        )
+
 --  <|> Tune <$> hsubparser
 --        ( command "tune"
 --            $ info tuneOptions
@@ -81,10 +83,9 @@ options =
         )
 
 dispatch :: Options -> IO ()
-dispatch opts = runFinal $ runLogging do
-  unitOrError <- errorToIOFinal $ embedToFinal do
-    -- TODO: filter based on verbosity
-    case cmd opts of
+dispatch Options {..} = runFinal do
+  unitOrError <- errorToIOFinal $ runLogging (toLogLevel verbosity) do
+    case cmd of
       -- Eval opts' -> eval opts'
       Run opts' -> run opts'
       Sync opts' -> sync opts'

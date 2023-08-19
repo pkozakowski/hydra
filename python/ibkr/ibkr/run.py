@@ -22,16 +22,23 @@ class Server(msgpackrpc.Server):
             result = getattr(self._dispatcher, method)(*param)
             responder.set_result({"result": result, "error": None})
         except Exception as e:
-            traceback.print_exc()
             responder.set_result(
                 {
-                    "error": {"type": type(e).__qualname__, "message": str(e)},
+                    "error": {
+                        "type": type(e).__qualname__,
+                        "message": str(e),
+                        "stack": "".join(traceback.format_stack()),
+                    },
                     "result": None,
                 }
             )
 
 
 if __name__ == "__main__":
+    from ibkr import log
+
+    log.install()
+
     tws_path = sys.argv[1]
     load_tws(tws_path)
 

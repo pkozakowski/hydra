@@ -1,4 +1,5 @@
 import dataclasses
+import logging
 import time
 import datetime
 import multiprocessing as mp
@@ -9,6 +10,8 @@ import typing
 from ibapi import contract as ibcontract
 
 from ibkr import client, types
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_CASH_EXCHANGE = "IDEALPRO"
@@ -28,7 +31,7 @@ class Dispatcher:
         self,
         symbol: str,
     ) -> list[types.Contract]:
-        print(f"search_symbol({repr(symbol)})")
+        logger.debug(f"search_symbol({repr(symbol)})")
         if symbol in self._symbol_cache:
             res = self._symbol_cache[symbol]
         else:
@@ -49,7 +52,7 @@ class Dispatcher:
                 if (c := r.contract)
             ]
             self._symbol_cache[symbol] = res
-        print(f"search_symbol -> {len(res)} results")
+        logger.debug(f"search_symbol -> {len(res)} results")
         return res
 
     def fetch_cash_contract_id(
@@ -58,7 +61,7 @@ class Dispatcher:
         currency: str,
         exchange: str = DEFAULT_CASH_EXCHANGE,
     ) -> int | None:
-        print(
+        logger.debug(
             f"fetch_cash_contract_id({repr(symbol)}, {repr(currency)}, "
             f"{repr(exchange)})"
         )
@@ -72,7 +75,7 @@ class Dispatcher:
             ):
                 res = contract["id"]
                 break
-        print(f"fetch_cash_contract_id -> {repr(res)}")
+        logger.debug(f"fetch_cash_contract_id -> {repr(res)}")
         return res
 
     def fetch_orders_from_day_by_minute(
@@ -81,7 +84,7 @@ class Dispatcher:
         to_timestamp: int,
         exchange: str = DEFAULT_CASH_EXCHANGE,
     ) -> list[types.TimeStep]:
-        print(
+        logger.debug(
             f"fetch_orders_from_day_by_minute({contract_id}, {to_timestamp}, "
             f"{repr(exchange)})"
         )
@@ -114,7 +117,7 @@ class Dispatcher:
             )
             for bar in bars
         ]
-        print(f"fetch_orders_from_day_by_minute -> {len(res)} results")
+        logger.debug(f"fetch_orders_from_day_by_minute -> {len(res)} results")
         return res
 
     def fetch_orders_by_minute(
@@ -125,7 +128,7 @@ class Dispatcher:
         exchange: str = DEFAULT_CASH_EXCHANGE,
         increment: int = 3 * 3600,
     ) -> list[types.TimeStep]:
-        print(
+        logger.debug(
             f"fetch_orders_by_minute({contract_id}, {from_timestamp}, {to_timestamp}, "
             f"{repr(exchange)}, {increment})"
         )
@@ -199,7 +202,7 @@ class Dispatcher:
                 for (timestamp, bar) in filled
                 if from_timestamp <= timestamp <= to_timestamp
             ]
-            print(f"fetch_orders_by_minute -> {len(filtered)} results")
+            logger.debug(f"fetch_orders_by_minute -> {len(filtered)} results")
             return filtered
 
     def _call_method(
@@ -226,7 +229,9 @@ class Dispatcher:
                     break
                 results.append(result)
         except queue.Empty:
-            print(f"timeout after {timeout}s; retrying with {timeout_mul}x more time")
+            logger.debug(
+                f"timeout after {timeout}s; retrying with {timeout_mul}x more time"
+            )
             return self._call_method(method, args, timeout=(timeout * timeout_mul))
         finally:
             proc.terminate()

@@ -33,6 +33,7 @@ dependencies:
 - df1
 - dhall
 - di
+- di-core
 - di-polysemy
 - directory
 - either

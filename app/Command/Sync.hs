@@ -6,14 +6,17 @@ module Command.Sync where
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Monad
+import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Static
 import Data.Maybe
+import Data.Text (Text)
 import Data.Time
 import Data.Time.Clock.POSIX
 import Debug.Trace.Pretty
 import Market
 import Market.Feed
+import Market.Feed.DB (DBPath)
 import Market.Feed.Dispatch
 import Market.Feed.IBKR
 import Market.Feed.Types
@@ -25,7 +28,18 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Logging
 import System.IO
-import System.ProgressBar
+
+dbPath :: DBPath
+dbPath = "db"
+
+period :: Period
+period = Minute
+
+baseAsset :: Asset
+baseAsset = "USD"
+
+batchDuration :: NominalDiffTime
+batchDuration = 2 * nominalDay
 
 newtype SyncOptions = SyncOptions
   { assets :: [String]
@@ -36,20 +50,33 @@ syncOptions =
   SyncOptions
     <$> some (argument str $ metavar "ASSETS...")
 
-deriving instance Show a => Show (Progress a)
-
 sync :: forall r. Members [Error String, Logging, Final IO] r => SyncOptions -> Sem r ()
 sync SyncOptions {..} = do
   time <- embedFinal getCurrentTime
-  prices :: TimeSeries SpreadPrices <-
-    runSpreadPriceFeed @r "db" "USD" $
-      runTimeIOFinal $
-        since @SpreadPrices
-          (NonEmpty.fromList $ Asset <$> assets)
-          Minute
-          (negate nominalDay `addUTCTime` time)
-  traceM "prices:"
-  traceShowM prices
+  fetchBatch
+    dbPath
+    Minute
+    baseAsset
+    (negate batchDuration `addUTCTime` time)
+    time
+    (NonEmpty.fromList $ Asset <$> assets)
+  embedFinal $ putStrLn ""
+
+fetchBatch
+  :: Members [Error String, Logging, Final IO] r
+  => DBPath
+  -> Period
+  -> Asset
+  -> UTCTime
+  -> UTCTime
+  -> NonEmpty Asset
+  -> Sem r ()
+fetchBatch dbPath period baseAsset from to assets = forM_ assets \asset -> do
+  embedFinal do
+    putStr "\r\ESC[K" -- move to start of the line and erase everything to the right
+    putStr $ show asset <> "/" <> show baseAsset <> " @ " <> show to <> "  "
+    hFlush stdout
+  void $ runSpreadPriceFeed dbPath baseAsset $ runTimeIOFinal $ between1 asset period from to
 
 -- hostName :: String
 -- hostName = "127.0.0.1"

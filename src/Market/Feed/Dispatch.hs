@@ -35,7 +35,8 @@ runSpreadPriceFeed
   -> Sem (Feed SpreadPrices : r) a
   -> Sem r a
 runSpreadPriceFeed dbPath baseAsset =
-  refeed assetsToIBKRKeys ibkrMapToSpreadPrices $ runFeedWithDBCache dbPath runFeedIBKR
+  push "runSpreadPriceFeed"
+    . refeed assetsToIBKRKeys ibkrMapToSpreadPrices (runFeedWithDBCache dbPath runFeedIBKR)
   where
     assetsToIBKRKeys :: NonEmpty Asset -> NonEmpty ContractBarField
     assetsToIBKRKeys assets =
