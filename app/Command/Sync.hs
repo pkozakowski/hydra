@@ -39,7 +39,7 @@ baseAsset :: Asset
 baseAsset = "USD"
 
 batchDuration :: NominalDiffTime
-batchDuration = 2 * nominalDay
+batchDuration = nominalDay
 
 newtype SyncOptions = SyncOptions
   { assets :: [String]
@@ -53,13 +53,15 @@ syncOptions =
 sync :: forall r. Members [Error String, Logging, Final IO] r => SyncOptions -> Sem r ()
 sync SyncOptions {..} = do
   time <- embedFinal getCurrentTime
-  fetchBatch
-    dbPath
-    Minute
-    baseAsset
-    (negate batchDuration `addUTCTime` time)
-    time
-    (NonEmpty.fromList $ Asset <$> assets)
+  let prev t = negate batchDuration `addUTCTime` t
+  forM_ (iterate prev time) \to ->
+    fetchBatch
+      dbPath
+      Minute
+      baseAsset
+      (prev to)
+      to
+      (NonEmpty.fromList $ Asset <$> assets)
   embedFinal $ putStrLn ""
 
 fetchBatch
@@ -74,80 +76,11 @@ fetchBatch
 fetchBatch dbPath period baseAsset from to assets = forM_ assets \asset -> do
   embedFinal do
     putStr "\r\ESC[K" -- move to start of the line and erase everything to the right
-    putStr $ show asset <> "/" <> show baseAsset <> " @ " <> show to <> "  "
+    putStr $ show asset <> "/" <> show baseAsset <> " @ " <> showMinute to <> "  "
     hFlush stdout
-  void $ runSpreadPriceFeed dbPath baseAsset $ runTimeIOFinal $ between1 asset period from to
+  void $ runSpreadPriceFeed dbPath baseAsset $ runTimeIOFinal $ between1_ asset period from to
 
--- hostName :: String
--- hostName = "127.0.0.1"
-
--- syncAsset :: UTCTime -> String -> IO (TimeSeries Price)
--- syncAsset from asset =
---  semToIO $
---    runPrecisionExact $
---      runTimeIO $
---        runPriceFeedForOneToken runPriceFeed asset $
---          since from
---  where
---    runPriceFeed =
---      runFeedWithMongoCache
---        @PriceFeed
---        @HighestBatchablePeriod
---        hostName
---        $ runPriceFeedBinance
-
--- listToTQueue :: TQueue (Maybe a) -> [a] -> IO ()
--- listToTQueue queue xs = do
---   forM_ xs $
---     atomically
---       . writeTQueue queue
---       . Just
---   atomically $
---     writeTQueue queue Nothing
---
--- listFromTQueue :: TQueue (Maybe a) -> IO [a]
--- listFromTQueue queue = do
---   maybeElements <-
---     LazyIO.run $
---       forM (repeat ()) $
---         const $
---           LazyIO.interleave $
---             atomically $
---               readTQueue queue
---   return $ fromJust <$> takeWhile isJust maybeElements
-
--- -- | Synchronizes price data, parallelizing over assets.
--- sync :: SyncOptions -> IO ()
--- sync options = do
---  -- Determine the time we're synced up to.
---  coverages <-
---    semToIO $
---      forM (assets options) $
---        cacheCoverage @PriceFeed hostName
---  let from = minimum $ maybe (posixSecondsToUTCTime 0) snd <$> coverages
---  -- Set up the progress bar.
---  now <- getCurrentTime
---  let diff time = floor $ time `diffUTCTime` from
---      progress time = Progress (diff time) (diff now) ()
---      style = defStyle {styleWidth = ConstantWidth 40}
---  progressBar <- newProgressBar style 10 $ progress from
---  -- Create the queues.
---  queues <-
---    forM (assets options) $
---      const newTQueueIO
---  -- Launch the threads.
---  forM_ (zip (assets options) queues) \(asset, queue) ->
---    forkIO $
---      listToTQueue queue
---        =<< seriesToList
---          <$> syncAsset from asset
---  -- Read the data from queues.
---  assetSeries <- mapM listFromTQueue queues
---  -- Interleave the per-asset series to a single series.
---  let eventSeries =
---        sweep $
---          fromList $
---            zip (assets options) assetSeries
---  -- Display sync progress.
---  forM_ eventSeries \(time, _) ->
---    updateProgress progressBar $ const $ progress time
+showMinute :: UTCTime -> String
+showMinute (UTCTime d t) = show d <> " " <> show h <> ":" <> show m <> " UTC"
+  where
+    TimeOfDay h m _ = timeToTimeOfDay t

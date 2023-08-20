@@ -21,6 +21,7 @@ import Data.MessagePack
 import Data.Text qualified as T
 import Data.Time
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
+import Data.Time.Format.ISO8601 qualified as Time
 import Debug.Trace (traceM)
 import Debug.Trace.Pretty (traceShowM)
 import Foreign.RPC.Outgoing qualified as RPC
@@ -30,8 +31,8 @@ import Market.Types hiding (Value)
 import Polysemy
 import Polysemy.Embed
 import Polysemy.Error
-import Polysemy.Logging
-import Data.Time.Format.ISO8601 qualified as Time
+import Polysemy.Logging (Logging)
+import Polysemy.Logging qualified as Log
 
 data BarField = BidAvg | BidMin | AskAvg | AskMax
   deriving (Show, Eq, Ord, Read)
@@ -66,9 +67,9 @@ runFeedIBKR
   -> Sem r a
 runFeedIBKR = interpret \case
   Between_ keys period from to ->
-    push "runFeedIBKR" $
-      attr "from" (formatMinute from) $
-        attr "to" (formatMinute to) $
+    Log.push "runFeedIBKR" $
+      Log.attr "from" (formatMinute from) $
+        Log.attr "to" (formatMinute to) $
           RPC.session
             "poetry"
             ( \port ->
@@ -113,7 +114,7 @@ betweenForContract
 betweenForContract contract from to = do
   let Cash {..} = contract
   -- TODO: handle when there's no such contract
-  attr "contract" (symbol <> "/" <> currency) do
+  Log.attr "contract" (symbol <> "/" <> currency) do
     contractId :: Int <-
       handleResult . RPC.result
         =<< RPC.call
@@ -121,7 +122,6 @@ betweenForContract contract from to = do
           [ RPC.arg symbol
           , RPC.arg currency
           ]
-    debug $ "contract id: " <> show contractId
     let fromTs :: Int = floor $ utcTimeToPOSIXSeconds from
         toTs :: Int = floor $ utcTimeToPOSIXSeconds to
     timesteps :: [TimeStep (StaticMap BarField FixedScalar)] <-
@@ -140,5 +140,5 @@ handleResult = \case
   Left err -> throw $ T.unpack $ "RPC error: " <> RPC.type_ err <> ": " <> RPC.message err
 
 formatMinute :: UTCTime -> String
-formatMinute
-  = Time.formatShow $ Time.utcTimeFormat (Time.calendarFormat Time.ExtendedFormat) (Time.hourMinuteFormat Time.ExtendedFormat)
+formatMinute =
+  Time.formatShow $ Time.utcTimeFormat (Time.calendarFormat Time.ExtendedFormat) (Time.hourMinuteFormat Time.ExtendedFormat)

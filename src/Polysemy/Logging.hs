@@ -12,11 +12,16 @@ module Polysemy.Logging
   , attr
   , debug
   , error
+  , filter
   , info
   , log
   , push
   , warning
   , runLogging
+  , Df1.Level (..)
+  , Df1.Path (..)
+  , Df1.Message (..)
+  , Df1.unMessage
   ) where
 
 import Control.Monad
@@ -24,8 +29,9 @@ import Control.Monad.Catch
 import Control.Monad.Logger
 import Data.Composition
 import Data.Functor
+import Data.Sequence (Seq)
 import Data.String
-import Data.Text
+import Data.Text hiding (filter)
 import Data.Text.Encoding
 import Data.Text.IO
 import Df1 qualified
@@ -38,22 +44,30 @@ import Polysemy.Error
 import Polysemy.Final
 import UnliftIO (MonadIO (..), MonadUnliftIO, UnliftIO (..))
 import UnliftIO qualified
-import Prelude hiding (error, log)
+import Prelude hiding (error, filter, log)
 
 type Logging = DiP.Di Df1.Level Df1.Path Df1.Message
 
-runLogging :: forall r a. Members [Error String, Final IO] r => Df1.Level -> Sem (Logging : r) a -> Sem r a
+runLogging
+  :: forall r a
+   . Members [Error String, Final IO] r
+  => Df1.Level
+  -> Sem (Logging : r) a
+  -> Sem r a
 runLogging verbosityLevel action =
   runSemUnliftIO $
     Di.new \di ->
       SemUnliftIO
         . embedToFinal
-        . DiP.runDiToIO (Di.Core.filter (\logLevel _ _ -> logLevel >= verbosityLevel) di)
+        . DiP.runDiToIO di
+        $ filter (\logLevel _ _ -> logLevel >= verbosityLevel)
         $ raiseUnder @(Embed IO)
         $ interceptH logCallSite action
   where
     logCallSite
-      :: forall x r'. Error String (Sem r') x -> Tactical (Error String) (Sem r') (Logging : r) x
+      :: forall x r'
+       . Error String (Sem r') x
+      -> Tactical (Error String) (Sem r') (Logging : r) x
     logCallSite = \case
       Throw err -> do
         warning err
@@ -68,6 +82,14 @@ runLogging verbosityLevel action =
             state <- getInitialStateT
             either' <- raise $ runError $ exceptT $ e <$ state
             fromEither either'
+
+filter
+  :: forall r a
+   . Members [Error String, Logging, Final IO] r
+  => (Df1.Level -> Seq Df1.Path -> Df1.Message -> Bool)
+  -> Sem r a
+  -> Sem r a
+filter f = DiP.local $ Di.Core.filter f
 
 push
   :: Member Logging r
@@ -198,5 +220,5 @@ instance Members [Logging, Final IO] r => MonadLoggerIO (MonadLoggerToSem r) whe
           state <- stateIO
           pure $
             state $> \loc src level msg -> do
-              -- we don't fetch new state here because it'd the same as `state` anyway
+              -- ? -- we don't fetch new state here because it'd the same as `state` anyway
               void $ monadLoggerLogIO $ state $> (loc, src, level, msg)

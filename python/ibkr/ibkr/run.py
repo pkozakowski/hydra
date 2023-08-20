@@ -42,9 +42,9 @@ if __name__ == "__main__":
     tws_path = sys.argv[1]
     load_tws(tws_path)
 
-    from ibkr import rpc
+    from ibkr import from_squid
 
     port = int(sys.argv[2])
-    server = Server(rpc.Dispatcher())
+    server = Server(from_squid.Dispatcher())
     server.listen(msgpackrpc.Address("localhost", port))
     server.start()

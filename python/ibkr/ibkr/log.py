@@ -20,6 +20,7 @@ class Logger(logging.Logger):
         handler = logging.StreamHandler()
         handler.setFormatter(JSONFormatter())
         self.addHandler(handler)
+        self.no_data_callbacks = []
 
     def handle(self, record):
         msg = record.getMessage()
@@ -44,6 +45,10 @@ class Logger(logging.Logger):
                     and "needs to be upgraded, as it will be desupported" in msg
                 ):
                     level = logging.WARNING
+                elif "HMDS query returned no data" in msg:
+                    for callback in self.no_data_callbacks:
+                        callback()
+                    level = logging.DEBUG
             elif level < logging.ERROR:
                 # Drop those - they're not informative for us.
                 level = None

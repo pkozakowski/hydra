@@ -12,6 +12,7 @@
 module Market.Feed.DB where
 
 import Control.Monad
+import Control.Monad qualified as Log
 import Control.Monad.Logger
 import Control.Monad.Reader
 import Data.Coerce
@@ -27,6 +28,8 @@ import Data.Maybe
 import Data.Proxy
 import Data.Set qualified as Set
 import Data.Text (Text)
+import Data.Text qualified as T
+import Data.Text.Lazy qualified as TL
 import Data.Time
 import Data.Time.Clock.POSIX
 import Data.Typeable
@@ -36,6 +39,7 @@ import Database.Persist hiding (Key)
 import Database.Persist.Sql hiding (Key)
 import Database.Persist.Sqlite hiding (Key)
 import Database.Persist.TH
+import Debug.Trace (trace)
 import Dhall (function)
 import Market.Feed
 import Market.Feed.DB.Types
@@ -47,7 +51,8 @@ import Numeric.Truncatable
 import Polysemy
 import Polysemy.Error
 import Polysemy.Final
-import Polysemy.Logging
+import Polysemy.Logging (Logging)
+import Polysemy.Logging qualified as Log
 import Prelude hiding (lookup)
 
 type DBPath = Text
@@ -94,13 +99,17 @@ runFeedWithDBCacheFixedScalar
   -> Sem (Feed f : r) a
   -> Sem r a
 runFeedWithDBCacheFixedScalar dbPath lowerFeed action =
-  push "runFeedWithDBCache" $
-    withSqlite dbPath \backend -> do
-      sqliteToSem backend $ runMigrationQuiet migrateAll
-      interpret (interpreter backend) action
+  Log.push "runFeedWithDBCache" do
+    -- withSqlite dbPath \backend -> do
+    sqliteToSem dbPath $
+      runMigrationQuiet
+        migrateAll
+    interpret
+      (interpreter dbPath)
+      action
   where
-    interpreter :: forall rInitial x. SqlBackend -> Feed f (Sem rInitial) x -> Sem r x
-    interpreter backend = \case
+    interpreter :: forall rInitial x. DBPath -> Feed f (Sem rInitial) x -> Sem r x
+    interpreter dbPath = \case
       Between1_ key period from to ->
         between1_UsingBetween_ @f
           (runFeedWithDBCacheFixedScalar @f dbPath lowerFeed)
@@ -112,17 +121,17 @@ runFeedWithDBCacheFixedScalar dbPath lowerFeed action =
         let type_ = show $ typeRep $ Proxy @f
             (fromBS, fromMoment) = splitTime period from
             (toBS, toMoment) = splitTime period to
-        existingBatches <- selectBatchRange backend type_ (show <$> NonEmpty.toList keys) period fromBS toBS
+        existingBatches <- selectBatchRange dbPath type_ (show <$> NonEmpty.toList keys) period fromBS toBS
         let missingBatchstampKeys =
               determineMissingBatches (show <$> NonEmpty.toList keys) period fromBS toBS existingBatches
             (completeBatches, incompleteBatchstampKeys) =
               partitionCompleteBatches fromBS fromMoment toBS toMoment existingBatches
-        debug $ "missing batches: " <> show missingBatchstampKeys
-        debug $ "incomplete batches: " <> show incompleteBatchstampKeys
+        Log.debug $ "missing batches: " <> show missingBatchstampKeys
+        Log.debug $ "incomplete batches: " <> show incompleteBatchstampKeys
         newBatches <-
           runFeedForBatches lowerFeed period $
             missingBatchstampKeys ++ incompleteBatchstampKeys
-        upsertBatches backend newBatches
+        upsertBatches dbPath newBatches
         return
           . seriesFromList
           . filter (isInRange . fst)
@@ -188,17 +197,17 @@ mapFeedSeries_
 mapFeedSeries_ = fmap . fmap . fmap
 
 selectBatchRange
-  :: Members [Error String, Final IO] r
-  => SqlBackend
+  :: Members [Error String, Logging, Final IO] r
+  => DBPath
   -> ResourceType
   -> [ResourceKey]
   -> Period
   -> Batchstamp
   -> Batchstamp
   -> Sem r [FeedBatch]
-selectBatchRange backend type_ keys period fromBS toBS = do
+selectBatchRange dbPath type_ keys period fromBS toBS = do
   batches <-
-    sqliteToSem backend $
+    sqliteToSem dbPath $
       selectList
         [ FeedBatchType_ ==. type_
         , FeedBatchKey <-. keys
@@ -209,11 +218,11 @@ selectBatchRange backend type_ keys period fromBS toBS = do
         []
   return $ entityVal <$> batches
 
-sqliteToSem :: Members '[Final IO] r => SqlBackend -> SqlPersistT IO a -> Sem r a
-sqliteToSem backend = embedFinal . flip runSqlConn backend
-
-withSqlite :: Members [Logging, Final IO] r => DBPath -> (SqlBackend -> Sem r a) -> Sem r a
-withSqlite dbPath cont = runMonadLoggerToSem $ withSqliteConn dbPath $ MonadLoggerToSem . cont
+sqliteToSem :: Members [Logging, Final IO] r => DBPath -> SqlPersistT IO a -> Sem r a
+sqliteToSem dbPath action =
+  Log.runMonadLoggerToSem $
+    withSqliteConn dbPath $
+      Log.MonadLoggerToSem . embedFinal . runSqlConn action
 
 determineMissingBatches
   :: [ResourceKey]
@@ -267,7 +276,6 @@ runFeedForBatches
   -> Period
   -> [(Batchstamp, ResourceKey)]
   -> Sem r [FeedBatch]
--- TODO: run lowerFeed for longer durations
 runFeedForBatches lowerFeed period batchstampsAndKeys =
   concat <$> mapM (runFeedForBatch lowerFeed period) batchstampKeys
   where
@@ -322,11 +330,15 @@ runFeedForBatch lowerFeed period (batchstamp, keys) =
     extractKey key = mapMaybe (\(moment, map) -> (moment,) <$> lookup (read key) map)
 
 upsertBatches
-  :: Members [Error String, Final IO] r
-  => SqlBackend
+  :: Members [Error String, Logging, Final IO] r
+  => DBPath
   -> [FeedBatch]
   -> Sem r ()
-upsertBatches backend = mapM_ upsertBatch
+upsertBatches dbPath batches = do
+  Log.debug $ "upserting " <> show (length batches) <> " batches"
+  -- skip the SQL UPDATE, it's too big
+  Log.filter (\level path msg -> not $ level == Log.Debug && Log.Attr "src" "SQL" `elem` path) $
+    mapM_ upsertBatch batches
   where
     upsertBatch batch = do
       let key =
@@ -335,7 +347,7 @@ upsertBatches backend = mapM_ upsertBatch
               (feedBatchBatchstamp batch)
               (feedBatchType_ batch)
               (feedBatchKey batch)
-      sqliteToSem backend $
+      sqliteToSem dbPath $
         upsert
           batch
           [ FeedBatchMoments =. feedBatchMoments batch

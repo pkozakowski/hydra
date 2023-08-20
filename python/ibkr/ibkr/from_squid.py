@@ -9,7 +9,7 @@ import typing
 
 from ibapi import contract as ibcontract
 
-from ibkr import client, types
+from ibkr import to_ibapi, types
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +120,7 @@ class Dispatcher:
         logger.debug(f"fetch_orders_from_day_by_minute -> {len(res)} results")
         return res
 
+    # TODO: cache
     def fetch_orders_by_minute(
         self,
         contract_id: int,
@@ -127,11 +128,24 @@ class Dispatcher:
         to_timestamp: int,
         exchange: str = DEFAULT_CASH_EXCHANGE,
         increment: int = 3 * 3600,
+        margin_future: int = DAY,
+        margin_past: int = 3 * DAY,
     ) -> list[types.TimeStep]:
+        """Weird and inefficient algorithm to overcome the weirdness of the IBKR API."""
         logger.debug(
             f"fetch_orders_by_minute({contract_id}, {from_timestamp}, {to_timestamp}, "
-            f"{repr(exchange)}, {increment})"
+            f"{repr(exchange)})"
         )
+
+        now_timestamp = int(datetime.datetime.utcnow().timestamp())
+        assert (
+            from_timestamp <= now_timestamp
+        ), "fetch_orders_by_minute: requesting data from the future"
+        if to_timestamp > now_timestamp:
+            logger.debug(
+                f"fetch_orders_by_minute: lowering to_timestamp to {now_timestamp} (now)"
+            )
+            to_timestamp = now_timestamp
 
         @dataclasses.dataclass
         class Knowledge:
@@ -163,12 +177,12 @@ class Dispatcher:
         knowledge = Knowledge()
 
         probe_to_timestamp = to_timestamp
-        while knowledge.null and probe_to_timestamp < to_timestamp + DAY:
+        while knowledge.null and probe_to_timestamp < to_timestamp + margin_future:
             probe(probe_to_timestamp, knowledge)
             probe_to_timestamp += increment
 
         probe_to_timestamp = to_timestamp - increment
-        while knowledge.null and from_timestamp - DAY < probe_to_timestamp:
+        while knowledge.null and from_timestamp - margin_past < probe_to_timestamp:
             probe(probe_to_timestamp, knowledge)
             probe_to_timestamp -= increment
 
@@ -179,6 +193,11 @@ class Dispatcher:
                 probe_to_timestamp = min(
                     knowledge.from_timestamp, probe_to_timestamp - increment
                 )
+
+        logger.debug(
+            "fetch_orders_by_minute: "
+            f"got data from {knowledge.from_timestamp} to {knowledge.to_timestamp}"
+        )
 
         timestamps_and_bars = [
             (timestamp, knowledge.bars_by_timestamp[timestamp])
@@ -196,12 +215,21 @@ class Dispatcher:
                     last_timestamp += 60
                 assert last_timestamp == timestamp
                 last_bar = bar
+            while last_timestamp < to_timestamp:
+                filled.append((last_timestamp, last_bar))
+                last_timestamp += 60
         finally:
             filtered = [
                 (timestamp, bar)
                 for (timestamp, bar) in filled
                 if from_timestamp <= timestamp <= to_timestamp
             ]
+            assert filtered, "fetch_orders_by_minute: no results"
+            (first_timestamp, _) = filtered[0]
+            assert from_timestamp <= first_timestamp < from_timestamp + 60, (
+                "fetch_orders_by_minute: missing data "
+                f"from {from_timestamp} to {first_timestamp}"
+            )
             logger.debug(f"fetch_orders_by_minute -> {len(filtered)} results")
             return filtered
 
@@ -225,7 +253,7 @@ class Dispatcher:
             proc.start()
             while True:
                 result = response.get(timeout=timeout)
-                if result is client.EndOfResponse:
+                if result is to_ibapi.EndOfResponse:
                     break
                 results.append(result)
         except queue.Empty:
@@ -241,7 +269,7 @@ class Dispatcher:
 
 def target(output: mp.Queue, method: str, args: list[typing.Any]) -> None:
     id = random.randrange(1000000)
-    ibkr_client = client.Client("127.0.0.1", 4002, id, output)
+    ibkr_client = to_ibapi.Client("127.0.0.1", 4002, id, output)
     getattr(ibkr_client, method)(0, *args)
     ibkr_client.run()
 

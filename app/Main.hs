@@ -7,13 +7,13 @@ import Command.Eval
 import Command.Run
 import Command.Sync
 import Command.Tune
-import Df1 qualified
 import Help
 import Options.Applicative hiding (helper, hsubparser)
 import Options.Applicative qualified as Optparse
 import Polysemy.Error (errorToIOFinal)
 import Polysemy.Final
-import Polysemy.Logging
+import Polysemy.Logging (Logging)
+import Polysemy.Logging qualified as Log
 
 data Cmd
   = Eval EvalOptions
@@ -52,11 +52,11 @@ parseCmd =
 data Verbosity = Warning | Info | Debug
   deriving (Enum)
 
-toLogLevel :: Verbosity -> Df1.Level
+toLogLevel :: Verbosity -> Log.Level
 toLogLevel = \case
-  Warning -> Df1.Warning
-  Info -> Df1.Info
-  Debug -> Df1.Debug
+  Warning -> Log.Warning
+  Info -> Log.Info
+  Debug -> Log.Debug
 
 data Options = Options
   { cmd :: Cmd
@@ -84,7 +84,7 @@ options =
 
 dispatch :: Options -> IO ()
 dispatch Options {..} = runFinal do
-  unitOrError <- errorToIOFinal $ runLogging (toLogLevel verbosity) do
+  unitOrError <- errorToIOFinal $ Log.runLogging (toLogLevel verbosity) do
     case cmd of
       -- Eval opts' -> eval opts'
       Run opts' -> run opts'
