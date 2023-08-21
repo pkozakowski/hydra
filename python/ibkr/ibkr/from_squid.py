@@ -19,6 +19,7 @@ DEFAULT_WAIT = 10
 START_TIMEOUT = 15
 TIMEOUT_MUL = 1.5
 DAY = 24 * 3600
+TRIAL_LIMIT = 5
 
 
 class Dispatcher:
@@ -137,10 +138,11 @@ class Dispatcher:
             f"{repr(exchange)})"
         )
 
-        now_timestamp = int(datetime.datetime.utcnow().timestamp())
-        assert (
-            from_timestamp <= now_timestamp
-        ), "fetch_orders_by_minute: requesting data from the future"
+        now_timestamp = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
+        assert from_timestamp <= now_timestamp, (
+            "fetch_orders_by_minute: requesting data from the future "
+            f"({from_timestamp} > {now_timestamp})"
+        )
         if to_timestamp > now_timestamp:
             logger.debug(
                 f"fetch_orders_by_minute: lowering to_timestamp to {now_timestamp} (now)"
@@ -238,13 +240,16 @@ class Dispatcher:
         method: str,
         args: list[typing.Any],
         timeout: float = START_TIMEOUT,
+        n_trials_left: int = TRIAL_LIMIT,
         timeout_mul: float = TIMEOUT_MUL,
     ) -> typing.Any:
-        now_timestamp = datetime.datetime.utcnow().timestamp()
+        now_timestamp = datetime.datetime.now(datetime.timezone.utc).timestamp()
         wait_time = self._wait - (now_timestamp - self._last_request_timestamp)
         if wait_time > 0:
             time.sleep(wait_time)
-        self._last_request_timestamp = int(datetime.datetime.utcnow().timestamp())
+        self._last_request_timestamp = int(
+            datetime.datetime.now(datetime.timezone.utc).timestamp()
+        )
 
         response = mp.Queue()
         proc = mp.Process(target=target, args=(response, method, args))
@@ -257,10 +262,21 @@ class Dispatcher:
                     break
                 results.append(result)
         except queue.Empty:
+            if n_trials_left == 0:
+                raise TimeoutError(
+                    f"_call_method({repr(method)}: timeout; ran out of retries"
+                )
+
             logger.debug(
+                f"_call_method({repr(method)}): "
                 f"timeout after {timeout}s; retrying with {timeout_mul}x more time"
             )
-            return self._call_method(method, args, timeout=(timeout * timeout_mul))
+            return self._call_method(
+                method,
+                args,
+                timeout=(timeout * timeout_mul),
+                n_trials_left=(n_trials_left - 1),
+            )
         finally:
             proc.terminate()
             proc.join(timeout=timeout)

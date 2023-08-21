@@ -20,23 +20,23 @@ import Polysemy.Error
 import Polysemy.Logging
 import Prelude hiding (recip)
 
-data SpreadPrice = SpreadPrice {bid :: Price, ask :: Price}
+data PriceSpread = PriceSpread {bid :: Price, ask :: Price}
   deriving (Show)
 
 -- TODO: make this the main Prices
-newtype SpreadPrices = SpreadPrices {unSpreadPrices :: StaticMap Asset SpreadPrice}
-  deriving (Show, ReadMap Asset SpreadPrice, BuildMap Asset SpreadPrice)
+newtype PriceSpreads = PriceSpreads {unPriceSpreads :: StaticMap Asset PriceSpread}
+  deriving (Show, ReadMap Asset PriceSpread, BuildMap Asset PriceSpread)
 
-runSpreadPriceFeed
+runPriceSpreadFeed
   :: forall r a
    . Members [Error String, Logging, Final IO] r
   => DBPath
   -> Asset
-  -> Sem (Feed SpreadPrices : r) a
+  -> Sem (Feed PriceSpreads : r) a
   -> Sem r a
-runSpreadPriceFeed dbPath baseAsset =
-  push "runSpreadPriceFeed"
-    . refeed assetsToIBKRKeys ibkrMapToSpreadPrices (runFeedWithDBCache dbPath runFeedIBKR)
+runPriceSpreadFeed dbPath baseAsset =
+  push "runPriceSpreadFeed"
+    . refeed assetsToIBKRKeys ibkrMapToPriceSpreads (runFeedWithDBCache dbPath runFeedIBKR)
   where
     assetsToIBKRKeys :: NonEmpty Asset -> NonEmpty ContractBarField
     assetsToIBKRKeys assets =
@@ -49,12 +49,12 @@ runSpreadPriceFeed dbPath baseAsset =
         )
           <$> allBarFields
 
-    ibkrMapToSpreadPrices :: StaticMap ContractBarField Scalar -> SpreadPrices
-    ibkrMapToSpreadPrices ibkrMap = fromList $ buildKV <$> groups
+    ibkrMapToPriceSpreads :: StaticMap ContractBarField Scalar -> PriceSpreads
+    ibkrMapToPriceSpreads ibkrMap = fromList $ buildKV <$> groups
       where
         buildKV (ContractBarField (Cash {..}) _ :| _) =
           ( Asset currency
-          , SpreadPrice
+          , PriceSpread
               { bid = Price $ recip $ ibkrMap ! ContractBarField Cash {..} BidAvg
               , ask = Price $ recip $ ibkrMap ! ContractBarField Cash {..} AskAvg
               }

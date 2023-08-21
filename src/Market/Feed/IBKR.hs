@@ -68,8 +68,8 @@ runFeedIBKR
 runFeedIBKR = interpret \case
   Between_ keys period from to ->
     Log.push "runFeedIBKR" $
-      Log.attr "from" (formatMinute from) $
-        Log.attr "to" (formatMinute to) $
+      Log.attr "from" (showMinute from) $
+        Log.attr "to" (showMinute to) $
           RPC.session
             "poetry"
             ( \port ->
@@ -139,6 +139,6 @@ handleResult = \case
   Right res -> pure res
   Left err -> throw $ T.unpack $ "RPC error: " <> RPC.type_ err <> ": " <> RPC.message err
 
-formatMinute :: UTCTime -> String
-formatMinute =
+showMinute :: UTCTime -> String
+showMinute =
   Time.formatShow $ Time.utcTimeFormat (Time.calendarFormat Time.ExtendedFormat) (Time.hourMinuteFormat Time.ExtendedFormat)
