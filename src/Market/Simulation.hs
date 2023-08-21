@@ -43,8 +43,8 @@ type BacktestEffects c s r =
     : Input Prices
     : Input Fees
     : Time
-    : State (IState s)
-    : Input (IConfig c)
+    : State (SState s)
+    : Input (SConfig c)
     : Input Prices
     : State Portfolio
     : r
@@ -56,7 +56,7 @@ type OnStep c s r = Sem (BacktestEffects c s r) ()
 -- timestep.
 backtest
     :: forall c s r
-     .  ( Instrument c s
+     .  ( Strategy c s
         , Members [Precision, Error MarketError] r
         )
     => Fees
@@ -76,7 +76,7 @@ type OnStep' c s r
 -- at each timestep and run arbitrary effects.
 backtest'
     :: forall c s r
-     .  ( Instrument c s
+     .  ( Strategy c s
         , Members [Precision, Error MarketError] r
         )
     => Fees
@@ -88,13 +88,13 @@ backtest'
 backtest' fees priceSeries initPortfolio config onStep'
     = execState initPortfolio
     $ runInputConst initPrices
-    $ runInstrument config
+    $ runStrategy config
     $ forM restOfPrices \(time, prices)
        -> runTimeConst time
         $ runInputConst fees
         $ runInputConst prices
         $ (*> truncateState @Portfolio)
-        $ (*> truncateState @(IState s))
+        $ (*> truncateState @(SState s))
         $ subsume @(State Portfolio)
         $ marketInputToState
         $ onStep'

@@ -68,6 +68,7 @@ dependencies:
 - semigroupoids
 - stm
 - template-haskell
+- temporary
 - tasty
 - tasty-hunit
 - tasty-th

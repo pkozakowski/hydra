@@ -48,17 +48,17 @@ library
       Market.Feed.Ops
       Market.Feed.TH
       Market.Feed.Types
-      Market.Instrument
-      Market.Instrument.Balance
-      Market.Instrument.Dhall
-      Market.Instrument.Hold
-      Market.Instrument.Ops
-      Market.Instrument.Some
-      Market.Instrument.Test
       Market.Internal.Sem
       Market.Ops
       Market.Plot
       Market.Simulation
+      Market.Strategy
+      Market.Strategy.Balance
+      Market.Strategy.Dhall
+      Market.Strategy.Hold
+      Market.Strategy.Ops
+      Market.Strategy.Some
+      Market.Strategy.Test
       Market.Time
       Market.Tuning
       Market.Types
@@ -145,6 +145,7 @@ library
     , tasty-quickcheck
     , tasty-th
     , template-haskell
+    , temporary
     , terminal-progress-bar
     , text
     , time
@@ -236,6 +237,7 @@ executable squid-exe
     , tasty-quickcheck
     , tasty-th
     , template-haskell
+    , temporary
     , terminal-progress-bar
     , text
     , time
@@ -253,11 +255,11 @@ test-suite squid-test
       Spec.Data.Map.Static
       Spec.Market.Feed.DB
       Spec.Market.Feed.Dummy
-      Spec.Market.Instrument.Balance
-      Spec.Market.Instrument.Hold
-      Spec.Market.Instrument.Ops
       Spec.Market.Ops
       Spec.Market.Simulation
+      Spec.Market.Strategy.Balance
+      Spec.Market.Strategy.Hold
+      Spec.Market.Strategy.Ops
       Spec.Market.Types
       Test.QuickCheck.Pretty
       Test.Tasty.QuickCheck.Laws
@@ -336,6 +338,7 @@ test-suite squid-test
     , tasty-quickcheck
     , tasty-th
     , template-haskell
+    , temporary
     , terminal-progress-bar
     , text
     , time

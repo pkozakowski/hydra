@@ -1,4 +1,4 @@
-module Market.Instrument.Some where
+module Market.Strategy.Some where
 
 import Data.Fixed
 import Data.Text (pack, unpack)
@@ -10,28 +10,28 @@ import Polysemy
 import Polysemy.Input
 import Polysemy.State as State
 
-data SomeInstrumentConfig = SomeInstrumentConfig
-    { someInitState :: Prices -> SomeInstrumentState
+data SomeStrategyConfig = SomeStrategyConfig
+    { someInitState :: Prices -> SomeStrategiestate
     , someInitAllocation :: Prices -> Distribution Asset
     , someShow :: String
     , someManagedAssets :: [Asset]
     , someSmartEmbed :: Dh.MultiLet Dh.Src Dh.Import
     }
 
-instance Instrument SomeInstrumentConfig SomeInstrumentState where
+instance Strategy SomeStrategyConfig SomeStrategiestate where
 
     initState = do
-        IConfig config <- input
+        SConfig config <- input
         prices <- input
         return $ someInitState config prices
 
     initAllocation = do
-        IConfig config <- input
+        SConfig config <- input
         prices <- input
         return $ someInitAllocation config prices
 
     execute = do
-        IState state <- State.get @(IState SomeInstrumentState)
+        SState state <- State.get @(SState SomeStrategiestate)
         someExecute state
 
     visit prices portfolio _ state = someVisit state prices portfolio
@@ -40,33 +40,33 @@ instance Instrument SomeInstrumentConfig SomeInstrumentState where
 
     smartEmbed = someSmartEmbed
 
-instance Show SomeInstrumentConfig where
+instance Show SomeStrategyConfig where
     show = someShow
 
-someInstrumentConfig
+someStrategyConfig
     :: forall c s
-    .  (Instrument c s, Show c)
-    => c -> SomeInstrumentConfig
-someInstrumentConfig config
-    = SomeInstrumentConfig initSt initAlloc shw mngAss smartEmb where
+    .  (Strategy c s, Show c)
+    => c -> SomeStrategyConfig
+someStrategyConfig config
+    = SomeStrategyConfig initSt initAlloc shw mngAss smartEmb where
         initSt prices
-            = someInstrumentState config
-            $ run $ runInputConst prices $ runInputConst (IConfig config)
+            = someStrategiestate config
+            $ run $ runInputConst prices $ runInputConst (SConfig config)
             $ initState
         initAlloc prices
-            = run $ runInputConst prices $ runInputConst (IConfig config)
+            = run $ runInputConst prices $ runInputConst (SConfig config)
             $ initAllocation @c
         shw = show config
         mngAss = managedAssets config
         smartEmb = smartEmbed config
 
-data SomeInstrumentState = SomeInstrumentState
+data SomeStrategiestate = SomeStrategiestate
     { someExecute
         :: forall r
         .  Members
             ( ExecuteEffects
-                SomeInstrumentConfig
-                SomeInstrumentState
+                SomeStrategyConfig
+                SomeStrategiestate
             ) r
         => Sem r ()
     , someVisit
@@ -78,35 +78,35 @@ data SomeInstrumentState = SomeInstrumentState
         :: forall res
          . HasResolution res
         => res
-        -> SomeInstrumentState
+        -> SomeStrategiestate
     }
 
-instance Truncatable SomeInstrumentState where
+instance Truncatable SomeStrategiestate where
     truncateTo = flip someTruncateTo
 
-someInstrumentState
+someStrategiestate
     :: forall c s
-    .  Instrument c s
-    => c -> s -> SomeInstrumentState
-someInstrumentState config state = SomeInstrumentState exec vis trunc where
+    .  Strategy c s
+    => c -> s -> SomeStrategiestate
+someStrategiestate config state = SomeStrategiestate exec vis trunc where
     exec
         :: forall r
         .  Members
             ( ExecuteEffects
-                SomeInstrumentConfig
-                SomeInstrumentState
+                SomeStrategyConfig
+                SomeStrategiestate
             )
             r
         => Sem r ()
     exec = do
-        IState state'
-           <- runInputConst (IConfig config) $ execState (IState state)
+        SState state'
+           <- runInputConst (SConfig config) $ execState (SState state)
             $ execute @c @s
-        put @(IState SomeInstrumentState)
-            $ IState $ someInstrumentState config state'
+        put @(SState SomeStrategiestate)
+            $ SState $ someStrategiestate config state'
 
     vis :: Prices -> Portfolio -> Visitor self agg
     vis prices portfolio = visit prices portfolio config state
 
-    trunc :: forall res. HasResolution res => res -> SomeInstrumentState
-    trunc res = someInstrumentState config $ truncateTo res state
+    trunc :: forall res. HasResolution res => res -> SomeStrategiestate
+    trunc res = someStrategiestate config $ truncateTo res state

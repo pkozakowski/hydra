@@ -1,13 +1,13 @@
-let Instrument = ../Instrument/Type
+let Strategy = ../Strategy/Type
 
 let Grid = ./Grid
 let GridBuilder = ./GridBuilder
 
 let pure
-      : Instrument -> Grid
-      = \(instrument : Instrument)
+      : Strategy -> Grid
+      = \(Strategy : Strategy)
      -> \(Grid : Type)
      -> \(gridBuilder : GridBuilder Grid)
-     -> gridBuilder.pure instrument
+     -> gridBuilder.pure Strategy
 
 in pure

@@ -4,13 +4,13 @@ let Duration = ../../../Duration/Type
 
 let Share = ../../Share
 
-let InstrumentName = ../Name
+let StrategyName = ../Name
 
 let Config
       : Type -> Type
-      = \(Instrument : Type)
-     -> { configs : Map InstrumentName Instrument
-        , target : Map InstrumentName Share
+      = \(Strategy : Type)
+     -> { configs : Map StrategyName Strategy
+        , target : Map StrategyName Share
         , tolerance : Double
         , updateEvery : Duration
         }

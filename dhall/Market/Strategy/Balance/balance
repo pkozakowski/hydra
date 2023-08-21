@@ -1,0 +1,21 @@
+let Map/map = https://prelude.dhall-lang.org/Map/map
+
+let Strategy = ../Type
+let StrategyBuilder = ../Builder
+let StrategyName = ../Name
+
+let BalanceConfig = ./Config
+
+in  \(config : BalanceConfig Strategy)
+ -> \(_Strategy : Type)
+ -> \(StrategyBuilder : StrategyBuilder _Strategy)
+ -> let adapt
+          : Strategy -> _Strategy
+          = \(i : Strategy)
+         -> i _Strategy StrategyBuilder
+    in StrategyBuilder.balance
+        ( config with configs
+            = Map/map
+                StrategyName Strategy _Strategy
+                adapt config.configs
+        )

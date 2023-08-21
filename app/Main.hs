@@ -27,14 +27,14 @@ parseCmd =
   --    <$> hsubparser
   --      ( command "eval" $
   --          info evalOptions $
-  --            progDesc "Evaluate an instrument."
+  --            progDesc "Evaluate an Strategy."
   --      )
   --    <|> Run
   Run
     <$> hsubparser
       ( command "run" $
           Optparse.info runOptions $
-            progDesc "Run an instrument on the blockchain."
+            progDesc "Run an Strategy on the blockchain."
       )
     <|> Sync
       <$> hsubparser
@@ -46,7 +46,7 @@ parseCmd =
 --  <|> Tune <$> hsubparser
 --        ( command "tune"
 --            $ info tuneOptions
---            $ progDesc "Tune an instrument."
+--            $ progDesc "Tune an Strategy."
 --        )
 --
 data Verbosity = Warning | Info | Debug

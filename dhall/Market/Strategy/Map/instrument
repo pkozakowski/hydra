@@ -1,0 +1,10 @@
+let Entry = https://prelude.dhall-lang.org/Map/Entry
+
+let entry = ../../../Map/entry
+
+let StrategyName = ../Name
+let Strategy = ../Type
+
+in  \(name : StrategyName)
+ -> \(instr : Strategy)
+ -> entry StrategyName Strategy name instr

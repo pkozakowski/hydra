@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module Market.Instrument.Hold where
+module Market.Strategy.Hold where
 
 import Data.Map.Static
 import Data.List.NonEmpty
@@ -13,7 +13,7 @@ import qualified Dhall.Core as Dh
 import GHC.Generics
 import Market
 import Market.Dhall
-import Market.Instrument.Ops
+import Market.Strategy.Ops
 import Numeric.Algebra
 import Numeric.Truncatable
 import Polysemy.Input
@@ -24,14 +24,14 @@ data Hold = Hold { held :: Asset }
 instance Truncatable Hold where
     truncateTo _ = id
 
-instance Instrument Hold Hold where
+instance Strategy Hold Hold where
 
-    initState = unIConfig <$> input
+    initState = unSConfig <$> input
 
-    initAllocation = onePoint . held . unIConfig <$> input
+    initAllocation = onePoint . held . unSConfig <$> input
 
     execute = do
-        IConfig (Hold asset) <- input
+        SConfig (Hold asset) <- input
         allocationToTrades zero $ onePoint asset
 
     visit prices portfolio config state visitAgg visitSelf
@@ -41,7 +41,7 @@ instance Instrument Hold Hold where
 
     smartEmbed
         = Dh.MultiLet
-            ( import_ ["Market", "Instrument", "Hold"] "hold"
+            ( import_ ["Market", "Strategy", "Hold"] "hold"
            :| import_ ["Market"] "asset"
             : []
             )

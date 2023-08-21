@@ -1,5 +1,4 @@
 {-# LANGUAGE NumericUnderscores #-}
-{-# LANGUAGE OverloadedLists #-}
 
 module Command.Eval where
 
@@ -24,7 +23,7 @@ import Data.Time.Clock.POSIX
 import qualified Dhall
 import Graphics.Vega.VegaLite hiding (name, window)
 import Market
-import Market.Instrument
+import Market.Strategy
 import Market.Plot
 import Market.Types
 import Numeric.Field.Fraction
@@ -66,7 +65,7 @@ evalOptions =
     <$> argument
       str
       ( metavar "CONFIG"
-          <> help "Instrument configuration script."
+          <> help "Strategy configuration script."
       )
     <*> option
       str
@@ -206,9 +205,9 @@ strideDuration window stride = do
 --
 --  -- TODO: Validation.
 --  config ::
---    SomeInstrumentConfig <-
+--    SomeStrategyConfig <-
 --    Dhall.input Dhall.auto $
---      "./" <> pack (config options) <> " ./dhall/Market/Instrument/Type"
+--      "./" <> pack (config options) <> " ./dhall/Market/Strategy/Type"
 --
 --  let assets =
 --        allAssets (fees coreOptions) (initPortfolio coreOptions) $

@@ -9,7 +9,7 @@ import Dhall qualified as Dh
 import GHC.Generics
 import Market
 import Market.Broker
-import Market.Instrument
+import Market.Strategy
 import Market.Time
 import Numeric.Field.Fraction
 import Options.Applicative
@@ -20,7 +20,7 @@ import Polysemy.Logging
 
 data RunOptions = RunOptions
   { brokerConfig :: String
-  , instrumentConfig :: String
+  , strategyConfig :: String
   }
 
 runOptions :: Parser RunOptions
@@ -33,8 +33,8 @@ runOptions =
       )
     <*> argument
       str
-      ( metavar "INSTRUMENT_CONFIG"
-          <> help "Instrument configuration script."
+      ( metavar "Strategy_CONFIG"
+          <> help "Strategy configuration script."
       )
 
 run :: Members [Error String, Logging, Final IO] r => RunOptions -> Sem r ()
@@ -46,11 +46,11 @@ run options = embedToFinal do
         Dh.auto
       $ "./" <> pack (brokerConfig options)
 
-  instrument
-    :: SomeInstrumentConfig <-
+  strategy
+    :: SomeStrategyConfig <-
     embed $
       Dh.input Dh.auto $
-        "./" <> pack (instrumentConfig options) <> " ./dhall/Market/Instrument/Type"
+        "./" <> pack (strategyConfig options) <> " ./dhall/Market/Strategy/Type"
 
   mapError @BrokerError show $
     mapError @MarketError show $
@@ -58,11 +58,11 @@ run options = embedToFinal do
         fees <- estimateFees
         runTimeIO
           $ runInputConst
-            (nub $ managedAssets instrument ++ feeAssets fees)
+            (nub $ managedAssets strategy ++ feeAssets fees)
           $ runInputPortfolioBroker
           $ runInputPricesBroker
           $ runMarketBroker @DummyBroker
-          $ runInstrument instrument
+          $ runStrategy strategy
           $ runInputConst fees
           $ do
             prices <- input @Prices

@@ -91,7 +91,7 @@ instance NFData Scalar where
         frac `seq`
           ()
 
-newtype InstrumentName = InstrumentName {unInstrumentName :: String}
+newtype StrategyName = StrategyName {unStrategyName :: String}
   deriving (Eq, Generic, Ord)
   deriving newtype
     ( FromDhall
@@ -102,8 +102,8 @@ newtype InstrumentName = InstrumentName {unInstrumentName :: String}
     , ToJSONKey
     )
 
-instance Show InstrumentName where
-  show = show . unInstrumentName
+instance Show StrategyName where
+  show = show . unStrategyName
 
 -- | Amount of an Asset.
 newtype Amount = Amount Scalar
@@ -146,7 +146,7 @@ newtype Value = Value Scalar
 
 newtype ValueDelta = ValueDelta Scalar
 
--- | Value held in each Asset or Instrument.
+-- | Value held in each Asset or Strategy.
 newtype Values k = Values (SparseMap k Value)
 
 newtype ValueDeltas k = ValueDeltas (SparseMap k ValueDelta)
@@ -387,16 +387,16 @@ zipSeries s1 s2 =
 
 -- Arbitrary instances and other test utilities:
 
-instance Arbitrary InstrumentName where
-  arbitrary = elements testInstrumentNames
-  shrink = init . testInstrumentNamesUpTo . last . unInstrumentName
+instance Arbitrary StrategyName where
+  arbitrary = elements testStrategyNames
+  shrink = init . testStrategyNamesUpTo . last . unStrategyName
 
-testInstrumentNamesUpTo :: Char -> [InstrumentName]
-testInstrumentNamesUpTo char =
-  InstrumentName . ("Instrument " ++) . pure <$> ['1' .. char]
+testStrategyNamesUpTo :: Char -> [StrategyName]
+testStrategyNamesUpTo char =
+  StrategyName . ("Strategy " ++) . pure <$> ['1' .. char]
 
-testInstrumentNames :: [InstrumentName]
-testInstrumentNames = testInstrumentNamesUpTo '4'
+testStrategyNames :: [StrategyName]
+testStrategyNames = testStrategyNamesUpTo '4'
 
 instance Arbitrary Amount where
   arbitrary = Amount <$> arbitraryNonNegativeScalar

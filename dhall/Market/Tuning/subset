@@ -1,4 +1,4 @@
-let Instrument = ../Instrument/Type
+let Strategy = ../Strategy/Type
 
 let Grid = ./Grid
 let GridBuilder = ./GridBuilder

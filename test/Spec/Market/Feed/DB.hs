@@ -10,6 +10,7 @@ import Data.Bifunctor
 import Data.Either
 import Data.Map.Static
 import Data.Maybe
+import Data.Text qualified as T
 import Data.Time (diffUTCTime)
 import Data.Time.Clock
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
@@ -26,6 +27,7 @@ import Polysemy.Error
 import Polysemy.Logging
 import System.Directory
 import System.IO.Error
+import System.IO.Temp
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.TH
@@ -63,17 +65,18 @@ test_runFeedWithDBCache =
               . runTimeConst time
               . runFeedToScalar
               $ feed
-      let runCachedTwice =
+      let runCachedTwice dbPath =
             fmap distribute
               . runFinal
-              . runLogging
               . errorToIOFinal
+              . runLogging Info
               . embedToFinal
               . runTimeConst time
-              . runFeedWithDBCache ":memory:" runFeedToFixed
+              . runFeedWithDBCache (T.pack dbPath) runFeedToFixed
               $ (,) <$> feed <*> feed
       -- first call populates the cache, second reads from it
-      (resultCached1, resultCached2) <- runCachedTwice
+      (resultCached1, resultCached2) <- bracket
+        (emptySystemTempFile "squid_test_db") removeFile runCachedTwice
       resultCached1 @?= resultPure
       resultCached2 @?= resultPure
       where

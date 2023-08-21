@@ -1,8 +1,0 @@
-let Builder
-      : Type -> Type
-      = \(Instrument : Type)
-     -> { balance : ./Balance/Config Instrument -> Instrument
-        , hold : ./Hold/Config Instrument -> Instrument
-        }
-
-in Builder

@@ -1,12 +1,12 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Spec.Market.Instrument.Ops where
+module Spec.Market.Strategy.Ops where
 
 import Data.Coerce
 import Data.List
 import Data.Map.Static
 import Data.Maybe
-import Market.Instrument.Ops
+import Market.Strategy.Ops
 import Market.Types
 import Numeric.Algebra hiding ((<), (>))
 import Numeric.Delta

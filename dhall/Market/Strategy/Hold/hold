@@ -1,0 +1,12 @@
+let Asset = ../../Asset
+let Strategy = ../Type
+let StrategyBuilder = ../Builder
+
+let hold
+      : Asset -> Strategy
+      = \(asset : Asset)
+     -> \(Strategy : Type)
+     -> \(StrategyBuilder : StrategyBuilder Strategy)
+     -> StrategyBuilder.hold { held = asset }
+
+in hold

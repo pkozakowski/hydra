@@ -1,0 +1,7 @@
+let Strategy
+      : Type
+      = forall (Strategy : Type)
+     -> ./Builder Strategy
+     -> Strategy
+
+in Strategy

@@ -32,7 +32,7 @@ plotSeries series
             . position X [ PName "time", PmType Temporal ]
             . position Y [ PName "value", PmType Quantitative ]
 
-plotTree :: InstrumentTree (TimeSeries Double) -> [PropertySpec]
+plotTree :: StrategyTree (TimeSeries Double) -> [PropertySpec]
 plotTree tree
     = [dt [], enc []] ++ defaultSpecs
     where
@@ -41,7 +41,7 @@ plotTree tree
         enc = encoding
             . position X [PName "time", PmType Temporal]
             . position Y [PName "value", PmType Quantitative]
-            . color [MName "instrument"]
+            . color [MName "Strategy"]
 
 substituteKey :: Eq k => k -> k -> [(k, v)] -> [(k, v)]
 substituteKey key key'
@@ -57,9 +57,9 @@ plotEvaluation eval
         metadataSeriesForMetric metric
             = fmap
                 ( first
-                $ \(InstrumentName instr)
+                $ \(StrategyName instr)
                -> fromList
-                    [   ( "instrument", pack instr )
+                    [   ( "Strategy", pack instr )
                     ,   ( "mode"
                         , if instr == "portfolio (active)"
                             then "active"
@@ -81,7 +81,7 @@ plotEvaluation eval
                 , PmType Quantitative
                 ]
             . color
-                [ MName "instrument"
+                [ MName "Strategy"
                 , MSort
                     [ CustomSort
                         $ Strings ["portfolio (active)", "portfolio (passive)"]
@@ -105,15 +105,15 @@ seriesToVega (TimeSeries txs)
         (Numbers $ NonEmpty.toList $ snd <$> txs)
 
 flatTreeToVega
-    :: [(InstrumentName, TimeSeries Double)]
+    :: [(StrategyName, TimeSeries Double)]
     -> [DataColumn]
     -> Data
 flatTreeToVega
     = flatTreeToVega'
     . fmap
         ( first
-        $ \(InstrumentName name)
-            -> fromList [("instrument", pack name)]
+        $ \(StrategyName name)
+            -> fromList [("Strategy", pack name)]
         )
 
 flatTreeToVega'

@@ -1,0 +1,8 @@
+let Builder
+      : Type -> Type
+      = \(Strategy : Type)
+     -> { balance : ./Balance/Config Strategy -> Strategy
+        , hold : ./Hold/Config Strategy -> Strategy
+        }
+
+in Builder

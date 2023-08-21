@@ -15,9 +15,9 @@ import Data.Maybe
 import Data.Ord
 import Data.Time
 import Market
-import Market.Instrument.Balance
-import Market.Instrument.Hold
-import Market.Instrument.Some
+import Market.Strategy.Balance
+import Market.Strategy.Hold
+import Market.Strategy.Some
 import Market.Ops
 import Market.Simulation
 import Market.Time
@@ -175,7 +175,7 @@ test_runMarketSimulation =
             $ trade from to orderAmount
 
 {- |
-High-level tests using Instruments.
+High-level tests using Strategies.
 
 They assume that:
 
@@ -201,7 +201,7 @@ test_backtest =
         balanceChangesPortfolioIffPriceRatiosChange
             :: TimeSeries Prices
             -> Portfolio
-            -> Distribution InstrumentName
+            -> Distribution StrategyName
             -> Property
         balanceChangesPortfolioIffPriceRatiosChange
             priceSeries initPortfolio target = property do
@@ -228,7 +228,7 @@ test_backtest =
 
                     fullSupport (Distribution dist)
                         = all (> Share zero) dist
-                       && size dist == length testInstrumentNames
+                       && size dist == length testStrategyNames
 
                     changes :: Eq a => [a] -> [Bool]
                     changes = discardWhenNull . \case
@@ -246,15 +246,15 @@ test_backtest =
                     config = BalanceConfig
                         { configs
                             = fromList
-                            $ hold <$> zip testInstrumentNames testAssets
+                            $ hold <$> zip testStrategyNames testAssets
                         , target = target
                         , tolerance = zero
                         , updateEvery = 0
                         } where
-                            hold = second (someInstrumentConfig . Hold)
+                            hold = second (someStrategyConfig . Hold)
 
         runBacktest
-            :: Instrument c s
+            :: Strategy c s
             => TimeSeries Prices
             -> Portfolio
             -> c

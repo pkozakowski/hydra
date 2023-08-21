@@ -5,8 +5,8 @@ let entry = ../../../Map/entry
 let Share = ../../Share
 let shareVal = ../../share
 
-let InstrumentName = ../Name
+let StrategyName = ../Name
 
-in  \(name : InstrumentName)
+in  \(name : StrategyName)
  -> \(value : Double)
- -> entry InstrumentName Share name (shareVal value)
+ -> entry StrategyName Share name (shareVal value)

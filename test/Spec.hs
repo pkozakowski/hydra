@@ -3,9 +3,9 @@ import Spec.Data.Map.Sparse qualified
 import Spec.Data.Map.Static qualified
 import Spec.Market.Feed.DB qualified
 import Spec.Market.Feed.Dummy qualified
-import Spec.Market.Instrument.Balance qualified
-import Spec.Market.Instrument.Hold qualified
-import Spec.Market.Instrument.Ops qualified
+import Spec.Market.Strategy.Balance qualified
+import Spec.Market.Strategy.Hold qualified
+import Spec.Market.Strategy.Ops qualified
 import Spec.Market.Ops qualified
 import Spec.Market.Simulation qualified
 import Spec.Market.Types qualified
@@ -24,9 +24,9 @@ main =
       , -- Logic:
         Spec.Market.Feed.DB.tests
       , Spec.Market.Feed.Dummy.tests
-      , Spec.Market.Instrument.Balance.tests
-      , Spec.Market.Instrument.Hold.tests
-      , Spec.Market.Instrument.Ops.tests
+      , Spec.Market.Strategy.Balance.tests
+      , Spec.Market.Strategy.Hold.tests
+      , Spec.Market.Strategy.Ops.tests
       , Spec.Market.Ops.tests
       , Spec.Market.Simulation.tests
       ]

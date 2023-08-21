@@ -5,14 +5,11 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-
-{-# HLINT ignore "Redundant $" #-}
 
 module Market.Evaluation where
 
 import Control.Monad
-import Control.Parallel.Strategies
+import Control.Parallel.Strategies (NFData)
 import Data.Aeson (ToJSON, ToJSONKey)
 import Data.Bifunctor
 import Data.Composition
@@ -65,7 +62,7 @@ type ValueChangeCalculator =
 
 {- | Active value calculation takes into account changes in the portfolio.
 This is the most honest evaluation mode (modulo the future leak, but it's
-negligible here), but doesn't make sense for nested Instruments - their
+negligible here), but doesn't make sense for nested Strategies - their
 portfolios are "virtual" - calculated on-the-fly based on the current
 prices.
 -}
@@ -78,7 +75,7 @@ activeVC (prices, portfolio) (prices', portfolio') =
 
 {- | Passive value calculation doesn't take into account changes in the
 portfolio, so it measures only the robustness of the current portfolio
-to the future price changes. Makes sense for nested Instruments, because
+to the future price changes. Makes sense for nested Strategies, because
 the "virtual" nested portfolios are not recalculated based on the new prices.
 -}
 passiveVC :: ValueChangeCalculator
@@ -156,24 +153,24 @@ calculateMetric vcc metric series = do
   where
     step (_, pp) (_, pp') = vcc pp pp'
 
-data InstrumentTree a = InstrumentTree
+data StrategyTree a = StrategyTree
   { self :: a
-  , subinstruments :: StaticMap InstrumentName (InstrumentTree a)
+  , subStrategies :: StaticMap StrategyName (StrategyTree a)
   }
   deriving (Functor, Foldable, Generic, NFData, Show, Traversable, ToJSON)
 
-instance Apply InstrumentTree where
+instance Apply StrategyTree where
   fs <.> xs =
-    InstrumentTree
+    StrategyTree
       { self = self fs $ self xs
-      , subinstruments =
+      , subStrategies =
           getCompose $
-            Compose (subinstruments fs) <.> Compose (subinstruments xs)
+            Compose (subStrategies fs) <.> Compose (subStrategies xs)
       }
 
 data Evaluation' res = Evaluation
   { active :: StaticMap MetricName res
-  , passive :: InstrumentTree (StaticMap MetricName res)
+  , passive :: StrategyTree (StaticMap MetricName res)
   }
   deriving (Functor, Generic, NFData, Show, ToJSON)
 
@@ -187,7 +184,7 @@ instance Apply Evaluation' where
 type Evaluation = Evaluation' Double
 type EvaluationOnWindows = Evaluation' (TimeSeries Double)
 
-flattenTree :: InstrumentTree a -> [(InstrumentName, a)]
+flattenTree :: StrategyTree a -> [(StrategyName, a)]
 flattenTree = flattenWithPrefix ""
   where
     flattenWithPrefix prefix tree =
@@ -195,7 +192,7 @@ flattenTree = flattenWithPrefix ""
       where
         subinstrs =
           uncurry flattenWithPrefix . extendPrefix
-            =<< toList (subinstruments tree)
+            =<< toList (subStrategies tree)
         extendPrefix (instrName, tree')
           | prefix == "" = (instrName, tree')
           | otherwise = (prefix <> "." <> instrName, tree')
@@ -272,7 +269,7 @@ configurableMetricsSansPeriod =
 
 evaluate
   :: forall c s r
-   . ( Instrument c s
+   . ( Strategy c s
      , Members [Precision, Error MarketError] r
      )
   => [Metric]
@@ -282,15 +279,15 @@ evaluate
   -> c
   -> Sem r Evaluation
 evaluate metrics fees priceSeries initPortfolio config = do
-  maybeTree :: Maybe (InstrumentTree (TimeSeries PricesPortfolio)) <-
+  maybeTree :: Maybe (StrategyTree (TimeSeries PricesPortfolio)) <-
     fmap (fmap sequence1 . seriesFromList . fst) $
       runOutputList $
         backtest fees priceSeries initPortfolio config do
           prices <- input @Prices
           portfolio <- get @Portfolio
-          IState state <- get @(IState s)
+          SState state <- get @(SState s)
           time <- now
-          output @(TimeStep (InstrumentTree PricesPortfolio)) $
+          output @(TimeStep (StrategyTree PricesPortfolio)) $
             (time,) $
               visit prices portfolio config state visitAgg visitSelf
 
@@ -308,10 +305,10 @@ evaluate metrics fees priceSeries initPortfolio config = do
     visitAgg
       :: AggregateVisitor
           PricesPortfolio
-          (InstrumentTree PricesPortfolio)
+          (StrategyTree PricesPortfolio)
     visitAgg pricesPortfolio subinstrs =
-      InstrumentTree pricesPortfolio $
-        fromList (first (InstrumentName . show) <$> toList subinstrs)
+      StrategyTree pricesPortfolio $
+        fromList (first (StrategyName . show) <$> toList subinstrs)
 
     visitSelf :: SelfVisitor PricesPortfolio
     visitSelf prices portfolio _ _ =
@@ -327,7 +324,7 @@ evaluate metrics fees priceSeries initPortfolio config = do
 
 evaluateOnWindows
   :: forall c s r
-   . ( Instrument c s
+   . ( Strategy c s
      , Members [Precision, Error MarketError] r
      )
   => [Metric]

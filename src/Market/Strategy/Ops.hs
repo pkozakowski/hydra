@@ -1,4 +1,4 @@
-module Market.Instrument.Ops where
+module Market.Strategy.Ops where
 
 import Control.Monad
 import Data.Function
@@ -132,8 +132,8 @@ allocationToTrades tolerance targetAlloc
                 $ trade from to orderAmount
                     `catch` \case
                         -- Can't afford the fees => skip this trade -
-                        -- instruments don't have to check that.
+                        -- Strategies don't have to check that.
                         InsufficientBalanceToCoverFees _ _ -> return ()
                         -- Don't have enough money for the transfer => throw -
-                        -- instruments shouldn't exceed the balance.
+                        -- Strategies shouldn't exceed the balance.
                         e -> throw e

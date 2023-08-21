@@ -100,10 +100,7 @@ runFeedWithDBCacheFixedScalar
   -> Sem r a
 runFeedWithDBCacheFixedScalar dbPath lowerFeed action =
   Log.push "runFeedWithDBCache" do
-    -- withSqlite dbPath \backend -> do
-    sqliteToSem dbPath $
-      runMigrationQuiet
-        migrateAll
+    sqliteToSem dbPath $ runMigrationQuiet migrateAll
     interpret
       (interpreter dbPath)
       action

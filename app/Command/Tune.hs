@@ -9,7 +9,7 @@ import qualified Dhall as Dh
 import qualified Dhall.Pretty as Dh
 import Market
 import Market.Dhall
-import Market.Instrument
+import Market.Strategy
 import Market.Tuning hiding (tune)
 import Options.Applicative
 import Parser hiding (Parser, fees, metrics)
@@ -30,7 +30,7 @@ tuneOptions =
     <$> argument
       str
       ( metavar "CONFIG"
-          <> help "Instrument configuration script."
+          <> help "Strategy configuration script."
       )
     <*> option
       str
@@ -79,7 +79,7 @@ tuneOptions =
 --      evalBindings <> "in " <> pack (metric options)
 --
 --  grid ::
---    Grid SomeInstrumentConfig <-
+--    Grid SomeStrategyConfig <-
 --    Dh.input Dh.auto $
 --      "./" <> pack (grid options) <> " ./dhall/Market/Tuning/Grid"
 --
@@ -94,11 +94,11 @@ tuneOptions =
 --  fitness <- case window coreOptions of
 --    Nothing ->
 --      return $
---        instrumentFitness metric_ fees_ assetsToPrices initPortfolio_
+--        StrategyFitness metric_ fees_ assetsToPrices initPortfolio_
 --    Just window -> do
 --      stride_ <- strideDuration window $ stride coreOptions
 --      return $
---        instrumentFitnessOnWindows
+--        StrategyFitnessOnWindows
 --          metric_
 --          fees_
 --          window
