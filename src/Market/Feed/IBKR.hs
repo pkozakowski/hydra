@@ -33,6 +33,7 @@ import Polysemy.Embed
 import Polysemy.Error
 import Polysemy.Logging (Logging)
 import Polysemy.Logging qualified as Log
+import Polysemy.Reader
 
 data BarField = BidAvg | BidMin | AskAvg | AskMax
   deriving (Show, Eq, Ord, Read)
@@ -116,8 +117,8 @@ betweenForContract contract from to = do
   -- TODO: handle when there's no such contract
   Log.attr "contract" (symbol <> "/" <> currency) do
     contractId :: Int <-
-      handleResult . RPC.result
-        =<< RPC.call
+      handleResult
+        =<< callWithRetry
           "fetch_cash_contract_id"
           [ RPC.arg symbol
           , RPC.arg currency
@@ -125,14 +126,27 @@ betweenForContract contract from to = do
     let fromTs :: Int = floor $ utcTimeToPOSIXSeconds from
         toTs :: Int = floor $ utcTimeToPOSIXSeconds to
     timesteps :: [TimeStep (StaticMap BarField FixedScalar)] <-
-      handleResult . RPC.result
-        =<< RPC.call
+      handleResult
+        =<< callWithRetry
           "fetch_orders_by_minute"
           [ RPC.arg contractId
           , RPC.arg fromTs
           , RPC.arg toTs
           ]
     pure $ seriesFromList timesteps
+
+callWithRetry
+  :: ( Members [Reader RPC.SessionData, Error String, Logging, Final IO] r
+     , MessagePack a
+     )
+  => RPC.Method
+  -> [Object]
+  -> Sem r (RPC.RemoteResult a)
+callWithRetry method args =
+  RPC.call method args
+    `catch` \(_ :: String) -> do
+      Log.warning @String "RPC communication error; retrying"
+      callWithRetry method args
 
 handleResult :: Member (Error String) r => RPC.RemoteResult a -> Sem r a
 handleResult = \case

@@ -2,13 +2,17 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Foreign.RPC.Outgoing
-  ( RemoteError (..)
+  ( CommandArg
+  , Command
+  , Method
+  , Port
+  , RemoteError (..)
   , RemoteResult (..)
   , Session
+  , SessionData
   , session
   , call
   , arg
-  , result
   ) where
 
 import Control.Concurrent
@@ -35,7 +39,7 @@ import Polysemy.Resource
 import System.Process
 
 type Command = String
-type Arg = String
+type CommandArg = String
 type Port = Int
 type Method = String
 
@@ -50,11 +54,11 @@ type Session = Reader SessionData
 newSession
   :: Member (Final IO) r
   => Command
-  -> (Port -> [Arg])
+  -> (Port -> [CommandArg])
   -> Sem r SessionData
-newSession cmd buildArgs = embedFinal do
+newSession cmd buildCommandArgs = embedFinal do
   port <- getFreePort
-  let args = buildArgs port
+  let args = buildCommandArgs port
   (_, _, Just stderrH, processH) <-
     createProcess
       (proc cmd args)
@@ -78,13 +82,13 @@ closeSession sess@SessionData {..} =
 session
   :: Member (Final IO) r
   => Command
-  -> (Port -> [Arg])
+  -> (Port -> [CommandArg])
   -> Sem (Reader SessionData : r) a
   -> Sem r a
-session cmd buildArgs m = do
+session cmd buildCommandArgs m = do
   resourceToIOFinal $
     bracket
-      (newSession cmd buildArgs)
+      (newSession cmd buildCommandArgs)
       closeSession
       \sess -> raise $ runReader sess m
 
@@ -100,10 +104,12 @@ instance A.FromJSON Df1.Level where
     _ -> error $ "unrecognized loglevel: " <> T.unpack text
 
 call
-  :: Members [Reader SessionData, Error String, Logging, Final IO] r
+  :: ( Members [Reader SessionData, Error String, Logging, Final IO] r
+     , MessagePack a
+     )
   => Method
   -> [Object]
-  -> Sem r Object
+  -> Sem r (RemoteResult a)
 call method args = asyncToIOFinal $ resourceToIOFinal do
   SessionData {..} <- ask
   let forwardLogs = do
@@ -116,7 +122,7 @@ call method args = asyncToIOFinal $ resourceToIOFinal do
   bracket
     (async forwardLogs)
     cancel
-    \_ -> embedFinal $ runClient "localhost" port $ rpcCall method args
+    \_ -> fmap result $ embedFinal $ runClient "localhost" port $ rpcCall method args
 
 arg :: MessagePack a => a -> Object
 arg = toObject
