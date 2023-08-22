@@ -6,7 +6,6 @@ module Main where
 import Command.Eval
 import Command.Run
 import Command.Sync
-import Command.Tune
 import Help
 import Options.Applicative hiding (helper, hsubparser)
 import Options.Applicative qualified as Optparse
@@ -18,7 +17,6 @@ import Polysemy.Logging qualified as Log
 data Cmd
   = Eval EvalOptions
   | Sync SyncOptions
-  | Tune TuneOptions
   | Run RunOptions
 
 parseCmd :: Parser Cmd
@@ -43,12 +41,6 @@ parseCmd =
               progDesc "Synchronize price data."
         )
 
---  <|> Tune <$> hsubparser
---        ( command "tune"
---            $ info tuneOptions
---            $ progDesc "Tune an Strategy."
---        )
---
 data Verbosity = Warning | Info | Debug
   deriving (Enum)
 
@@ -92,8 +84,6 @@ dispatch Options {..} = runFinal do
   case unitOrError of
     Right () -> pure ()
     Left err -> Prelude.error err
-
--- Tune opts' -> tune opts'
 
 main :: IO ()
 main = dispatch =<< customExecParser (prefs showHelpOnEmpty) opts

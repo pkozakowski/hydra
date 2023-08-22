@@ -1,7 +1,0 @@
-let Grid
-      : Type
-      = forall (Grid : Type)
-     -> ./GridBuilder Grid
-     -> Grid
-
-in Grid

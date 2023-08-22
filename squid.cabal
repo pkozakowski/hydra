@@ -60,7 +60,6 @@ library
       Market.Strategy.Some
       Market.Strategy.Test
       Market.Time
-      Market.Tuning
       Market.Types
       Numeric.Algebra.Deriving
       Numeric.Algebra.Test
@@ -159,7 +158,6 @@ executable squid-exe
       Command.Eval
       Command.Run
       Command.Sync
-      Command.Tune
       Help
       Parser
       Paths_squid
