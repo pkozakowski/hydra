@@ -151,7 +151,7 @@ runFeedWithDBCache
   -> Sem (Feed f : r) a
   -> Sem r a
 runFeedWithDBCache dbPath lowerFeed =
-  refeed id (remap unpersistScalar) $
+  refeed (\keys -> pure (keys, remap unpersistScalar)) $
     runFeedWithDBCacheFixedScalar dbPath lowerFeed
 
 refeed
@@ -160,21 +160,21 @@ refeed
      , FeedMap f'
      , Members [Error String, Logging, Final IO] r
      )
-  => (NonEmpty (Key f) -> NonEmpty (Key f'))
-  -> (f' -> f)
+  => (NonEmpty (Key f) -> Sem r (NonEmpty (Key f'), f' -> f))
   -> (forall a. Sem (Feed f' : r) a -> Sem r a)
   -> Sem (Feed f : r) a
   -> Sem r a
-refeed fk ff lowerFeed = interpret interpreter
+refeed f lowerFeed = interpret interpreter
   where
     interpreter :: forall rInitial x. Feed f (Sem rInitial) x -> Sem r x
     interpreter = \case
       Between1_ key period from to ->
-        between1_UsingBetween_ (refeed fk ff lowerFeed) key period from to
+        between1_UsingBetween_ (refeed f lowerFeed) key period from to
       Between_ (keys :: NonEmpty k) period from to -> do
-        mapFeedSeries_ ff $
+        (keys', contra) <- f keys
+        mapFeedSeries_ contra $
           lowerFeed $
-            between_ @f' (fk keys) period from to
+            between_ @f' keys' period from to
 
 unpersistScalar :: forall a b. (Coercible a FixedScalar, Coercible Scalar b) => a -> b
 unpersistScalar = coerce . fixedToFraction . coerce @a @FixedScalar

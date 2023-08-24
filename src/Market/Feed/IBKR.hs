@@ -6,6 +6,8 @@ module Market.Feed.IBKR
   ( BarField (..)
   , Contract (..)
   , ContractBarField (..)
+  , ContractType (..)
+  , Exchange (..)
   , allBarFields
   , runFeedIBKR
   ) where
@@ -18,6 +20,7 @@ import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Class
 import Data.Map.Static
 import Data.MessagePack
+import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Time
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
@@ -55,8 +58,35 @@ instance MessagePack BarField where
 allBarFields :: NonEmpty BarField
 allBarFields = [BidAvg, BidMin, AskAvg, AskMax]
 
-data Contract = Cash {symbol :: String, currency :: String}
-  deriving (Show, Eq, Ord, Read)
+data ContractType = Cash
+  deriving (Show, Read, Eq, Ord)
+
+instance MessagePack ContractType where
+  toObject = \case
+    Cash -> ObjectStr "CASH"
+
+  fromObject = \case
+    ObjectStr "CASH" -> Success Cash
+    x -> Error $ "malformed ContractType: " <> show x
+
+data Exchange = IdealPro
+  deriving (Show, Read, Eq, Ord)
+
+instance MessagePack Exchange where
+  toObject = \case
+    IdealPro -> ObjectStr "IDEALPRO"
+
+  fromObject = \case
+    ObjectStr "IDEALPRO" -> Success IdealPro
+    x -> Error $ "malformed Exchange: " <> show x
+
+data Contract = Contract
+  { symbol :: Text
+  , currency :: Text
+  , type_ :: ContractType
+  , exchange :: Exchange
+  }
+  deriving (Show, Read, Eq, Ord)
 
 data ContractBarField = ContractBarField {contract :: Contract, barField :: BarField}
   deriving (Show, Read, Eq, Ord)
@@ -113,45 +143,50 @@ betweenForContract
   -> UTCTime
   -> Sem r (Maybe (TimeSeries (StaticMap BarField FixedScalar)))
 betweenForContract contract from to = do
-  let Cash {..} = contract
-  -- TODO: handle when there's no such contract
+  let Contract {..} = contract
   Log.attr "contract" (symbol <> "/" <> currency) do
     contractId :: Int <-
-      handleResult
-        =<< callWithRetry
-          "fetch_cash_contract_id"
+      maybe (throw "contract not found") pure
+        =<< handleResult
+        =<< RPC.call
+          "fetch_contract_id"
           [ RPC.arg symbol
           , RPC.arg currency
+          , RPC.arg type_
+          , RPC.arg exchange
           ]
     let fromTs :: Int = floor $ utcTimeToPOSIXSeconds from
         toTs :: Int = floor $ utcTimeToPOSIXSeconds to
     timesteps :: [TimeStep (StaticMap BarField FixedScalar)] <-
       handleResult
-        =<< callWithRetry
+        =<< RPC.call
           "fetch_orders_by_minute"
           [ RPC.arg contractId
           , RPC.arg fromTs
           , RPC.arg toTs
+          , RPC.arg exchange
           ]
     pure $ seriesFromList timesteps
 
-callWithRetry
-  :: ( Members [Reader RPC.SessionData, Error String, Logging, Final IO] r
-     , MessagePack a
-     )
-  => RPC.Method
-  -> [Object]
-  -> Sem r (RPC.RemoteResult a)
-callWithRetry method args =
-  RPC.call method args
-    `catch` \(_ :: String) -> do
-      Log.warning @String "RPC communication error; retrying"
-      callWithRetry method args
+-- callWithRetry
+--  :: ( Members [Reader RPC.SessionData, Error String, Logging, Final IO] r
+--     , MessagePack a
+--     )
+--  => RPC.Method
+--  -> [Object]
+--  -> Sem r (RPC.RemoteResult a)
+-- callWithRetry method args =
+--  RPC.call method args
+--    `catch` \(_ :: String) -> do
+--      Log.warning @String "RPC communication error; retrying"
+--      callWithRetry method args
 
-handleResult :: Member (Error String) r => RPC.RemoteResult a -> Sem r a
+handleResult :: Member (Error String) r => RPC.CallResult a -> Sem r a
 handleResult = \case
   Right res -> pure res
-  Left err -> throw $ T.unpack $ "RPC error: " <> RPC.type_ err <> ": " <> RPC.message err
+  Left err -> case err of
+    RPC.RemoteError {..} -> throw $ T.unpack $ "remote " <> type_ <> ": " <> message
+    RPC.MalformedResult err -> throw $ "malformed RPC result: " <> T.unpack err
 
 showMinute :: UTCTime -> String
 showMinute =

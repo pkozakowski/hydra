@@ -2,8 +2,6 @@
 
 module Command.Sync where
 
-import Control.Concurrent
-import Control.Concurrent.STM
 import Control.Monad
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
@@ -78,7 +76,7 @@ fetchBatch dbPath period baseAsset from to assets = forM_ assets \asset -> do
     putStr "\r\ESC[K" -- move to start of the line and erase everything to the right
     putStr $ show asset <> "/" <> show baseAsset <> " @ " <> showMinute to <> "  "
     hFlush stdout
-  void $ runPriceSpreadFeed dbPath baseAsset $ runTimeIOFinal $ between1_ asset period from to
+  runPriceSpreadFeed dbPath baseAsset $ runTimeIOFinal $ between1_ asset period from to
 
 showMinute :: UTCTime -> String
 showMinute (UTCTime d t) = show d <> " " <> show0 h <> ":" <> show0 m <> " UTC"

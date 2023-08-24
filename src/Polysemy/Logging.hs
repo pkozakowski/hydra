@@ -2,6 +2,7 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -15,6 +16,7 @@ module Polysemy.Logging
   , filter
   , info
   , log
+  , onException
   , push
   , warning
   , runLogging
@@ -25,7 +27,7 @@ module Polysemy.Logging
   ) where
 
 import Control.Monad
-import Control.Monad.Catch
+import Control.Monad.Catch hiding (onException)
 import Control.Monad.Logger
 import Data.Composition
 import Data.Functor
@@ -61,6 +63,7 @@ runLogging verbosityLevel action =
         . embedToFinal
         . DiP.runDiToIO di
         $ filter (\logLevel _ _ -> logLevel >= verbosityLevel)
+        $ onException (\e -> Just (Df1.Warning, [], Df1.message $ "exception: " <> show e)) -- FIXME: doesn't work :/
         $ raiseUnder @(Embed IO)
         $ interceptH logCallSite action
   where
@@ -70,7 +73,7 @@ runLogging verbosityLevel action =
       -> Tactical (Error String) (Sem r') (Logging : r) x
     logCallSite = \case
       Throw err -> do
-        warning err
+        error err
         Polysemy.Error.throw err
       Catch try except -> do
         tryT <- runT try
@@ -90,6 +93,14 @@ filter
   -> Sem r a
   -> Sem r a
 filter f = DiP.local $ Di.Core.filter f
+
+onException
+  :: forall r a
+   . Members [Error String, Logging, Final IO] r
+  => (SomeException -> Maybe (Df1.Level, Seq Df1.Path, Df1.Message))
+  -> Sem r a
+  -> Sem r a
+onException f = DiP.local $ Di.Core.onException f
 
 push
   :: Member Logging r

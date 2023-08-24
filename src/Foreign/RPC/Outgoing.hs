@@ -2,12 +2,12 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Foreign.RPC.Outgoing
-  ( CommandArg
+  ( CallError (..)
+  , CallResult (..)
+  , CommandArg
   , Command
   , Method
   , Port
-  , RemoteError (..)
-  , RemoteResult (..)
   , Session
   , SessionData
   , session
@@ -65,7 +65,7 @@ newSession cmd buildCommandArgs = embedFinal do
         { std_out = Inherit
         , std_err = CreatePipe
         }
-  threadDelay 3000000
+  threadDelay 4000000
   return SessionData {..}
 
 closeSession :: Member (Final IO) r => SessionData -> Sem r ()
@@ -109,7 +109,7 @@ call
      )
   => Method
   -> [Object]
-  -> Sem r (RemoteResult a)
+  -> Sem r (CallResult a)
 call method args = asyncToIOFinal $ resourceToIOFinal do
   SessionData {..} <- ask
   let forwardLogs = do
@@ -127,14 +127,21 @@ call method args = asyncToIOFinal $ resourceToIOFinal do
 arg :: MessagePack a => a -> Object
 arg = toObject
 
-data RemoteError = RemoteError {type_ :: Text, message :: Text}
+data CallError
+  = RemoteError {type_ :: Text, message :: Text}
+  | MalformedResult Text
 
-type RemoteResult a = Either RemoteError a
+type CallResult a = Either CallError a
 
-result :: MessagePack a => Object -> RemoteResult a
+result :: MessagePack a => Object -> CallResult a
 result obj = case parse of
   Success x -> x
-  Error err -> error $ "malformed RPC result; error: " <> err <> "; result: " <> show obj
+  Error err ->
+    Left $
+      MalformedResult $
+        T.pack err
+          <> " in "
+          <> T.pack (show obj)
   where
     parse = do
       errObj <- obj .: "error"

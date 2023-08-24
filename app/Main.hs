@@ -9,10 +9,11 @@ import Command.Sync
 import Help
 import Options.Applicative hiding (helper, hsubparser)
 import Options.Applicative qualified as Optparse
-import Polysemy.Error (errorToIOFinal)
+import Polysemy.Error
 import Polysemy.Final
 import Polysemy.Logging (Logging)
 import Polysemy.Logging qualified as Log
+import System.IO (hPutStrLn, stderr)
 
 data Cmd
   = Eval EvalOptions
@@ -83,7 +84,7 @@ dispatch Options {..} = runFinal do
       Sync opts' -> sync opts'
   case unitOrError of
     Right () -> pure ()
-    Left err -> Prelude.error err
+    Left err -> embedFinal $ hPutStrLn stderr $ "error: " <> err
 
 main :: IO ()
 main = dispatch =<< customExecParser (prefs showHelpOnEmpty) opts

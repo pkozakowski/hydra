@@ -14,7 +14,6 @@ from ibkr import to_ibapi, types
 logger = logging.getLogger(__name__)
 
 
-DEFAULT_CASH_EXCHANGE = "IDEALPRO"
 DEFAULT_WAIT = 10
 START_TIMEOUT = 15
 TIMEOUT_MUL = 1.5
@@ -56,34 +55,34 @@ class Dispatcher:
         logger.debug(f"search_symbol -> {len(res)} results")
         return res
 
-    def fetch_cash_contract_id(
+    def fetch_contract_id(
         self,
         symbol: str,
         currency: str,
-        exchange: str = DEFAULT_CASH_EXCHANGE,
+        type: str,
+        exchange: str,
     ) -> int | None:
         logger.debug(
-            f"fetch_cash_contract_id({repr(symbol)}, {repr(currency)}, "
-            f"{repr(exchange)})"
+            f"fetch_contract_id({repr(symbol)}, {repr(currency)}, " f"{repr(exchange)})"
         )
         res = None
         for contract in self.search_symbol(symbol):
             if (
                 contract["symbol"] == symbol
                 and contract["currency"] == currency
-                and contract["type"] == "CASH"
+                and contract["type"] == type
                 and contract["exchange"] == exchange
             ):
                 res = contract["id"]
                 break
-        logger.debug(f"fetch_cash_contract_id -> {repr(res)}")
+        logger.debug(f"fetch_contract_id -> {repr(res)}")
         return res
 
     def fetch_orders_from_day_by_minute(
         self,
         contract_id: int,
         to_timestamp: int,
-        exchange: str = DEFAULT_CASH_EXCHANGE,
+        exchange: str,
     ) -> list[types.TimeStep]:
         logger.debug(
             f"fetch_orders_from_day_by_minute({contract_id}, {to_timestamp}, "
@@ -127,12 +126,12 @@ class Dispatcher:
         contract_id: int,
         from_timestamp: int,
         to_timestamp: int,
-        exchange: str = DEFAULT_CASH_EXCHANGE,
+        exchange: str,
         increment: int = 3 * 3600,
         margin_future: int = DAY,
         margin_past: int = 3 * DAY,
     ) -> list[types.TimeStep]:
-        """Weird and inefficient algorithm to overcome the weirdness of the IBKR API."""
+        """Weird and inefficient algorithm to overcome the unreasonableness of the IBKR API."""
         logger.debug(
             f"fetch_orders_by_minute({contract_id}, {from_timestamp}, {to_timestamp}, "
             f"{repr(exchange)})"
