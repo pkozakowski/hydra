@@ -52,8 +52,8 @@ run options = embedToFinal do
       Dh.input Dh.auto $
         "./" <> pack (strategyConfig options) <> " ./dhall/Market/Strategy/Type"
 
-  mapError @BrokerError show $
-    mapError @MarketError show $
+  mapErrorWithLog @BrokerError show $
+    mapErrorWithLog @MarketError show $
       runBroker broker do
         fees <- estimateFees
         runTimeIO

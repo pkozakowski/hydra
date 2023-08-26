@@ -3,7 +3,7 @@
 module Command.Sync where
 
 import Control.Monad
-import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Static
 import Data.Maybe
@@ -15,12 +15,11 @@ import Market
 import Market.Feed
 import Market.Feed.DB (DBPath)
 import Market.Feed.Dispatch
-import Market.Feed.IBKR
 import Market.Feed.Types
 import Market.Ops
 import Market.Time
 import Numeric.Precision
-import Options.Applicative
+import Options.Applicative hiding (UnexpectedError)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Logging
@@ -52,18 +51,32 @@ sync :: forall r. Members [Error String, Logging, Final IO] r => SyncOptions -> 
 sync SyncOptions {..} = do
   time <- embedFinal getCurrentTime
   let prev t = negate batchDuration `addUTCTime` t
-  forM_ (iterate prev time) \to ->
-    fetchBatch
-      dbPath
-      Minute
-      baseAsset
-      (prev to)
-      to
-      (NonEmpty.fromList $ Asset <$> assets)
+  let it assets to =
+        runErrorWithLog
+          ( fetchBatch
+              dbPath
+              Minute
+              baseAsset
+              (prev to)
+              to
+              assets
+          )
+          >>= \case
+            Left (AssetPairNotFound ap) -> do
+              let asset = numerator ap
+              warning $ "asset " <> show asset <> " not found; continuing without it"
+              maybe
+                (throw "no more assets")
+                pure
+                $ nonEmpty
+                $ NonEmpty.filter (/= asset) assets
+            Left err -> throw $ show err
+            Right _ -> pure assets
+  foldM_ it (NonEmpty.fromList $ Asset <$> assets) $ iterate prev time
   embedFinal $ putStrLn ""
 
 fetchBatch
-  :: Members [Error String, Logging, Final IO] r
+  :: Members [Error FeedError, Logging, Final IO] r
   => DBPath
   -> Period
   -> Asset

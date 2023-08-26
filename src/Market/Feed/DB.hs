@@ -49,7 +49,6 @@ import Market.Time
 import Market.Types hiding (Value)
 import Numeric.Truncatable
 import Polysemy
-import Polysemy.Error
 import Polysemy.Final
 import Polysemy.Logging (Logging)
 import Polysemy.Logging qualified as Log
@@ -92,7 +91,7 @@ runFeedWithDBCacheFixedScalar
   :: forall f r a
    . ( Coercible (Value f) FixedScalar
      , FeedMap f
-     , Members [Error String, Logging, Final IO] r
+     , Members [Logging, Final IO] r
      )
   => DBPath
   -> (forall a. Sem (Feed f : r) a -> Sem r a)
@@ -144,23 +143,23 @@ runFeedWithDBCache
      , Key f ~ Key f'
      , FeedMap f
      , FeedMap f'
-     , Members [Error String, Logging, Final IO] r
+     , Members [Logging, Final IO] r
      )
   => DBPath
   -> (forall a. Sem (Feed f' : r) a -> Sem r a)
   -> Sem (Feed f : r) a
   -> Sem r a
 runFeedWithDBCache dbPath lowerFeed =
-  refeed (\keys -> pure (keys, remap unpersistScalar)) $
+  refeed (remap unpersistScalar) $
     runFeedWithDBCacheFixedScalar dbPath lowerFeed
 
 refeed
   :: forall f f' r a
-   . ( FeedMap f
+   . ( Key f ~ Key f'
+     , FeedMap f
      , FeedMap f'
-     , Members [Error String, Logging, Final IO] r
      )
-  => (NonEmpty (Key f) -> Sem r (NonEmpty (Key f'), f' -> f))
+  => (f' -> f)
   -> (forall a. Sem (Feed f' : r) a -> Sem r a)
   -> Sem (Feed f : r) a
   -> Sem r a
@@ -171,10 +170,9 @@ refeed f lowerFeed = interpret interpreter
       Between1_ key period from to ->
         between1_UsingBetween_ (refeed f lowerFeed) key period from to
       Between_ (keys :: NonEmpty k) period from to -> do
-        (keys', contra) <- f keys
-        mapFeedSeries_ contra $
+        mapFeedSeries_ f $
           lowerFeed $
-            between_ @f' keys' period from to
+            between_ @f' keys period from to
 
 unpersistScalar :: forall a b. (Coercible a FixedScalar, Coercible Scalar b) => a -> b
 unpersistScalar = coerce . fixedToFraction . coerce @a @FixedScalar
@@ -194,7 +192,7 @@ mapFeedSeries_
 mapFeedSeries_ = fmap . fmap . fmap
 
 selectBatchRange
-  :: Members [Error String, Logging, Final IO] r
+  :: Members [Logging, Final IO] r
   => DBPath
   -> ResourceType
   -> [ResourceKey]
@@ -267,7 +265,7 @@ runFeedForBatches
   :: forall f r a
    . ( FeedMap f
      , Coercible (Value f) PersistScalar
-     , Members [Error String, Final IO] r
+     , Member (Final IO) r
      )
   => (forall a. Sem (Feed f : r) a -> Sem r a)
   -> Period
@@ -284,7 +282,7 @@ runFeedForBatch
   :: forall f r a
    . ( FeedMap f
      , Coercible (Value f) PersistScalar
-     , Members [Error String, Final IO] r
+     , Member (Final IO) r
      )
   => (forall a. Sem (Feed f : r) a -> Sem r a)
   -> Period
@@ -327,7 +325,7 @@ runFeedForBatch lowerFeed period (batchstamp, keys) =
     extractKey key = mapMaybe (\(moment, map) -> (moment,) <$> lookup (read key) map)
 
 upsertBatches
-  :: Members [Error String, Logging, Final IO] r
+  :: Members [Logging, Final IO] r
   => DBPath
   -> [FeedBatch]
   -> Sem r ()

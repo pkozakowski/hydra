@@ -2,7 +2,6 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE InstanceSigs #-}
-{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -16,7 +15,9 @@ module Polysemy.Logging
   , filter
   , info
   , log
+  , mapErrorWithLog
   , onException
+  , runErrorWithLog
   , push
   , warning
   , runLogging
@@ -30,6 +31,7 @@ import Control.Monad
 import Control.Monad.Catch hiding (onException)
 import Control.Monad.Logger
 import Data.Composition
+import Data.Data
 import Data.Functor
 import Data.Sequence (Seq)
 import Data.String
@@ -63,17 +65,46 @@ runLogging verbosityLevel action =
         . embedToFinal
         . DiP.runDiToIO di
         $ filter (\logLevel _ _ -> logLevel >= verbosityLevel)
-        $ onException (\e -> Just (Df1.Warning, [], Df1.message $ "exception: " <> show e)) -- FIXME: doesn't work :/
         $ raiseUnder @(Embed IO)
-        $ interceptH logCallSite action
+        $ logCallSite' id action
+
+mapErrorWithLog
+  :: forall e e' r a
+   . (Show e, Typeable e, Members [Error e', Logging, Final IO] r)
+  => (e -> e')
+  -> Sem (Error e : r) a
+  -> Sem r a
+mapErrorWithLog f action = runErrorWithLog action >>= either (throw . f) pure
+
+runErrorWithLog
+  :: forall e r a
+   . (Show e, Typeable e, Members [Logging, Final IO] r)
+  => Sem (Error e : r) a
+  -> Sem r (Either e a)
+runErrorWithLog = errorToIOFinal . logCallSite @e
+
+logCallSite
+  :: forall e r a
+   . (Show e, Members [Error e, Logging, Final IO] r)
+  => Sem r a
+  -> Sem r a
+logCallSite = logCallSite' @e show
+
+logCallSite'
+  :: forall e r a
+   . Members [Error e, Logging, Final IO] r
+  => (e -> String)
+  -> Sem r a
+  -> Sem r a
+logCallSite' toStr = interceptH interpreter
   where
-    logCallSite
+    interpreter
       :: forall x r'
-       . Error String (Sem r') x
-      -> Tactical (Error String) (Sem r') (Logging : r) x
-    logCallSite = \case
+       . Error e (Sem r') x
+      -> Tactical (Error e) (Sem r') r x
+    interpreter = \case
       Throw err -> do
-        error err
+        error $ toStr err
         Polysemy.Error.throw err
       Catch try except -> do
         tryT <- runT try
@@ -88,7 +119,7 @@ runLogging verbosityLevel action =
 
 filter
   :: forall r a
-   . Members [Error String, Logging, Final IO] r
+   . Members [Logging, Final IO] r
   => (Df1.Level -> Seq Df1.Path -> Df1.Message -> Bool)
   -> Sem r a
   -> Sem r a
@@ -96,7 +127,7 @@ filter f = DiP.local $ Di.Core.filter f
 
 onException
   :: forall r a
-   . Members [Error String, Logging, Final IO] r
+   . Members [Logging, Final IO] r
   => (SomeException -> Maybe (Df1.Level, Seq Df1.Path, Df1.Message))
   -> Sem r a
   -> Sem r a

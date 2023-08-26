@@ -8,6 +8,7 @@ module Market.Feed.IBKR
   , ContractBarField (..)
   , ContractType (..)
   , Exchange (..)
+  , IBKRError (..)
   , allBarFields
   , runFeedIBKR
   ) where
@@ -91,9 +92,12 @@ data Contract = Contract
 data ContractBarField = ContractBarField {contract :: Contract, barField :: BarField}
   deriving (Show, Read, Eq, Ord)
 
+data IBKRError = ContractNotFound Contract | InvalidPeriod Period | UnexpectedError String
+  deriving (Show)
+
 runFeedIBKR
   :: forall r a
-   . Members [Error String, Logging, Final IO] r
+   . Members [Error IBKRError, Logging, Final IO] r
   => Sem (Feed (StaticMap ContractBarField FixedScalar) : r) a
   -> Sem r a
 runFeedIBKR = interpret \case
@@ -114,7 +118,7 @@ runFeedIBKR = interpret \case
                 ]
             )
             do
-              when (period /= Minute) $ throw "runFeedIBKR only works on minute periods"
+              when (period /= Minute) $ throw $ InvalidPeriod period
               let groups = NonEmpty.groupBy ((==) `on` contract) keys
                   contracts = contract . NonEmpty.head <$> groups
               contractToMaybeSeries
@@ -137,7 +141,7 @@ runFeedIBKR = interpret \case
 
 betweenForContract
   :: forall r
-   . Members [RPC.Session, Error String, Logging, Final IO] r
+   . Members [RPC.Session, Error IBKRError, Logging, Final IO] r
   => Contract
   -> UTCTime
   -> UTCTime
@@ -145,28 +149,32 @@ betweenForContract
 betweenForContract contract from to = do
   let Contract {..} = contract
   Log.attr "contract" (symbol <> "/" <> currency) do
-    contractId :: Int <-
-      maybe (throw "contract not found") pure
-        =<< handleResult
-        =<< RPC.call
-          "fetch_contract_id"
-          [ RPC.arg symbol
-          , RPC.arg currency
-          , RPC.arg type_
-          , RPC.arg exchange
-          ]
-    let fromTs :: Int = floor $ utcTimeToPOSIXSeconds from
-        toTs :: Int = floor $ utcTimeToPOSIXSeconds to
-    timesteps :: [TimeStep (StaticMap BarField FixedScalar)] <-
-      handleResult
-        =<< RPC.call
-          "fetch_orders_by_minute"
-          [ RPC.arg contractId
-          , RPC.arg fromTs
-          , RPC.arg toTs
-          , RPC.arg exchange
-          ]
-    pure $ seriesFromList timesteps
+    maybeContractId :: Maybe Int <-
+      Log.mapErrorWithLog UnexpectedError $
+        handleResult
+          =<< RPC.call
+            "fetch_contract_id"
+            [ RPC.arg symbol
+            , RPC.arg currency
+            , RPC.arg type_
+            , RPC.arg exchange
+            ]
+    case maybeContractId of
+      Just contractId -> do
+        let fromTs :: Int = floor $ utcTimeToPOSIXSeconds from
+            toTs :: Int = floor $ utcTimeToPOSIXSeconds to
+        timesteps :: [TimeStep (StaticMap BarField FixedScalar)] <-
+          Log.mapErrorWithLog UnexpectedError $
+            handleResult
+              =<< RPC.call
+                "fetch_orders_by_minute"
+                [ RPC.arg contractId
+                , RPC.arg fromTs
+                , RPC.arg toTs
+                , RPC.arg exchange
+                ]
+        pure $ seriesFromList timesteps
+      Nothing -> throw $ ContractNotFound contract
 
 -- callWithRetry
 --  :: ( Members [Reader RPC.SessionData, Error String, Logging, Final IO] r

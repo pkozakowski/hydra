@@ -63,7 +63,8 @@ class Dispatcher:
         exchange: str,
     ) -> int | None:
         logger.debug(
-            f"fetch_contract_id({repr(symbol)}, {repr(currency)}, " f"{repr(exchange)})"
+            f"fetch_contract_id({repr(symbol)}, {repr(currency)}, "
+            f"{repr(type)}, {repr(exchange)})"
         )
         res = None
         for contract in self.search_symbol(symbol):
@@ -127,9 +128,9 @@ class Dispatcher:
         from_timestamp: int,
         to_timestamp: int,
         exchange: str,
-        increment: int = 3 * 3600,
+        increment: int = 6 * 3600,
         margin_future: int = DAY,
-        margin_past: int = 3 * DAY,
+        margin_past: int = 4 * DAY,
     ) -> list[types.TimeStep]:
         """Weird and inefficient algorithm to overcome the unreasonableness of the IBKR API."""
         logger.debug(
